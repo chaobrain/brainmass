@@ -22,11 +22,11 @@ from ._typing import Initializer
 from .noise import Noise
 
 __all__ = [
-    'KuramotoModel',
+    'KuramotoNetwork',
 ]
 
 
-class KuramotoModel(brainstate.nn.Dynamics):
+class KuramotoNetwork(brainstate.nn.Dynamics):
     r"""Kuramoto phase oscillator network (with optional phase lag).
 
     Implements the (Sakaguchi–)Kuramoto model for a population of coupled

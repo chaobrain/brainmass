@@ -81,6 +81,39 @@ Example (Wilson–Cowan):
    wc.init_state()
    brainstate.transform.for_loop(lambda i: wc.update(rE_inp=0.2, rI_inp=0.1), jnp.arange(100))  # simulate 100 steps
 
+
+
+
+Phenomenological models
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Phenomenological models capture generic dynamical behaviors like oscillations or excitability
+without direct physiological interpretation. They are useful for studying synchronization,
+bifurcations, and other dynamical phenomena.
+
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+   :template: classtemplate.rst
+
+    ThresholdLinearModel
+    HopfOscillator
+    VanDerPolOscillator
+    StuartLandauOscillator
+    KuramotoNetwork
+    FitzHughNagumoModel
+
+
+
+Physiological models
+^^^^^^^^^^^^^^^^^^^^
+
+
+Physiological models incorporate biophysical details of neural populations, such as
+synaptic dynamics, membrane potentials, and ionic currents. They are suitable for
+simulating realistic neural activity and linking to empirical data.
+
 .. autosummary::
    :toctree: generated/
    :nosignatures:
@@ -89,13 +122,7 @@ Example (Wilson–Cowan):
     JansenRitModel
     WilsonCowanModel
     WongWangModel
-    FitzHughNagumoModel
-    ThresholdLinearModel
-    KuramotoModel
     QIFModel
-    HopfOscillator
-    VanDerPolOscillator
-    StuartLandauOscillator
 
 
 
