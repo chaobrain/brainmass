@@ -18,6 +18,7 @@ import brainunit as u
 import jax.numpy as jnp
 
 import brainmass
+import braintools
 
 
 class TestQIFModel:
@@ -48,8 +49,8 @@ class TestQIFModel:
     def test_state_initialization_and_reset(self):
         m = brainmass.QIF(
             in_size=4,
-            init_r=brainstate.init.ZeroInit(),
-            init_v=brainstate.init.ZeroInit(),
+            init_r=braintools.init.ZeroInit(),
+            init_v=braintools.init.ZeroInit(),
         )
 
         # init without batch
@@ -93,8 +94,8 @@ class TestQIFModel:
     def test_update_single_step_changes_state(self):
         m = brainmass.QIF(
             in_size=2,
-            init_r=brainstate.init.ZeroInit(unit=u.Hz),
-            init_v=brainstate.init.ZeroInit(),
+            init_r=braintools.init.ZeroInit(unit=u.Hz),
+            init_v=braintools.init.ZeroInit(),
         )
         m.init_state()
 
@@ -114,8 +115,8 @@ class TestQIFModel:
         sz = (2, 3)
         m = brainmass.QIF(
             in_size=sz,
-            init_r=brainstate.init.ZeroInit(unit=u.Hz),
-            init_v=brainstate.init.ZeroInit(),
+            init_r=braintools.init.ZeroInit(unit=u.Hz),
+            init_v=braintools.init.ZeroInit(),
         )
         m.init_state(batch_size=4)
 

@@ -65,10 +65,10 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
         is called at each update and added to ``w_inp``. Default is ``None``.
     init_V : Callable, optional
         Initializer for the activator state ``V``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     init_w : Callable, optional
         Initializer for the recovery state ``w``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     method: str
         The integration method to use. Either 'exp_euler' for exponential
         Euler (default) or any method supported by ``braintools.quad``, e.g.
@@ -116,19 +116,19 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
         noise_w: Noise = None,
 
         # other parameters
-        init_V: Callable = brainstate.init.Uniform(0, 0.05),
-        init_w: Callable = brainstate.init.Uniform(0, 0.05),
+        init_V: Callable = braintools.init.Uniform(0, 0.05),
+        init_w: Callable = braintools.init.Uniform(0, 0.05),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size=in_size)
 
         # model parameters
-        self.alpha = brainstate.init.param(alpha, self.varshape)
-        self.beta = brainstate.init.param(beta, self.varshape)
-        self.gamma = brainstate.init.param(gamma, self.varshape)
-        self.delta = brainstate.init.param(delta, self.varshape)
-        self.epsilon = brainstate.init.param(epsilon, self.varshape)
-        self.tau = brainstate.init.param(tau, self.varshape)
+        self.alpha = braintools.init.param(alpha, self.varshape)
+        self.beta = braintools.init.param(beta, self.varshape)
+        self.gamma = braintools.init.param(gamma, self.varshape)
+        self.delta = braintools.init.param(delta, self.varshape)
+        self.epsilon = braintools.init.param(epsilon, self.varshape)
+        self.tau = braintools.init.param(tau, self.varshape)
 
         # initializers
         assert isinstance(noise_V, Noise) or noise_V is None, "noise_V must be a Noise instance or None."
@@ -150,8 +150,8 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.V = brainstate.HiddenState(brainstate.init.param(self.init_V, self.varshape, batch_size))
-        self.w = brainstate.HiddenState(brainstate.init.param(self.init_w, self.varshape, batch_size))
+        self.V = brainstate.HiddenState(braintools.init.param(self.init_V, self.varshape, batch_size))
+        self.w = brainstate.HiddenState(braintools.init.param(self.init_w, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
         """Reset model states ``V`` and ``w`` using the initializers.
@@ -162,8 +162,8 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
             Optional batch dimension for reinitialization. If ``None``, keeps
             current batch shape but resets values. Default is ``None``.
         """
-        self.V.value = brainstate.init.param(self.init_V, self.varshape, batch_size)
-        self.w.value = brainstate.init.param(self.init_w, self.varshape, batch_size)
+        self.V.value = braintools.init.param(self.init_V, self.varshape, batch_size)
+        self.w.value = braintools.init.param(self.init_w, self.varshape, batch_size)
 
     def dV(self, V, w, inp):
         """Right-hand side for the activator variable ``V``.

@@ -82,10 +82,10 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Initializer for the excitatory state ``rE``. Default is
-        ``brainstate.init.ZeroInit()``.
+        ``braintools.init.ZeroInit()``.
     rI_init : Callable, optional
         Initializer for the inhibitory state ``rI``. Default is
-        ``brainstate.init.ZeroInit()``.
+        ``braintools.init.ZeroInit()``.
     method: str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -155,23 +155,23 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         noise_I: Noise = None,  # inhibitory noise process
 
         # initialization
-        rE_init: Callable = brainstate.init.ZeroInit(),
-        rI_init: Callable = brainstate.init.ZeroInit(),
+        rE_init: Callable = braintools.init.ZeroInit(),
+        rI_init: Callable = braintools.init.ZeroInit(),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size=in_size)
 
-        self.a_E = brainstate.init.param(a_E, self.varshape)
-        self.a_I = brainstate.init.param(a_I, self.varshape)
-        self.tau_E = brainstate.init.param(tau_E, self.varshape)
-        self.tau_I = brainstate.init.param(tau_I, self.varshape)
-        self.theta_E = brainstate.init.param(theta_E, self.varshape)
-        self.theta_I = brainstate.init.param(theta_I, self.varshape)
-        self.wEE = brainstate.init.param(wEE, self.varshape)
-        self.wIE = brainstate.init.param(wIE, self.varshape)
-        self.wEI = brainstate.init.param(wEI, self.varshape)
-        self.wII = brainstate.init.param(wII, self.varshape)
-        self.r = brainstate.init.param(r, self.varshape)
+        self.a_E = braintools.init.param(a_E, self.varshape)
+        self.a_I = braintools.init.param(a_I, self.varshape)
+        self.tau_E = braintools.init.param(tau_E, self.varshape)
+        self.tau_I = braintools.init.param(tau_I, self.varshape)
+        self.theta_E = braintools.init.param(theta_E, self.varshape)
+        self.theta_I = braintools.init.param(theta_I, self.varshape)
+        self.wEE = braintools.init.param(wEE, self.varshape)
+        self.wIE = braintools.init.param(wIE, self.varshape)
+        self.wEI = braintools.init.param(wEI, self.varshape)
+        self.wII = braintools.init.param(wII, self.varshape)
+        self.r = braintools.init.param(r, self.varshape)
         self.noise_E = noise_E
         self.noise_I = noise_I
         assert isinstance(noise_I, Noise) or noise_I is None, "noise_I must be an OUProcess or None"
@@ -181,12 +181,12 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
-        self.rE = brainstate.HiddenState(brainstate.init.param(self.rE_init, self.varshape, batch_size))
-        self.rI = brainstate.HiddenState(brainstate.init.param(self.rI_init, self.varshape, batch_size))
+        self.rE = brainstate.HiddenState(braintools.init.param(self.rE_init, self.varshape, batch_size))
+        self.rI = brainstate.HiddenState(braintools.init.param(self.rI_init, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
-        self.rE.value = brainstate.init.param(self.rE_init, self.varshape, batch_size)
-        self.rI.value = brainstate.init.param(self.rI_init, self.varshape, batch_size)
+        self.rE.value = braintools.init.param(self.rE_init, self.varshape, batch_size)
+        self.rI.value = braintools.init.param(self.rI_init, self.varshape, batch_size)
 
     def F(self, x, a, theta):
         """Sigmoidal transfer function.

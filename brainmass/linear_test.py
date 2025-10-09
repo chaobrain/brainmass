@@ -17,6 +17,7 @@ import brainstate
 import brainunit as u
 import jax.numpy as jnp
 
+import braintools
 import brainmass
 
 
@@ -34,8 +35,8 @@ class TestThresholdLinearModel:
     def test_state_initialization_and_reset(self):
         m = brainmass.ThresholdLinearModel(
             in_size=4,
-            init_E=brainstate.init.ZeroInit(),
-            init_I=brainstate.init.ZeroInit(),
+            init_E=braintools.init.ZeroInit(),
+            init_I=braintools.init.ZeroInit(),
         )
         m.init_state()
         assert m.E.value.shape == (4,)
@@ -60,8 +61,8 @@ class TestThresholdLinearModel:
     def test_update_basic_and_nonnegativity(self):
         m = brainmass.ThresholdLinearModel(
             in_size=2,
-            init_E=brainstate.init.ZeroInit(),
-            init_I=brainstate.init.ZeroInit(),
+            init_E=braintools.init.ZeroInit(),
+            init_I=braintools.init.ZeroInit(),
         )
         m.init_state()
 
@@ -85,14 +86,14 @@ class TestThresholdLinearModel:
         m1 = brainmass.ThresholdLinearModel(
             in_size=1,
             beta_E=0.05,
-            init_E=brainstate.init.ZeroInit(),
-            init_I=brainstate.init.ZeroInit(),
+            init_E=braintools.init.ZeroInit(),
+            init_I=braintools.init.ZeroInit(),
         )
         m2 = brainmass.ThresholdLinearModel(
             in_size=1,
             beta_E=0.20,
-            init_E=brainstate.init.ZeroInit(),
-            init_I=brainstate.init.ZeroInit(),
+            init_E=braintools.init.ZeroInit(),
+            init_I=braintools.init.ZeroInit(),
         )
         m1.init_state()
         m2.init_state()
@@ -105,8 +106,8 @@ class TestThresholdLinearModel:
         sz = (2, 3)
         m = brainmass.ThresholdLinearModel(
             in_size=sz,
-            init_E=brainstate.init.ZeroInit(),
-            init_I=brainstate.init.ZeroInit(),
+            init_E=braintools.init.ZeroInit(),
+            init_I=braintools.init.ZeroInit(),
         )
         m.init_state(batch_size=4)
         with brainstate.environ.context(dt=0.1 * u.ms):

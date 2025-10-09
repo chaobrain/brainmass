@@ -17,6 +17,7 @@
 from typing import Callable
 
 import brainstate
+import braintools
 import brainunit as u
 
 from ._common import XY_Oscillator
@@ -103,8 +104,8 @@ class HopfOscillator(XY_Oscillator):
         noise_y: Noise = None,
 
         # initialization
-        init_x: Callable = brainstate.init.ZeroInit(),
-        init_y: Callable = brainstate.init.ZeroInit(),
+        init_x: Callable = braintools.init.ZeroInit(),
+        init_y: Callable = braintools.init.ZeroInit(),
         method: str = 'exp_euler',
     ):
         super().__init__(
@@ -116,10 +117,10 @@ class HopfOscillator(XY_Oscillator):
             method=method,
         )
 
-        self.a = brainstate.init.param(a, self.varshape)
-        self.w = brainstate.init.param(w, self.varshape)
-        self.K_gl = brainstate.init.param(K_gl, self.varshape)
-        self.beta = brainstate.init.param(beta, self.varshape)
+        self.a = braintools.init.param(a, self.varshape)
+        self.w = braintools.init.param(w, self.varshape)
+        self.K_gl = braintools.init.param(K_gl, self.varshape)
+        self.beta = braintools.init.param(beta, self.varshape)
 
     def dx(self, x, y, inp):
         """Right-hand side for ``x``.

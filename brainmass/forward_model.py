@@ -102,15 +102,15 @@ class BOLDSignal(brainstate.nn.Dynamics):
         tau: Initializer = 0.98,
         rho: Initializer = 0.34,
         V0: float = 0.02,
-        init: Callable = brainstate.init.Constant(1.),
+        init: Callable = braintools.init.Constant(1.),
     ):
         super().__init__(in_size)
 
-        self.gamma = brainstate.init.param(gamma, self.varshape)
-        self.k = brainstate.init.param(k, self.varshape)
-        self.alpha = brainstate.init.param(alpha, self.varshape)
-        self.tau = brainstate.init.param(tau, self.varshape)
-        self.rho = brainstate.init.param(rho, self.varshape)
+        self.gamma = braintools.init.param(gamma, self.varshape)
+        self.k = braintools.init.param(k, self.varshape)
+        self.alpha = braintools.init.param(alpha, self.varshape)
+        self.tau = braintools.init.param(tau, self.varshape)
+        self.rho = braintools.init.param(rho, self.varshape)
 
         self.V0 = V0
         self.k1 = 7 * self.rho
@@ -120,16 +120,16 @@ class BOLDSignal(brainstate.nn.Dynamics):
         self.init = init
 
     def init_state(self, batch_size=None, **kwargs):
-        self.x = brainstate.HiddenState(brainstate.init.param(self.init, self.varshape, batch_size))
-        self.f = brainstate.HiddenState(brainstate.init.param(self.init, self.varshape, batch_size))
-        self.v = brainstate.HiddenState(brainstate.init.param(self.init, self.varshape, batch_size))
-        self.q = brainstate.HiddenState(brainstate.init.param(self.init, self.varshape, batch_size))
+        self.x = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
+        self.f = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
+        self.v = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
+        self.q = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
-        self.x.value = brainstate.init.param(self.init, self.varshape, batch_size)
-        self.f.value = brainstate.init.param(self.init, self.varshape, batch_size)
-        self.v.value = brainstate.init.param(self.init, self.varshape, batch_size)
-        self.q.value = brainstate.init.param(self.init, self.varshape, batch_size)
+        self.x.value = braintools.init.param(self.init, self.varshape, batch_size)
+        self.f.value = braintools.init.param(self.init, self.varshape, batch_size)
+        self.v.value = braintools.init.param(self.init, self.varshape, batch_size)
+        self.q.value = braintools.init.param(self.init, self.varshape, batch_size)
 
     def derivative(self, y, t, z):
         x, f, v, q = y
@@ -283,8 +283,8 @@ class LeadFieldModel(brainstate.nn.Module):
         self.in_size = in_size
         self.out_size = out_size
 
-        self.L = brainstate.init.param(L, (self.in_size[-1], self.out_size[-1]))
-        self.noise_cov = brainstate.init.param(noise_cov, (self.out_size[-1], self.out_size[-1]), allow_none=True)
+        self.L = braintools.init.param(L, (self.in_size[-1], self.out_size[-1]))
+        self.noise_cov = braintools.init.param(noise_cov, (self.out_size[-1], self.out_size[-1]), allow_none=True)
         self.sensor_unit = sensor_unit
         self.dipole_unit = dipole_unit
         if scale is None:

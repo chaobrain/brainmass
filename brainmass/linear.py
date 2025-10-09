@@ -15,6 +15,7 @@
 
 from typing import Callable
 
+import braintools
 import brainstate
 import brainunit as u
 
@@ -62,10 +63,10 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
         Inhibitory gain (dimensionless). Default is ``0.351``.
     init_E : Callable, optional
         Initializer for the excitatory rate state ``E``. Default is
-        ``brainstate.init.ZeroInit()``.
+        ``braintools.init.ZeroInit()``.
     init_I : Callable, optional
         Initializer for the inhibitory rate state ``I``. Default is
-        ``brainstate.init.ZeroInit()``.
+        ``braintools.init.ZeroInit()``.
     noise_E : Noise or None, optional
         Additive noise process for the E population. If provided, called each
         update and added to ``E_inp``. Default is ``None``.
@@ -103,18 +104,18 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
         tau_I: Initializer = 1e-2 * u.second,
         beta_E: Initializer = .066,
         beta_I: Initializer = .351,
-        init_E: Callable = brainstate.init.ZeroInit(),
-        init_I: Callable = brainstate.init.ZeroInit(),
+        init_E: Callable = braintools.init.ZeroInit(),
+        init_I: Callable = braintools.init.ZeroInit(),
         noise_E: Noise = None,
         noise_I: Noise = None,
     ):
         super().__init__(in_size)
 
         # parameters
-        self.tau_E = brainstate.init.param(tau_E, self.varshape)
-        self.tau_I = brainstate.init.param(tau_I, self.varshape)
-        self.beta_E = brainstate.init.param(beta_E, self.varshape)
-        self.beta_I = brainstate.init.param(beta_I, self.varshape)
+        self.tau_E = braintools.init.param(tau_E, self.varshape)
+        self.tau_I = braintools.init.param(tau_I, self.varshape)
+        self.beta_E = braintools.init.param(beta_E, self.varshape)
+        self.beta_I = braintools.init.param(beta_I, self.varshape)
 
         # initializers and noise processes
         assert callable(init_E), "init_E must be a callable function"
@@ -135,8 +136,8 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.E = brainstate.HiddenState(brainstate.init.param(self.init_E, self.varshape, batch_size))
-        self.I = brainstate.HiddenState(brainstate.init.param(self.init_I, self.varshape, batch_size))
+        self.E = brainstate.HiddenState(braintools.init.param(self.init_E, self.varshape, batch_size))
+        self.I = brainstate.HiddenState(braintools.init.param(self.init_I, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
         """Reset E and I states using the configured initializers.
@@ -147,8 +148,8 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
             Optional batch dimension for reinitialization. If ``None``, keeps
             current batch shape but resets values. Default is ``None``.
         """
-        self.E.value = brainstate.init.param(self.init_E, self.varshape, batch_size)
-        self.I.value = brainstate.init.param(self.init_I, self.varshape, batch_size)
+        self.E.value = braintools.init.param(self.init_E, self.varshape, batch_size)
+        self.I.value = braintools.init.param(self.init_I, self.varshape, batch_size)
 
     def update(self, E_inp=None, I_inp=None):
         """Advance the system by one time step.

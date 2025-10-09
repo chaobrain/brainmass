@@ -36,8 +36,8 @@ class XY_Oscillator(brainstate.nn.Dynamics):
         noise_y: Noise = None,
 
         # other parameters
-        init_x: Callable = brainstate.init.Uniform(0, 0.05),
-        init_y: Callable = brainstate.init.Uniform(0, 0.05),
+        init_x: Callable = braintools.init.Uniform(0, 0.05),
+        init_y: Callable = braintools.init.Uniform(0, 0.05),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size)
@@ -62,8 +62,8 @@ class XY_Oscillator(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.x = brainstate.HiddenState(brainstate.init.param(self.init_x, self.varshape, batch_size))
-        self.y = brainstate.HiddenState(brainstate.init.param(self.init_y, self.varshape, batch_size))
+        self.x = brainstate.HiddenState(braintools.init.param(self.init_x, self.varshape, batch_size))
+        self.y = brainstate.HiddenState(braintools.init.param(self.init_y, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
         """Reset model states ``x`` and ``y`` using the initializers.
@@ -74,8 +74,8 @@ class XY_Oscillator(brainstate.nn.Dynamics):
             Optional batch dimension for reinitialization. If ``None``, keeps
             current batch shape but resets values. Default is ``None``.
         """
-        self.x.value = brainstate.init.param(self.init_x, self.varshape, batch_size)
-        self.y.value = brainstate.init.param(self.init_y, self.varshape, batch_size)
+        self.x.value = braintools.init.param(self.init_x, self.varshape, batch_size)
+        self.y.value = braintools.init.param(self.init_y, self.varshape, batch_size)
 
     def dx(self, x, y, x_ext):
         raise NotImplementedError

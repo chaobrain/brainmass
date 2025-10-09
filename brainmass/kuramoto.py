@@ -15,6 +15,7 @@
 
 from typing import Callable, Optional
 
+import braintools
 import brainstate
 import brainunit as u
 
@@ -72,7 +73,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         is added to ``theta_inp`` each update. Default is ``None``.
     init_theta : Callable, optional
         Initializer for the phase state ``theta`` (dimensionless, radians).
-        Default is ``brainstate.init.Uniform(0.0, 2 * u.math.pi)``.
+        Default is ``braintools.init.Uniform(0.0, 2 * u.math.pi)``.
 
     Attributes
     ----------
@@ -112,14 +113,14 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         exclude_self: bool = True,
 
         noise_theta: Noise = None,
-        init_theta: Callable = brainstate.init.Uniform(0.0, 2.0 * u.math.pi),
+        init_theta: Callable = braintools.init.Uniform(0.0, 2.0 * u.math.pi),
     ):
         super().__init__(in_size=in_size)
 
         # parameters
-        self.omega = brainstate.init.param(omega, self.varshape)
-        self.K = brainstate.init.param(K, self.varshape)
-        self.alpha = brainstate.init.param(alpha, self.varshape)
+        self.omega = braintools.init.param(omega, self.varshape)
+        self.K = braintools.init.param(K, self.varshape)
+        self.alpha = braintools.init.param(alpha, self.varshape)
 
         # coupling configuration
         self.conn = None if conn is None else u.math.asarray(conn)
@@ -143,7 +144,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
             used. Default is ``None``.
         """
         self.theta = brainstate.HiddenState(
-            brainstate.init.param(self.init_theta, self.varshape, batch_size)
+            braintools.init.param(self.init_theta, self.varshape, batch_size)
         )
 
     def reset_state(self, batch_size=None, **kwargs):
@@ -155,7 +156,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
             Optional batch dimension for reinitialization. If ``None``, keeps
             current batch shape but resets values. Default is ``None``.
         """
-        self.theta.value = brainstate.init.param(self.init_theta, self.varshape, batch_size)
+        self.theta.value = braintools.init.param(self.init_theta, self.varshape, batch_size)
 
     def _pairwise_coupling(self, theta):
         """Compute coupling term for each oscillator.

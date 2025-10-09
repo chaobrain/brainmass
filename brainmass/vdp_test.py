@@ -15,6 +15,7 @@
 
 import jax.numpy as jnp
 
+import braintools
 import brainstate
 import brainunit as u
 
@@ -37,8 +38,8 @@ class TestVanDerPolOscillator:
         ny = brainmass.OUProcess(4, sigma=0.0)
         m = brainmass.VanDerPolOscillator(
             in_size=4,
-            init_x=brainstate.init.ZeroInit(),
-            init_y=brainstate.init.ZeroInit(),
+            init_x=braintools.init.ZeroInit(),
+            init_y=braintools.init.ZeroInit(),
             noise_x=nx,
             noise_y=ny,
         )
@@ -81,8 +82,8 @@ class TestVanDerPolOscillator:
         ny = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.VanDerPolOscillator(
             in_size=2,
-            init_x=brainstate.init.ZeroInit(),
-            init_y=brainstate.init.ZeroInit(),
+            init_x=braintools.init.ZeroInit(),
+            init_y=braintools.init.ZeroInit(),
             noise_x=nx,
             noise_y=ny,
             mu=1.0,
@@ -103,8 +104,8 @@ class TestVanDerPolOscillator:
         ny = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.VanDerPolOscillator(
             in_size=2,
-            init_x=brainstate.init.ZeroInit(),
-            init_y=brainstate.init.ZeroInit(),
+            init_x=braintools.init.ZeroInit(),
+            init_y=braintools.init.ZeroInit(),
             noise_x=nx,
             noise_y=ny,
             mu=1.0,

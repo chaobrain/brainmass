@@ -17,6 +17,7 @@ import brainstate
 import brainunit as u
 import jax.numpy as jnp
 
+import braintools
 import brainmass
 
 
@@ -41,8 +42,8 @@ class TestFitzHughNagumoModel:
         nW = brainmass.OUProcess(4, sigma=0.0)
         m = brainmass.FitzHughNagumoModel(
             in_size=4,
-            init_V=brainstate.init.ZeroInit(),
-            init_w=brainstate.init.ZeroInit(),
+            init_V=braintools.init.ZeroInit(),
+            init_w=braintools.init.ZeroInit(),
             noise_V=nV,
             noise_w=nW,
         )
@@ -91,8 +92,8 @@ class TestFitzHughNagumoModel:
         nW = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.FitzHughNagumoModel(
             in_size=2,
-            init_V=brainstate.init.ZeroInit(),
-            init_w=brainstate.init.ZeroInit(),
+            init_V=braintools.init.ZeroInit(),
+            init_w=braintools.init.ZeroInit(),
             noise_V=nV,
             noise_w=nW,
         )
@@ -116,8 +117,8 @@ class TestFitzHughNagumoModel:
         nW = brainmass.OUProcess(n, sigma=0.0)
         m = brainmass.FitzHughNagumoModel(
             in_size=n,
-            init_V=brainstate.init.ZeroInit(),
-            init_w=brainstate.init.ZeroInit(),
+            init_V=braintools.init.ZeroInit(),
+            init_w=braintools.init.ZeroInit(),
             noise_V=nV,
             noise_w=nW,
         )
