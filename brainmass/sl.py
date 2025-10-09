@@ -15,6 +15,7 @@
 
 from typing import Callable
 
+import braintools
 import brainstate
 import brainunit as u
 

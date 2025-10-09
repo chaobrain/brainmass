@@ -16,12 +16,12 @@
 from typing import Optional, Union, Callable
 
 import brainstate
+import braintools
 import brainunit as u
 import jax
 import jax.numpy as jnp
 
 from ._typing import Initializer
-import braintools
 
 Array = jax.Array
 Quantity = u.Quantity
