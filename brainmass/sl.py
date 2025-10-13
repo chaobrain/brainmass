@@ -15,6 +15,7 @@
 
 from typing import Callable
 
+import braintools
 import brainstate
 import brainunit as u
 
@@ -61,10 +62,10 @@ class StuartLandauOscillator(XY_Oscillator):
         each update and added to ``y_inp``. Default is ``None``.
     init_x : Callable, optional
         Initializer for the state ``x``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     init_y : Callable, optional
         Initializer for the state ``y``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     method : str, optional
         Time stepping method. One of ``'exp_euler'`` (default; uses
         ``brainstate.nn.exp_euler_step``) or any supported by ``braintools.quad``
@@ -103,8 +104,8 @@ class StuartLandauOscillator(XY_Oscillator):
         noise_y: Noise = None,
 
         # other parameters
-        init_x: Callable = brainstate.init.Uniform(0, 0.05),
-        init_y: Callable = brainstate.init.Uniform(0, 0.05),
+        init_x: Callable = braintools.init.Uniform(0, 0.05),
+        init_y: Callable = braintools.init.Uniform(0, 0.05),
         method: str = 'exp_euler',
     ):
         super().__init__(
@@ -117,8 +118,8 @@ class StuartLandauOscillator(XY_Oscillator):
         )
 
         # model parameters
-        self.a = brainstate.init.param(a, self.varshape, allow_none=False)
-        self.w = brainstate.init.param(w, self.varshape, allow_none=False)
+        self.a = braintools.init.param(a, self.varshape, allow_none=False)
+        self.w = braintools.init.param(w, self.varshape, allow_none=False)
 
     def dx(self, x, y, x_ext):
         """Right-hand side for the ``x`` component.

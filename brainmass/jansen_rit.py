@@ -196,12 +196,12 @@ class JansenRitModel(brainstate.nn.Dynamics):
         s_max: Initializer = 5.0 * u.Hz,  # Max firing rate
         v0: Initializer = 6. * u.mV,  # Firing threshold
         r: Initializer = 0.56,  # Sigmoid steepness
-        M_init: Callable = brainstate.init.ZeroInit(unit=u.mV),
-        E_init: Callable = brainstate.init.ZeroInit(unit=u.mV),
-        I_init: Callable = brainstate.init.ZeroInit(unit=u.mV),
-        Mv_init: Callable = brainstate.init.ZeroInit(unit=u.mV / u.second),
-        Ev_init: Callable = brainstate.init.ZeroInit(unit=u.mV / u.second),
-        Iv_init: Callable = brainstate.init.ZeroInit(unit=u.mV / u.second),
+        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
         fr_scale: Callable = Identity(),
         noise_E: Noise = None,
         noise_I: Noise = None,
@@ -210,18 +210,18 @@ class JansenRitModel(brainstate.nn.Dynamics):
     ):
         super().__init__(in_size)
 
-        self.Ae = brainstate.init.param(Ae, self.varshape)
-        self.Ai = brainstate.init.param(Ai, self.varshape)
-        self.be = brainstate.init.param(be, self.varshape)
-        self.bi = brainstate.init.param(bi, self.varshape)
-        self.a1 = brainstate.init.param(a1, self.varshape)
-        self.a2 = brainstate.init.param(a2, self.varshape)
-        self.a3 = brainstate.init.param(a3, self.varshape)
-        self.a4 = brainstate.init.param(a4, self.varshape)
-        self.v0 = brainstate.init.param(v0, self.varshape)
-        self.C = brainstate.init.param(C, self.varshape)
-        self.r = brainstate.init.param(r, self.varshape)
-        self.s_max = brainstate.init.param(s_max, self.varshape)
+        self.Ae = braintools.init.param(Ae, self.varshape)
+        self.Ai = braintools.init.param(Ai, self.varshape)
+        self.be = braintools.init.param(be, self.varshape)
+        self.bi = braintools.init.param(bi, self.varshape)
+        self.a1 = braintools.init.param(a1, self.varshape)
+        self.a2 = braintools.init.param(a2, self.varshape)
+        self.a3 = braintools.init.param(a3, self.varshape)
+        self.a4 = braintools.init.param(a4, self.varshape)
+        self.v0 = braintools.init.param(v0, self.varshape)
+        self.C = braintools.init.param(C, self.varshape)
+        self.r = braintools.init.param(r, self.varshape)
+        self.s_max = braintools.init.param(s_max, self.varshape)
 
         assert callable(fr_scale), 'fr_scale must be a callable function'
         assert callable(M_init), 'M_init must be a callable function'
@@ -243,20 +243,20 @@ class JansenRitModel(brainstate.nn.Dynamics):
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
-        self.M = brainstate.HiddenState(brainstate.init.param(self.M_init, self.varshape, batch_size))
-        self.E = brainstate.HiddenState(brainstate.init.param(self.E_init, self.varshape, batch_size))
-        self.I = brainstate.HiddenState(brainstate.init.param(self.I_init, self.varshape, batch_size))
-        self.Mv = brainstate.HiddenState(brainstate.init.param(self.Mv_init, self.varshape, batch_size))
-        self.Ev = brainstate.HiddenState(brainstate.init.param(self.Ev_init, self.varshape, batch_size))
-        self.Iv = brainstate.HiddenState(brainstate.init.param(self.Iv_init, self.varshape, batch_size))
+        self.M = brainstate.HiddenState(braintools.init.param(self.M_init, self.varshape, batch_size))
+        self.E = brainstate.HiddenState(braintools.init.param(self.E_init, self.varshape, batch_size))
+        self.I = brainstate.HiddenState(braintools.init.param(self.I_init, self.varshape, batch_size))
+        self.Mv = brainstate.HiddenState(braintools.init.param(self.Mv_init, self.varshape, batch_size))
+        self.Ev = brainstate.HiddenState(braintools.init.param(self.Ev_init, self.varshape, batch_size))
+        self.Iv = brainstate.HiddenState(braintools.init.param(self.Iv_init, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
-        self.M.value = brainstate.init.param(self.M_init, self.varshape, batch_size)
-        self.E.value = brainstate.init.param(self.E_init, self.varshape, batch_size)
-        self.I.value = brainstate.init.param(self.I_init, self.varshape, batch_size)
-        self.Mv.value = brainstate.init.param(self.Mv_init, self.varshape, batch_size)
-        self.Ev.value = brainstate.init.param(self.Ev_init, self.varshape, batch_size)
-        self.Iv.value = brainstate.init.param(self.Iv_init, self.varshape, batch_size)
+        self.M.value = braintools.init.param(self.M_init, self.varshape, batch_size)
+        self.E.value = braintools.init.param(self.E_init, self.varshape, batch_size)
+        self.I.value = braintools.init.param(self.I_init, self.varshape, batch_size)
+        self.Mv.value = braintools.init.param(self.Mv_init, self.varshape, batch_size)
+        self.Ev.value = braintools.init.param(self.Ev_init, self.varshape, batch_size)
+        self.Iv.value = braintools.init.param(self.Iv_init, self.varshape, batch_size)
 
     def S(self, v):
         # Sigmoid ranges from 0 to s_max, centered at v0

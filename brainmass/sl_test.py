@@ -18,6 +18,7 @@ import brainunit as u
 import jax.numpy as jnp
 
 import brainmass
+import braintools
 
 
 class TestStuartLandauOscillator:
@@ -37,8 +38,8 @@ class TestStuartLandauOscillator:
         ny = brainmass.OUProcess(4, sigma=0.0)
         m = brainmass.StuartLandauOscillator(
             in_size=4,
-            init_x=brainstate.init.ZeroInit(),
-            init_y=brainstate.init.ZeroInit(),
+            init_x=braintools.init.ZeroInit(),
+            init_y=braintools.init.ZeroInit(),
             noise_x=nx,
             noise_y=ny,
         )
@@ -84,8 +85,8 @@ class TestStuartLandauOscillator:
         ny = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.StuartLandauOscillator(
             in_size=2,
-            init_x=brainstate.init.ZeroInit(),
-            init_y=brainstate.init.ZeroInit(),
+            init_x=braintools.init.ZeroInit(),
+            init_y=braintools.init.ZeroInit(),
             noise_x=nx,
             noise_y=ny,
         )
@@ -106,8 +107,8 @@ class TestStuartLandauOscillator:
         ny = brainmass.OUProcess(sz, sigma=0.0)
         m = brainmass.StuartLandauOscillator(
             in_size=sz,
-            init_x=brainstate.init.ZeroInit(),
-            init_y=brainstate.init.ZeroInit(),
+            init_x=braintools.init.ZeroInit(),
+            init_y=braintools.init.ZeroInit(),
             noise_x=nx,
             noise_y=ny,
         )

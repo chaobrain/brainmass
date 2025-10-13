@@ -16,6 +16,7 @@
 
 from typing import Callable
 
+import braintools
 import brainstate
 import brainunit as u
 import jax.numpy as jnp
@@ -75,7 +76,7 @@ class BrownianNoise(Noise):
         in_size: brainstate.typing.Size,
         mean: Initializer = None,
         sigma: Initializer = 1. * u.nA,
-        init: Callable = brainstate.init.ZeroInit(unit=u.nA)
+        init: Callable = braintools.init.ZeroInit(unit=u.nA)
     ):
         super().__init__(in_size=in_size)
 
@@ -84,10 +85,10 @@ class BrownianNoise(Noise):
         self.init = init
 
     def init_state(self, batch_size=None, **kwargs):
-        self.x = brainstate.HiddenState(brainstate.init.param(self.init, self.varshape, batch_size))
+        self.x = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
-        self.x.value = brainstate.init.param(self.init, self.varshape, batch_size)
+        self.x.value = braintools.init.param(self.init, self.varshape, batch_size)
 
     def update(self):
         noise = brainstate.random.randn(*self.varshape)
@@ -214,13 +215,13 @@ class OUProcess(Noise):
         self.sigma = sigma
         self.mean = 0. * u.get_unit(sigma) if mean is None else mean
         self.tau = tau
-        self.init = brainstate.init.ZeroInit(unit=u.get_unit(sigma)) if init is None else init
+        self.init = braintools.init.ZeroInit(unit=u.get_unit(sigma)) if init is None else init
 
     def init_state(self, batch_size=None, **kwargs):
-        self.x = brainstate.HiddenState(brainstate.init.param(self.init, self.varshape, batch_size))
+        self.x = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
-        self.x.value = brainstate.init.param(self.init, self.varshape, batch_size)
+        self.x.value = braintools.init.param(self.init, self.varshape, batch_size)
 
     def update(self):
         df = lambda x: (self.mean - x) / self.tau

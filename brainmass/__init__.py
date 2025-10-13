@@ -14,8 +14,8 @@
 # ==============================================================================
 
 
-__version_info__ = (0, 0, 4)
 __version__ = "0.0.4"
+__version_info__ = (0, 0, 4)
 
 from .coupling import *
 from .coupling import __all__ as coupling_all

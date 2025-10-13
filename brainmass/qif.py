@@ -65,10 +65,10 @@ class QIF(brainstate.nn.Dynamics):
         Recurrent coupling strength (dimensionless). Default is ``15.``.
     init_r : Callable, optional
         Initializer for the firing-rate state ``r``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     init_v : Callable, optional
         Initializer for the mean-membrane-potential state ``v``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     noise_r : Noise or None, optional
         Additive noise process for the rate dynamics. If provided, its output
         is added to ``r_inp`` at each update. Default is ``None``.
@@ -125,8 +125,8 @@ class QIF(brainstate.nn.Dynamics):
         J: Initializer = 15.,
 
         # initializers
-        init_r: Callable = brainstate.init.Uniform(0, 0.05, unit=u.Hz),
-        init_v: Callable = brainstate.init.Uniform(0, 0.05),
+        init_r: Callable = braintools.init.Uniform(0, 0.05, unit=u.Hz),
+        init_v: Callable = braintools.init.Uniform(0, 0.05),
         noise_r: Noise = None,
         noise_v: Noise = None,
         method: str = 'exp_euler',
@@ -134,16 +134,16 @@ class QIF(brainstate.nn.Dynamics):
         super().__init__(in_size)
 
         # time integration method
-        self.tau = brainstate.init.param(tau, self.varshape, allow_none=False)
+        self.tau = braintools.init.param(tau, self.varshape, allow_none=False)
 
         # the mean of a Lorenzian distribution over the neural excitability in the population
-        self.eta = brainstate.init.param(eta, self.varshape, allow_none=False)
+        self.eta = braintools.init.param(eta, self.varshape, allow_none=False)
 
         # the half-width at half maximum of the Lorenzian distribution over the neural excitability
-        self.delta = brainstate.init.param(delta, self.varshape, allow_none=False)
+        self.delta = braintools.init.param(delta, self.varshape, allow_none=False)
 
         # the strength of the recurrent coupling inside the population
-        self.J = brainstate.init.param(J, self.varshape, allow_none=False)
+        self.J = braintools.init.param(J, self.varshape, allow_none=False)
 
         # noise and initializers
         assert callable(init_r), 'init_r must be callable'
@@ -165,8 +165,8 @@ class QIF(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.r = brainstate.HiddenState(brainstate.init.param(self.init_r, self.varshape, batch_size))
-        self.v = brainstate.HiddenState(brainstate.init.param(self.init_v, self.varshape, batch_size))
+        self.r = brainstate.HiddenState(braintools.init.param(self.init_r, self.varshape, batch_size))
+        self.v = brainstate.HiddenState(braintools.init.param(self.init_v, self.varshape, batch_size))
 
     def reset_state(self, batch_size=None, **kwargs):
         """Reset states ``r`` and ``v`` using the configured initializers.
@@ -177,8 +177,8 @@ class QIF(brainstate.nn.Dynamics):
             Optional batch dimension for reinitialization. If ``None``, keeps
             current batch shape but resets values. Default is ``None``.
         """
-        self.r.value = brainstate.init.param(self.init_r, self.varshape, batch_size)
-        self.v.value = brainstate.init.param(self.init_v, self.varshape, batch_size)
+        self.r.value = braintools.init.param(self.init_r, self.varshape, batch_size)
+        self.v.value = braintools.init.param(self.init_v, self.varshape, batch_size)
 
     def dr(self, r, v, r_ext):
         """Right-hand side for the firing rate ``r``.

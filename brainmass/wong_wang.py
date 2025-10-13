@@ -17,6 +17,7 @@
 import brainunit as u
 import jax.numpy as jnp
 
+import braintools
 import brainstate
 from .noise import Noise
 from ._typing import Initializer
@@ -155,23 +156,23 @@ class WongWangModel(brainstate.nn.Dynamics):
         super().__init__(in_size=in_size)
 
         # NMDA parameters
-        self.tau_S = brainstate.init.param(tau_S, self.varshape)
-        self.gamma = brainstate.init.param(gamma, self.varshape)
+        self.tau_S = braintools.init.param(tau_S, self.varshape)
+        self.gamma = braintools.init.param(gamma, self.varshape)
 
         # I-O function parameters
-        self.a = brainstate.init.param(a, self.varshape)
-        self.theta = brainstate.init.param(theta, self.varshape)
+        self.a = braintools.init.param(a, self.varshape)
+        self.theta = braintools.init.param(theta, self.varshape)
 
         # Network connectivity
-        self.J_N11 = brainstate.init.param(J_N11, self.varshape)
-        self.J_N22 = brainstate.init.param(J_N22, self.varshape)
-        self.J_N12 = brainstate.init.param(J_N12, self.varshape)
-        self.J_N21 = brainstate.init.param(J_N21, self.varshape)
-        self.J_A_ext = brainstate.init.param(J_A_ext, self.varshape)
+        self.J_N11 = braintools.init.param(J_N11, self.varshape)
+        self.J_N22 = braintools.init.param(J_N22, self.varshape)
+        self.J_N12 = braintools.init.param(J_N12, self.varshape)
+        self.J_N21 = braintools.init.param(J_N21, self.varshape)
+        self.J_A_ext = braintools.init.param(J_A_ext, self.varshape)
 
         # External input
-        self.mu_0 = brainstate.init.param(mu_0, self.varshape)
-        self.I_0 = brainstate.init.param(I_0, self.varshape)
+        self.mu_0 = braintools.init.param(mu_0, self.varshape)
+        self.I_0 = braintools.init.param(I_0, self.varshape)
 
         # Noise processes
         self.noise_s1 = noise_s1
@@ -180,14 +181,14 @@ class WongWangModel(brainstate.nn.Dynamics):
     def init_state(self, batch_size=None, **kwargs):
         """Initialize the synaptic gating variables S1 and S2."""
         size = self.varshape if batch_size is None else (batch_size,) + self.varshape
-        self.S1 = brainstate.HiddenState(brainstate.init.param(jnp.zeros, size))
-        self.S2 = brainstate.HiddenState(brainstate.init.param(jnp.zeros, size))
+        self.S1 = brainstate.HiddenState(braintools.init.param(jnp.zeros, size))
+        self.S2 = brainstate.HiddenState(braintools.init.param(jnp.zeros, size))
 
     def reset_state(self, batch_size=None, **kwargs):
         """Reset the synaptic gating variables to initial conditions."""
         size = self.varshape if batch_size is None else (batch_size,) + self.varshape
-        self.S1.value = brainstate.init.param(jnp.zeros, size)
-        self.S2.value = brainstate.init.param(jnp.zeros, size)
+        self.S1.value = braintools.init.param(jnp.zeros, size)
+        self.S2.value = braintools.init.param(jnp.zeros, size)
 
     def phi(self, I):
         """

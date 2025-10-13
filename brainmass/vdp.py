@@ -15,6 +15,7 @@
 
 from typing import Callable
 
+import braintools
 import brainstate
 import brainunit as u
 
@@ -84,10 +85,10 @@ class VanDerPolOscillator(XY_Oscillator):
         each update and added to ``y_inp``. Default is ``None``.
     init_x : Callable, optional
         Initializer for the state ``x``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     init_y : Callable, optional
         Initializer for the state ``y``. Default is
-        ``brainstate.init.Uniform(0, 0.05)``.
+        ``braintools.init.Uniform(0, 0.05)``.
     method : str, optional
         Time stepping method. One of ``'exp_euler'`` (exponential Euler; default)
         or any method supported under ``braintools.quad`` (e.g., ``'rk4'``,
@@ -131,8 +132,8 @@ class VanDerPolOscillator(XY_Oscillator):
         noise_y: Noise = None,
 
         # other parameters
-        init_x: Callable = brainstate.init.Uniform(0, 0.05),
-        init_y: Callable = brainstate.init.Uniform(0, 0.05),
+        init_x: Callable = braintools.init.Uniform(0, 0.05),
+        init_y: Callable = braintools.init.Uniform(0, 0.05),
         method: str = 'exp_euler',
     ):
         super().__init__(
@@ -145,7 +146,7 @@ class VanDerPolOscillator(XY_Oscillator):
         )
 
         # model parameters
-        self.mu = brainstate.init.param(mu, self.varshape)
+        self.mu = braintools.init.param(mu, self.varshape)
 
     def dx(self, x, y, inp):
         """Right-hand side for the state ``x``.
