@@ -283,12 +283,10 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         rI_inp = 0. if rI_inp is None else rI_inp
         if self.noise_E is not None:
             rE_inp = rE_inp + self.noise_E()
-        rE_inp = self.sum_delta_inputs(rE_inp, label='E')
 
         # inhibitory input
         if self.noise_I is not None:
             rI_inp = rI_inp + self.noise_I()
-        rI_inp = self.sum_delta_inputs(rI_inp, label='I')
 
         # update the state variables
         if self.method == 'exp_euler':
