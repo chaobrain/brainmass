@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -92,6 +92,7 @@ class BOLDSignal(brainstate.nn.Dynamics):
     .. [1] Friston KJ, Harrison L, Penny W (2003) Dynamic causal modelling. Neuroimage 19:1273–1302,
            doi:10.1016/S1053-8119(03)00202-7
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -267,6 +268,7 @@ class LeadFieldModel(brainstate.nn.Module):
         with ``sensor_unit**2``. Noise is sampled i.i.d. across time (same covariance at each step).
 
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -445,6 +447,8 @@ class LeadFieldModel(brainstate.nn.Module):
 
 
 class EEGLeadFieldModel(LeadFieldModel):
+    __module__ = 'brainmass'
+
     def __init__(
         self,
         in_size,
@@ -465,6 +469,8 @@ class EEGLeadFieldModel(LeadFieldModel):
 
 
 class MEGLeadFieldModel(LeadFieldModel):
+    __module__ = 'brainmass'
+
     def __init__(
         self,
         in_size,

@@ -16,17 +16,13 @@ exclude = [
 ]
 
 
-[tool.distutils.bdist_wheel]
-universal = true
-
-
 [project]
 name = "brainmass"
-description = ""
+description = "Whole-brain brain modeling for differentiable neural mass models."
 readme = 'README.md'
 license = { text = 'Apache-2.0 license' }
 requires-python = '>=3.10'
-authors = [{ name = 'brainmass Developers', email = 'chao.brain@qq.com' }]
+authors = [{ name = 'BranMass Developers', email = 'chao.brain@qq.com' }]
 classifiers = [
     'Natural Language :: English',
     'Operating System :: OS Independent',
@@ -38,6 +34,7 @@ classifiers = [
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
     'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
     'License :: OSI Approved :: Apache Software License',
     'Programming Language :: Python',
     'Topic :: Scientific/Engineering :: Bio-Informatics',
@@ -45,8 +42,6 @@ classifiers = [
     'Topic :: Scientific/Engineering :: Artificial Intelligence',
     'Topic :: Software Development :: Libraries',
 ]
-
-
 keywords = [
     'neural mass model',
     'brain modeling',
@@ -56,26 +51,38 @@ keywords = [
     'computational neuroscience',
     'brain simulation',
 ]
-
 dependencies = [
-    'jax',
     'numpy',
-    'brainunit',
-    'brainscale',
-    'braintools',
+    'jax',
     'brainstate>=0.1.8',
+    'brainunit',
+    'braintools',
 ]
-
 dynamic = ['version']
+
 
 [tool.flit.module]
 name = "brainmass"
 
+
 [project.urls]
-homepage = 'http://github.com/chaobrain/brainmass'
-repository = 'http://github.com/chaobrain/brainmass'
+homepage = 'https://github.com/chaobrain/brainmass'
+repository = 'https://github.com/chaobrain/brainmass'
+documentation = 'https://brainmass.readthedocs.io/'
+"Bug Tracker" = 'https://github.com/chaobrain/brainmass/issues'
+"Source Code" = 'https://github.com/chaobrain/brainmass'
+
 
 [project.optional-dependencies]
 testing = [
     'pytest',
+]
+cpu = [
+    'jax',
+]
+cuda12 = [
+    'jax[cuda12]',
+]
+tpu = [
+    'jax[tpu]',
 ]

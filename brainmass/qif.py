@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ class QIF(brainstate.nn.Dynamics):
     :math:`r(t)` and mean membrane potential :math:`v(t)` follow
 
     .. math::
+
        \begin{aligned}
        \tau \, \dot r(t) &= \frac{\Delta}{\pi} + 2 \, \tau \, r(t) \, v(t), \\
        \tau \, \dot v(t) &= v(t)^2 + \bar\eta + I(t) + J \, \tau \, r(t)
@@ -113,6 +114,7 @@ class QIF(brainstate.nn.Dynamics):
        Bursting Dynamics in Spiking Neural Networks with Short-Term Adaptation.
         Neural Computation, 32(9), 1615–1634.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

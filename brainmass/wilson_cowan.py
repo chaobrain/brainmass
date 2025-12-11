@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -126,6 +126,7 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
     Wilson, H. R., & Cowan, J. D. (1972). Excitatory and inhibitory interactions
     in localized populations of model neurons. Biophysical Journal, 12, 1–24.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

@@ -57,11 +57,13 @@ Installation
 
           pip install -U brainmass[cpu]
 
-    .. tab-item:: GPU (CUDA 12.0)
+    .. tab-item:: GPU
 
        .. code-block:: bash
 
           pip install -U brainmass[cuda12]
+
+          pip install -U brainmass[cuda13]
 
     .. tab-item:: TPU
 

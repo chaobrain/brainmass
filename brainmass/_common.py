@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,14 @@ from .noise import Noise
 __all__ = [
     'XY_Oscillator',
 ]
+
+
+def set_module_as(module: str):
+    def wrapper(fun: callable):
+        fun.__module__ = module
+        return fun
+
+    return wrapper
 
 
 class XY_Oscillator(brainstate.nn.Dynamics):
@@ -105,3 +113,4 @@ class XY_Oscillator(brainstate.nn.Dynamics):
         self.x.value = x
         self.y.value = y
         return x
+

@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,9 +78,9 @@ class HopfOscillator(XY_Oscillator):
 
     Attributes
     ----------
-    x : brainscale.ETraceState
+    x : brainstate.HiddenState
         State container for the real component ``x``.
-    y : brainscale.ETraceState
+    y : brainstate.HiddenState
         State container for the imaginary component ``y``.
 
     Notes
@@ -89,6 +89,7 @@ class HopfOscillator(XY_Oscillator):
     an explicit (exponential) Euler integrator with time step ``dt`` having
     unit ``ms`` evolves the state consistently with units.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

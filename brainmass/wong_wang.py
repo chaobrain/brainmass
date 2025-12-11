@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
 # ==============================================================================
 
 
+import brainstate
+import braintools
 import brainunit as u
 import jax.numpy as jnp
 
-import braintools
-import brainstate
-from .noise import Noise
 from ._typing import Initializer
+from .noise import Noise
 
 __all__ = [
     'WongWangModel',
@@ -125,6 +125,7 @@ class WongWangModel(brainstate.nn.Dynamics):
       in Perceptual Decisions. J. Neurosci. 26, 1314–1328 (2006).
     - Deco, G. et al. The role of rhythm in cognition. Front. Hum. Neurosci. 5, 29 (2011).
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

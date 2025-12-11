@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,6 +96,7 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
        hierarchical dynamical processing in the primate cortex. Neuron, 88(2),
        419–431.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

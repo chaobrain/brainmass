@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +13,15 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Union, Callable
+from typing import Callable
 
 import brainstate
 import braintools
 import brainunit as u
 from brainstate.nn import exp_euler_step
 
-from .noise import Noise
 from ._typing import Initializer
+from .noise import Noise
 
 __all__ = [
     'JansenRitModel',
@@ -180,6 +180,7 @@ class JansenRitModel(brainstate.nn.Dynamics):
     - [2] Jansen B H, Rit V G. Electroencephalogram and visual evoked potential generation in a mathematical model of coupled cortical columns. Biological Cybernetics, 1995, 73(4): 357–366.
     - [3] David O, Friston K J. A neural mass model for MEG/EEG: coupling and neuronal dynamics. NeuroImage, 2003, 20(3): 1743–1755.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

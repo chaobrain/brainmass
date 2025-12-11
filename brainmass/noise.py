@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 from typing import Callable
 
-import braintools
 import brainstate
+import braintools
 import brainunit as u
 import jax.numpy as jnp
 
@@ -37,11 +37,12 @@ __all__ = [
 
 
 class Noise(brainstate.nn.Dynamics):
-    pass
+    __module__ = 'brainmass'
 
 
 class GaussianNoise(Noise):
     """Gaussian (white) noise process without state (i.i.d. across time)."""
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -61,6 +62,7 @@ class GaussianNoise(Noise):
 
 class WhiteNoise(GaussianNoise):
     """Alias of GaussianNoise for semantic clarity."""
+    __module__ = 'brainmass'
 
 
 class BrownianNoise(Noise):
@@ -70,6 +72,7 @@ class BrownianNoise(Noise):
     x[t+dt] = x[t] + sigma * sqrt(dt) * N(0, 1)
     output = mean + x
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -104,6 +107,7 @@ class ColoredNoise(Noise):
     Note: Each update call synthesizes a fresh sample over the last axis using
     FFT shaping; there is no temporal state carried across updates.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -152,6 +156,7 @@ class PinkNoise(ColoredNoise):
     """
     Pink (1/f) noise.
     """
+    __module__ = 'brainmass'
 
     def __init__(self, in_size, mean=None, sigma=1. * u.nA):
         super().__init__(in_size=in_size, beta=1.0, mean=mean, sigma=sigma)
@@ -161,6 +166,7 @@ class BlueNoise(ColoredNoise):
     """
     Blue (1/f^2) noise.
     """
+    __module__ = 'brainmass'
 
     def __init__(self, in_size, mean=None, sigma=1. * u.nA):
         super().__init__(in_size=in_size, beta=-1.0, mean=mean, sigma=sigma)
@@ -170,6 +176,7 @@ class VioletNoise(ColoredNoise):
     """
     Violet (1/f^3) noise.
     """
+    __module__ = 'brainmass'
 
     def __init__(self, in_size, mean=None, sigma=1. * u.nA):
         super().__init__(in_size=in_size, beta=-2.0, mean=mean, sigma=sigma)
@@ -200,6 +207,7 @@ class OUProcess(Noise):
     tau: ArrayLike
       The decay time constant. The larger the value, the slower the decay. Default is 10 ms.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

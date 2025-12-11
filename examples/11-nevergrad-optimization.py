@@ -53,11 +53,11 @@ class Network(brainstate.nn.Module):
 
         self.node = brainmass.WilsonCowanModel(
             80,
-            noise_E=brainmass.OUProcess(80, sigma=sigma, init=brainstate.init.ZeroInit()),
-            noise_I=brainmass.OUProcess(80, sigma=sigma, init=brainstate.init.ZeroInit()),
+            noise_E=brainmass.OUProcess(80, sigma=sigma, init=braintools.init.ZeroInit()),
+            noise_I=brainmass.OUProcess(80, sigma=sigma, init=braintools.init.ZeroInit()),
         )
         self.coupling = brainmass.DiffusiveCoupling(
-            self.node.prefetch_delay('rE', (delay_time * u.ms, indices_), init=brainstate.init.Uniform(0, 0.05)),
+            self.node.prefetch_delay('rE', (delay_time * u.ms, indices_), init=braintools.init.Uniform(0, 0.05)),
             self.node.prefetch('rE'),
             conn_weight,
             k=k

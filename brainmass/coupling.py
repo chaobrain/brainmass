@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ from typing import Union, Tuple, Callable
 import brainstate
 import brainunit as u
 from brainstate.nn._dynamics import maybe_init_prefetch
+
+from ._common import set_module_as
 
 # Typing alias for static type hints
 Prefetch = Union[
@@ -48,6 +50,7 @@ def _check_type(x):
     return x
 
 
+@set_module_as('brainmass')
 def diffusive_coupling(
     delayed_x: Callable | brainstate.typing.ArrayLike,
     y: Callable | brainstate.typing.ArrayLike,
@@ -132,6 +135,7 @@ def diffusive_coupling(
     return k * diffusive.sum(axis=-1)  # (..., N_out)
 
 
+@set_module_as('brainmass')
 def additive_coupling(
     delayed_x: Callable | brainstate.typing.ArrayLike,
     conn: brainstate.typing.ArrayLike,
@@ -222,6 +226,7 @@ class DiffusiveCoupling(brainstate.nn.Module):
     conn : Array
         The connection matrix.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -283,6 +288,7 @@ class AdditiveCoupling(brainstate.nn.Module):
     conn : Array
         The connection matrix.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

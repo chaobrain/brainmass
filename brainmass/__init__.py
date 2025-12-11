@@ -1,4 +1,4 @@
-# Copyright 2024 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2024 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 # ==============================================================================
 
 
-__version__ = "0.0.4"
-__version_info__ = (0, 0, 4)
+__version__ = "0.0.5"
+__version_info__ = (0, 0, 5)
 
 from .coupling import *
 from .coupling import __all__ as coupling_all
@@ -31,8 +31,6 @@ from .linear import *
 from .linear import __all__ as linear_all
 from .noise import *
 from .noise import __all__ as noise_all
-from .param import *
-from .param import __all__ as param_all
 from .qif import *
 from .qif import __all__ as qif_all
 from .sl import *
@@ -45,6 +43,20 @@ from .wong_wang import *
 from .wong_wang import __all__ as wong_wang_all
 
 __all__ = forward_model_all + coupling_all + jansen_rit_all + noise_all + wilson_cowan_all + wong_wang_all + hopf_all
-__all__ = __all__ + param_all + fhn_all + linear_all + vdp_all + qif_all + sl_all
+__all__ = __all__ + fhn_all + linear_all + vdp_all + qif_all + sl_all + ['ArrayParam']
 del forward_model_all, coupling_all, jansen_rit_all, noise_all, wilson_cowan_all, wong_wang_all, hopf_all
-del param_all, fhn_all, linear_all, vdp_all, qif_all, sl_all
+del fhn_all, linear_all, vdp_all, qif_all, sl_all
+
+
+def __getattr__(name):
+    if name == 'ArrayParam':
+        import warnings
+        import brainstate
+        warnings.warn(
+            "brainmass.ArrayParam is deprecated and will be removed in a future version. "
+            "Please use brainstate.ArrayParam instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return brainstate.ArrayParam
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

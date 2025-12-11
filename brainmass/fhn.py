@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,6 +98,7 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
        regions by a Lyapunov functional. International Journal of Bifurcation
        and Chaos, 14(03), 913–925.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,

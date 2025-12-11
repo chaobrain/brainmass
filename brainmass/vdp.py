@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -119,6 +119,7 @@ class VanDerPolOscillator(XY_Oscillator):
     - Kaplan, D., & Glass, L. (1995). Understanding Nonlinear Dynamics.
       Springer (pp. 240–244).
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
