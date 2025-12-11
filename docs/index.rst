@@ -57,11 +57,13 @@ Installation
 
           pip install -U brainmass[cpu]
 
-    .. tab-item:: GPU (CUDA 12.0)
+    .. tab-item:: GPU
 
        .. code-block:: bash
 
           pip install -U brainmass[cuda12]
+
+          pip install -U brainmass[cuda13]
 
     .. tab-item:: TPU
 
@@ -72,11 +74,11 @@ Installation
 ----
 
 
-See also the brain modeling ecosystem
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+See also the ecosystem
+^^^^^^^^^^^^^^^^^^^^^^
 
 
-We are building the `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_.
+``brainmass`` is one part of our `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_.
 
 
 
@@ -85,8 +87,14 @@ We are building the `brain modeling ecosystem <https://brainmodeling.readthedocs
    :maxdepth: 2
    :caption: Examples
 
-   examples/parameter-exploration.ipynb
-   examples/wilsonwowan-osillator.ipynb
+   examples/00-hopf-osillator.ipynb
+   examples/01-wilsonwowan-osillator.ipynb
+   examples/02-fhn-osillator.ipynb
+   examples/03-jansenrit_single_node_simulation.ipynb
+   examples/10-parameter-exploration.ipynb
+   examples/11-nevergrad-optimization.ipynb
+   examples/12-scipy-optimization.ipynb
+   examples/Modeling_resting_state_MEG_data.ipynb
 
 
 .. toctree::
@@ -94,6 +102,6 @@ We are building the `brain modeling ecosystem <https://brainmodeling.readthedocs
    :maxdepth: 2
    :caption: API Reference
 
-   ../changelog.md
+   changelog.md
    api.rst
 

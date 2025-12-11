@@ -1,4 +1,4 @@
-# Copyright 2024 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2024 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 project = 'brainmass'
 copyright = '2025, brainmass'
-author = 'BDP Ecosystem'
+author = 'BrainX Ecosystem'
 
 # The full version, including alpha/beta/rc tags
 import brainmass
@@ -43,6 +43,8 @@ release = brainmass.__version__
 
 import shutil
 shutil.copytree('../examples', './examples', dirs_exist_ok=True)
+shutil.copy('../changelog.md', './changelog.md')
+
 
 # -- General configuration ---------------------------------------------------
 

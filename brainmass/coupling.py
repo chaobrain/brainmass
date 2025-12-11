@@ -1,4 +1,4 @@
-# Copyright 2025 BDP Ecosystem Limited. All Rights Reserved.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,179 @@
 # ==============================================================================
 
 
-from typing import Union
+from typing import Union, Tuple, Callable
 
 import brainstate
 import brainunit as u
 from brainstate.nn._dynamics import maybe_init_prefetch
 
-Prefetch = Union[brainstate.nn.PrefetchDelayAt, brainstate.nn.PrefetchDelay, brainstate.nn.Prefetch]
+from ._common import set_module_as
+
+# Typing alias for static type hints
+Prefetch = Union[
+    brainstate.nn.PrefetchDelayAt,
+    brainstate.nn.PrefetchDelay,
+    brainstate.nn.Prefetch,
+    Callable,
+]
+# Runtime check tuple for isinstance
+_PREFETCH_TYPES: Tuple[type, ...] = (
+    brainstate.nn.PrefetchDelayAt,
+    brainstate.nn.PrefetchDelay,
+    brainstate.nn.Prefetch,
+)
 
 __all__ = [
     'DiffusiveCoupling',
     'AdditiveCoupling',
+    'diffusive_coupling',
+    'additive_coupling',
 ]
+
+
+def _check_type(x):
+    if not (isinstance(x, _PREFETCH_TYPES) or callable(x)):
+        raise TypeError(f'The argument must be a Prefetch or Callable, got {x}')
+    return x
+
+
+@set_module_as('brainmass')
+def diffusive_coupling(
+    delayed_x: Callable | brainstate.typing.ArrayLike,
+    y: Callable | brainstate.typing.ArrayLike,
+    conn: brainstate.typing.ArrayLike,
+    k: brainstate.typing.ArrayLike,
+):
+    r"""
+    Diffusive coupling kernel (function form).
+
+    Computes, for each target unit i over the last axis, the diffusive term
+
+        current_i = k * sum_j conn[i, j] * (x_{i, j} - y_i)
+
+    with full support for leading batch/time dimensions and unit-safe algebra.
+
+    Parameters
+    ----------
+    delayed_x : Callable, ArrayLike
+        Zero-arg callable returning the source signal with shape ``(..., N_out, N_in)``
+        or flattened ``(..., N_out*N_in)``. Typically a ``Prefetch`` that reads
+        a state from another module.
+    y : Callable, ArrayLike
+        Zero-arg callable returning the target signal with shape ``(..., N_out)``.
+    conn : ArrayLike
+        Connection weights. Either ``(N_out, N_in)`` or flattened ``(N_out*N_in,)``.
+    k : ArrayLike
+        Global coupling strength. Can be scalar or broadcastable to the output shape ``(..., N_out)``.
+
+    Returns
+    -------
+    ArrayLike
+        Coupling output with shape ``(..., N_out)``. If inputs carry units, the
+        result preserves unit consistency via `brainunit`.
+
+    Raises
+    ------
+    ValueError
+        If shapes are incompatible with the expected conventions.
+    """
+    # y: (..., N_out)
+    y_val = y() if callable(y) else y
+    if y_val.ndim < 1:
+        raise ValueError(f'y must have at least 1 dimension; got shape {y_val.shape}')
+    n_out = y_val.shape[-1]
+    y_exp = u.math.expand_dims(y_val, axis=-1)  # (..., N_out, 1)
+
+    # x expected shape on trailing dims: (N_out, N_in) or flattened N_out*N_in
+    x_val = delayed_x() if callable(delayed_x) else delayed_x
+    if x_val.ndim < 1:
+        raise ValueError(f'x must have at least 1 dimension; got shape {x_val.shape}')
+
+    # Build (N_out, N_in) connection matrix
+    if conn.ndim == 1:
+        if conn.size % n_out != 0:
+            raise ValueError(
+                f'Flattened connection length {conn.size} is not divisible by N_out={n_out}.'
+            )
+        n_in = conn.size // n_out
+        conn2d = u.math.reshape(conn, (n_out, n_in))
+    else:
+        conn2d = conn
+        if conn2d.shape[0] != n_out:
+            raise ValueError(
+                f'Connection rows ({conn2d.shape[0]}) must match y size ({n_out}).'
+            )
+        n_in = conn2d.shape[1]
+
+    # Reshape x to (..., N_out, N_in)
+    if x_val.ndim >= 2 and x_val.shape[-2:] == (n_out, n_in):
+        x_mat = x_val
+    elif x_val.shape[-1] == n_out * n_in:
+        x_mat = u.math.reshape(x_val, (*x_val.shape[:-1], n_out, n_in))
+    else:
+        raise ValueError(
+            f'x has incompatible shape {x_val.shape}; expected (..., {n_out}, {n_in}) '
+            f'or flattened (..., {n_out * n_in}).'
+        )
+
+    # Broadcast conn across leading dims if needed
+    diff = x_mat - y_exp  # (..., N_out, N_in)
+    diffusive = diff * conn2d  # broadcasting on leading dims
+    return k * diffusive.sum(axis=-1)  # (..., N_out)
+
+
+@set_module_as('brainmass')
+def additive_coupling(
+    delayed_x: Callable | brainstate.typing.ArrayLike,
+    conn: brainstate.typing.ArrayLike,
+    k: brainstate.typing.ArrayLike
+):
+    r"""
+    Additive coupling kernel (function form).
+
+    Computes, for each target unit i over the last axis, the additive term
+
+        current_i = k * sum_j conn[i, j] * x_{i, j}
+
+    with full support for leading batch/time dimensions and unit-safe algebra.
+
+    Parameters
+    ----------
+    delayed_x : Callable
+        Zero-arg callable returning the source signal with shape ``(..., N_out, N_in)``
+        or flattened ``(..., N_out*N_in)``. Typically a ``Prefetch``.
+    conn : ArrayLike
+        Connection weights with shape ``(N_out, N_in)``.
+    k : ArrayLike
+        Global coupling strength. Scalar or broadcastable to ``(..., N_out)``.
+
+    Returns
+    -------
+    ArrayLike
+        Coupling output with shape ``(..., N_out)``. Units are preserved when
+        inputs are `Quantity`.
+
+    Raises
+    ------
+    ValueError
+        If shapes are incompatible with the expected conventions.
+    """
+    # x expected trailing dims to match connection (N_out, N_in) or flattened N_out*N_in
+    x_val = delayed_x() if callable(delayed_x) else delayed_x
+    n_out, n_in = conn.shape
+
+    if x_val.ndim >= 2 and x_val.shape[-2:] == (n_out, n_in):
+        x_mat = x_val
+    elif x_val.shape[-1] == n_out * n_in:
+        x_mat = u.math.reshape(x_val, (*x_val.shape[:-1], n_out, n_in))
+    else:
+        raise ValueError(
+            f'x has incompatible shape {x_val.shape}; expected (..., {n_out}, {n_in}) '
+            f'or flattened (..., {n_out * n_in}).'
+        )
+
+    additive = conn * x_mat  # broadcasting on leading dims
+    return k * additive.sum(axis=-1)  # (..., N_out)
 
 
 class DiffusiveCoupling(brainstate.nn.Module):
@@ -36,7 +197,7 @@ class DiffusiveCoupling(brainstate.nn.Module):
     It simulates the following model:
 
     $$
-    \mathrm{current}_i = k * \sum_j (g_{ij} * x_{D_{ij}} - y_i)
+    \mathrm{current}_i = k * \sum_j g_{ij} * (x_{D_{ij}} - y_i)
     $$
 
     where:
@@ -65,6 +226,7 @@ class DiffusiveCoupling(brainstate.nn.Module):
     conn : Array
         The connection matrix.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -74,15 +236,16 @@ class DiffusiveCoupling(brainstate.nn.Module):
         k: float = 1.0
     ):
         super().__init__()
-        assert isinstance(x, Prefetch), f'The first element must be a Prefetch. But got {type(x)}.'
-        assert isinstance(y, Prefetch), f'The second element must be a Prefetch. But got {type(y)}.'
-        self.x = x
-        self.y = y
+        self.x = _check_type(x)
+        self.y = _check_type(y)
         self.k = k
 
-        # Connection matrix
+        # Connection matrix (support 1D flattened (N_out*N_in,) or 2D (N_out, N_in))
         self.conn = u.math.asarray(conn)
-        assert self.conn.ndim in (1, 2), f'Only support 1d, 2d connection matrix. But we got {self.conn.ndim}d.'
+        if self.conn.ndim not in (1, 2):
+            raise ValueError(
+                f'Connection must be 1D (flattened) or 2D matrix; got {self.conn.ndim}D.'
+            )
 
     @brainstate.nn.call_order(2)
     def init_state(self, *args, **kwargs):
@@ -90,22 +253,7 @@ class DiffusiveCoupling(brainstate.nn.Module):
         maybe_init_prefetch(self.y)
 
     def update(self):
-        delayed_x = self.x()
-        y = u.math.expand_dims(self.y(), axis=1)  # (..., 1)
-        if self.conn.ndim == 1:
-            assert self.conn.size == delayed_x.shape[-1], (
-                f'Connection matrix size {self.conn.size} does not '
-                f'match the variable size {delayed_x.shape[-1]}.'
-            )
-            diffusive = (self.conn * delayed_x).reshape(y.shape[0], -1) - y
-        elif self.conn.ndim == 2:
-            delayed_x = delayed_x.reshape(y.shape[0], -1)
-            assert self.conn.shape == delayed_x.shape, (f'Connection matrix shape {self.conn.shape} does not '
-                                                        f'match the variable shape {delayed_x.shape}.')
-            diffusive = (self.conn * delayed_x) - y
-        else:
-            raise NotImplementedError(f'Only support 1d, 2d connection matrix. But we got {self.conn.ndim}d.')
-        return self.k * diffusive.sum(axis=1)
+        return diffusive_coupling(self.x, self.y, self.conn, self.k)
 
 
 class AdditiveCoupling(brainstate.nn.Module):
@@ -126,7 +274,7 @@ class AdditiveCoupling(brainstate.nn.Module):
 
     Parameters
     ----------
-    x : Prefetch
+    x : Prefetch, Callable
         The delayed state variable for the source units.
     conn : brainstate.typing.Array
         The connection matrix (1D or 2D array) specifying the coupling strengths between units.
@@ -140,6 +288,7 @@ class AdditiveCoupling(brainstate.nn.Module):
     conn : Array
         The connection matrix.
     """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -148,24 +297,17 @@ class AdditiveCoupling(brainstate.nn.Module):
         k: float = 1.0
     ):
         super().__init__()
-        assert isinstance(x, Prefetch), f'The first element must be a Prefetch. But got {type(x)}.'
-        self.x = x
+        self.x = _check_type(x)
         self.k = k
 
         # Connection matrix
         self.conn = u.math.asarray(conn)
-        assert self.conn.ndim == 2, f'Only support 2d connection matrix. But we got {self.conn.ndim}d.'
+        if self.conn.ndim != 2:
+            raise ValueError(f'Only support 2D connection matrix; got {self.conn.ndim}D.')
 
     @brainstate.nn.call_order(2)
     def init_state(self, *args, **kwargs):
         maybe_init_prefetch(self.x)
 
     def update(self):
-        delayed_x = self.x()
-        assert self.conn.size == delayed_x.size, (
-            f'Connection matrix size {self.conn.size} does not '
-            f'match the variable size {delayed_x.size}.'
-        )
-        delayed_x = delayed_x.reshape(self.conn.shape)
-        diffusive = self.conn * delayed_x
-        return self.k * diffusive.sum(axis=1)
+        return additive_coupling(self.x, self.conn, self.k)
