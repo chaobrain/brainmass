@@ -286,7 +286,7 @@ class TestWilsonCowanModel:
             else:
                 val = r.item() if r.ndim > 0 else r
             results_values.append(float(val))
-        
+
         unique_count = len(jnp.unique(jnp.round(jnp.array(results_values), 6)))
         assert unique_count > 1, "Noise should cause variability in outputs"
 
@@ -403,7 +403,8 @@ class TestWilsonCowanModel:
 
         # Check that values remain bounded
         assert u.math.all(u.math.isfinite(results)), "All values should remain finite"
-        max_val = u.math.max(u.math.abs(results)).mantissa if hasattr(u.math.max(u.math.abs(results)), 'mantissa') else u.math.max(u.math.abs(results))
+        max_val = u.math.max(u.math.abs(results)).mantissa if hasattr(u.math.max(u.math.abs(results)),
+                                                                      'mantissa') else u.math.max(u.math.abs(results))
         assert max_val < 100.0, "Values should remain reasonably bounded"
 
     def test_excitation_inhibition_balance(self):

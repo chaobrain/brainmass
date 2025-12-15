@@ -19,7 +19,7 @@ import brainstate
 import braintools
 import brainunit as u
 
-from .noise import Noise
+from ._noise import Noise
 
 __all__ = [
     'XY_Oscillator',
@@ -113,4 +113,3 @@ class XY_Oscillator(brainstate.nn.Dynamics):
         self.x.value = x
         self.y.value = y
         return x
-

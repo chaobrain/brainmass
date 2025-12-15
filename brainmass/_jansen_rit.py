@@ -20,8 +20,8 @@ import braintools
 import brainunit as u
 from brainstate.nn import exp_euler_step
 
+from ._noise import Noise
 from ._typing import Initializer
-from .noise import Noise
 
 __all__ = [
     'JansenRitModel',

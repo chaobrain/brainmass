@@ -20,8 +20,8 @@ import brainstate
 import braintools
 import brainunit as u
 
+from ._noise import Noise
 from ._typing import Initializer
-from .noise import Noise
 
 __all__ = [
     'QIF',

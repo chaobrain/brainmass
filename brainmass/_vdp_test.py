@@ -13,11 +13,10 @@
 # limitations under the License.
 # ==============================================================================
 
-import jax.numpy as jnp
-
-import braintools
 import brainstate
+import braintools
 import brainunit as u
+import jax.numpy as jnp
 
 import brainmass
 
@@ -128,4 +127,3 @@ class TestVanDerPolOscillator:
         assert dy.shape == (1,)
         assert u.get_unit(dx).dim == (1 / u.ms).dim
         assert u.get_unit(dy).dim == (1 / u.ms).dim
-

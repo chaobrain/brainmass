@@ -13,12 +13,10 @@
 # limitations under the License.
 # ==============================================================================
 
-import pytest
-import jax.numpy as jnp
-import numpy as np
-
 import brainstate
 import brainunit as u
+import jax.numpy as jnp
+import pytest
 
 import brainmass
 
