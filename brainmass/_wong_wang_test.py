@@ -412,4 +412,3 @@ class TestWongWangModel:
             plt.tight_layout()
             plt.show()
             plt.close()
-

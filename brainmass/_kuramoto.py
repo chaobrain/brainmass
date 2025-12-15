@@ -15,12 +15,12 @@
 
 from typing import Callable, Optional
 
-import braintools
 import brainstate
+import braintools
 import brainunit as u
 
+from ._noise import Noise
 from ._typing import Initializer
-from .noise import Noise
 
 __all__ = [
     'KuramotoNetwork',
@@ -187,10 +187,10 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         n = theta.shape[-1]
 
         # Broadcast pairwise differences: (..., N_out, N_in)
-        theta_i = u.math.expand_dims(theta, axis=-1)      # (..., N, 1)
-        theta_j = u.math.expand_dims(theta, axis=-2)      # (..., 1, N)
+        theta_i = u.math.expand_dims(theta, axis=-1)  # (..., N, 1)
+        theta_j = u.math.expand_dims(theta, axis=-2)  # (..., 1, N)
         delta = theta_j - theta_i - self.alpha  # broadcast alpha
-        s_mat = u.math.sin(delta)               # (..., N, N)
+        s_mat = u.math.sin(delta)  # (..., N, N)
 
         if self.exclude_self:
             # Zero out diagonal terms to remove self-coupling.
@@ -213,7 +213,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
             elif conn.ndim == 2:
                 if conn.shape != (n, n):
                     raise ValueError(
-                        f'Connectivity must be square (N,N)={(n,n)}; got {conn.shape}.'
+                        f'Connectivity must be square (N,N)={(n, n)}; got {conn.shape}.'
                     )
                 conn2d = conn
             else:

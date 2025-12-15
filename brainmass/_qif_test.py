@@ -14,11 +14,11 @@
 # ==============================================================================
 
 import brainstate
+import braintools
 import brainunit as u
 import jax.numpy as jnp
 
 import brainmass
-import braintools
 
 
 class TestQIFModel:

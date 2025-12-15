@@ -14,10 +14,10 @@
 # ==============================================================================
 
 import brainstate
+import braintools
 import brainunit as u
 import jax.numpy as jnp
 
-import braintools
 import brainmass
 
 

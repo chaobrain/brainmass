@@ -13,11 +13,10 @@
 # limitations under the License.
 # ==============================================================================
 
-import numpy as np
-import jax.numpy as jnp
-
 import brainstate
 import brainunit as u
+import jax.numpy as jnp
+import numpy as np
 
 import brainmass
 
@@ -112,7 +111,7 @@ class TestHopfModel:
         def step1(i):
             with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
                 _ = m1.update(0.0, 0.0)
-                return jnp.sqrt(m1.x.value**2 + m1.y.value**2)
+                return jnp.sqrt(m1.x.value ** 2 + m1.y.value ** 2)
 
         brainstate.environ.set(dt=0.1 * u.ms)
         r_series1 = brainstate.transform.for_loop(step1, np.arange(2000))
@@ -127,7 +126,7 @@ class TestHopfModel:
         def step2(i):
             with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
                 _ = m2.update(0.0, 0.0)
-                return jnp.sqrt(m2.x.value**2 + m2.y.value**2)
+                return jnp.sqrt(m2.x.value ** 2 + m2.y.value ** 2)
 
         r_series2 = brainstate.transform.for_loop(step2, np.arange(2000))
         assert jnp.all(r_series2[-1] < r_series2[0])
@@ -157,4 +156,3 @@ class TestHopfModel:
                 assert False, "Expected assertion when only noise_x is provided"
             except AssertionError:
                 pass
-

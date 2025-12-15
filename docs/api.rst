@@ -8,6 +8,8 @@ API Documentation
 
 A large-scale brain network modeling framework typically consists of four hierarchical layers:
 
+.. code-block::
+
     Structural Connectivity (DTI / Structural MRI)
        ↓
     Neural Mass Models (NMMs)

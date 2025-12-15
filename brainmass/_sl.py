@@ -15,13 +15,13 @@
 
 from typing import Callable
 
-import braintools
 import brainstate
+import braintools
 import brainunit as u
 
 from ._common import XY_Oscillator
+from ._noise import Noise
 from ._typing import Initializer
-from .noise import Noise
 
 __all__ = [
     'StuartLandauOscillator',

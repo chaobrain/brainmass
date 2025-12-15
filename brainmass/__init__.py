@@ -15,32 +15,32 @@
 
 
 __version__ = "0.0.5"
-__version_info__ = (0, 0, 5)
+__version_info__ = tuple(map(int, __version__.split(".")))
 
-from .coupling import *
-from .coupling import __all__ as coupling_all
-from .fhn import *
-from .fhn import __all__ as fhn_all
-from .forward_model import *
-from .forward_model import __all__ as forward_model_all
-from .hopf import *
-from .hopf import __all__ as hopf_all
-from .jansen_rit import *
-from .jansen_rit import __all__ as jansen_rit_all
-from .linear import *
-from .linear import __all__ as linear_all
-from .noise import *
-from .noise import __all__ as noise_all
-from .qif import *
-from .qif import __all__ as qif_all
-from .sl import *
-from .sl import __all__ as sl_all
-from .vdp import *
-from .vdp import __all__ as vdp_all
-from .wilson_cowan import *
-from .wilson_cowan import __all__ as wilson_cowan_all
-from .wong_wang import *
-from .wong_wang import __all__ as wong_wang_all
+from ._coupling import *
+from ._coupling import __all__ as coupling_all
+from ._fhn import *
+from ._fhn import __all__ as fhn_all
+from ._forward_model import *
+from ._forward_model import __all__ as forward_model_all
+from ._hopf import *
+from ._hopf import __all__ as hopf_all
+from ._jansen_rit import *
+from ._jansen_rit import __all__ as jansen_rit_all
+from ._linear import *
+from ._linear import __all__ as linear_all
+from ._noise import *
+from ._noise import __all__ as noise_all
+from ._qif import *
+from ._qif import __all__ as qif_all
+from ._sl import *
+from ._sl import __all__ as sl_all
+from ._vdp import *
+from ._vdp import __all__ as vdp_all
+from ._wilson_cowan import *
+from ._wilson_cowan import __all__ as wilson_cowan_all
+from ._wong_wang import *
+from ._wong_wang import __all__ as wong_wang_all
 
 __all__ = forward_model_all + coupling_all + jansen_rit_all + noise_all + wilson_cowan_all + wong_wang_all + hopf_all
 __all__ = __all__ + fhn_all + linear_all + vdp_all + qif_all + sl_all + ['ArrayParam']
@@ -51,12 +51,12 @@ del fhn_all, linear_all, vdp_all, qif_all, sl_all
 def __getattr__(name):
     if name == 'ArrayParam':
         import warnings
-        import brainstate
+        import braintools
         warnings.warn(
             "brainmass.ArrayParam is deprecated and will be removed in a future version. "
-            "Please use brainstate.ArrayParam instead.",
+            "Please use braintools.param.Param instead.",
             DeprecationWarning,
             stacklevel=2
         )
-        return brainstate.ArrayParam
+        return braintools.param.Param
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
