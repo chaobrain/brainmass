@@ -15,11 +15,12 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
-from brainstate.nn import exp_euler_step
+import jax.nn
 
+import brainstate
+from brainstate.nn import exp_euler_step
 from ._noise import Noise
 from ._typing import Initializer
 
@@ -261,7 +262,7 @@ class JansenRitModel(brainstate.nn.Dynamics):
 
     def S(self, v):
         # Sigmoid ranges from 0 to s_max, centered at v0
-        return self.s_max / (1 + u.math.exp(self.r * (self.v0 - v) / u.mV))
+        return self.s_max * jax.nn.sigmoid(self.r * (self.v0 - v) / u.mV)
 
     def dMv(self, Mv, M, E, I, inp):
         # Pyramidal population driven by the difference of PSPs (no extra C here)
