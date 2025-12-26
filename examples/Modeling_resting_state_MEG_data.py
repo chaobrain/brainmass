@@ -164,7 +164,7 @@ meg_data = xr.open_dataset(os.path.join(path, 'rs-meg.nc'))
 
 region_labels = meg_data.regions.values
 sampling_rate = 1 / (meg_data.time[1] - meg_data.time[0]).item() # Calculate sampling rate from time coordinates
-print(f"Data loaded with {len(region_labels)} regions. Sampling rate: {sampling_rate:.2f} Hz")
+print(f"Array loaded with {len(region_labels)} regions. Sampling rate: {sampling_rate:.2f} Hz")
 #%%
 print('Select a region from the AAL2 atlas and a frequency range')
 # Select a Region 
@@ -364,7 +364,7 @@ fig_real, ax_real = plt.subplots(figsize=(10, 8))
 plot_fc_heatmap(
     fc_matrix=fc_matrix,
     labels=region_labels, 
-    title=f'Real Data Orthogonalized FC ({freq.value[0]}-{freq.value[1]} Hz)',
+    title=f'Real Array Orthogonalized FC ({freq.value[0]}-{freq.value[1]} Hz)',
     ax=ax_real
 )
 plt.tight_layout()
@@ -417,7 +417,7 @@ sim_vs_real_corr = np.corrcoef(real_fc_flat, sim_fc_flat)[0, 1]
 fig_comp, ax_comp = plt.subplots(figsize=(6, 6))
 
 splot = sns.barplot(
-    x=['Simulated vs. Real Data'],
+    x=['Simulated vs. Real Array'],
     y=[sim_vs_real_corr],
     ax=ax_comp
 )

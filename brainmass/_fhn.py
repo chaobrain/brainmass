@@ -20,7 +20,7 @@ import braintools
 import brainunit as u
 
 from ._noise import Noise
-from ._typing import Initializer
+from .typing import Initializer
 
 __all__ = [
     'FitzHughNagumoModel',

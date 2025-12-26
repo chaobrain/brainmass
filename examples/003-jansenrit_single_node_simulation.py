@@ -61,7 +61,7 @@ def show(times, data, title):
 #%% md
 # ## 1) Alpha-like baseline oscillation
 # A single JR node with default parameters and moderate noisy drive exhibits an alpha-like rhythm (8–12 Hz).
-# - Model: `brainmass.JansenRitModel(1)` builds one node (one cortical column).
+# - Model: `brainmass.JansenRitWindow(1)` builds one node (one cortical column).
 # - Initialization: `brainstate.nn.init_all_states(node)` sets internal states consistently.
 # - Drive: mean 120 Hz with noise SD ≈ 30 Hz per sqrt(second), scaled per time step.
 # - Duration: 10 seconds.
@@ -164,6 +164,6 @@ show(indices * dt, data, title='Irregular/noisy oscillation')
 #%% md
 # ## Tips
 # - Change `dt` under the Setup cell to trade accuracy for speed (smaller `dt` is slower but more precise).
-# - Try different `Ae`, `Ai`, `be`, `bi` parameters when constructing `JansenRitModel` to explore bifurcations.
+# - Try different `Ae`, `Ai`, `be`, `bi` parameters when constructing `JansenRitWindow` to explore bifurcations.
 # - Replace the noisy input with deterministic waveforms (ramps, chirps) to test entrainment and resonance.
 # - For reproducible noise, set the random seed if available in your `brainstate` version (e.g., `brainstate.random.seed(0)`).

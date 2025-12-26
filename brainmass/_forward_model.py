@@ -21,7 +21,7 @@ import brainunit as u
 import jax
 import jax.numpy as jnp
 
-from ._typing import Initializer
+from .typing import Initializer
 
 Array = jax.Array
 Quantity = u.Quantity

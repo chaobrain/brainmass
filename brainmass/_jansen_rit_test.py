@@ -351,7 +351,7 @@ class TestJansenRitModel:
 
     def run_all_tests(self):
         """Run all tests."""
-        print("Running JansenRitModel tests...")
+        print("Running JansenRitWindow tests...")
         print("=" * 40)
 
         self.test_initialization()
@@ -368,7 +368,7 @@ class TestJansenRitModel:
         self.test_stability()
 
         print("=" * 40)
-        print("All JansenRitModel tests passed! [PASS]")
+        print("All JansenRitWindow tests passed! [PASS]")
 
     def test_demo_alpha_rhythm(self, plot=True):
         """Demonstrate alpha rhythm generation."""

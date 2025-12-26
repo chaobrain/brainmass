@@ -33,7 +33,7 @@ target_fc = jnp.mean(jnp.asarray(target_fc), axis=0)
 
 
 #%% md
-# ## Data and Target FC
+# ## Array and Target FC
 # 
 # We download a small HCP sample via kagglehub, providing structural connectivity (Cmat) and distances (Dmat). For each BOLD time series, we compute FC and then average across scans to obtain target_fc.
 # 

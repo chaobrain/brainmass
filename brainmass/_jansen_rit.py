@@ -22,7 +22,7 @@ import jax.nn
 import brainstate
 from brainstate.nn import exp_euler_step
 from ._noise import Noise
-from ._typing import Initializer
+from .typing import Initializer
 
 __all__ = [
     'JansenRitModel',

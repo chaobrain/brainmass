@@ -21,7 +21,7 @@ import brainunit as u
 import jax.numpy as jnp
 
 from ._noise import Noise
-from ._typing import Initializer
+from .typing import Initializer
 
 __all__ = [
     'WilsonCowanModel',

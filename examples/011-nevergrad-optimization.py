@@ -29,7 +29,7 @@ data = braintools.file.msgpack_load(os.path.join(path, "hcp-data-sample.msgpack"
 target_fc = [braintools.metric.functional_connectivity(x.T) for x in data['BOLDs']]
 target_fc = jnp.mean(jnp.asarray(target_fc), axis=0)
 #%% md
-# ## Data and Target FC
+# ## Array and Target FC
 #  
 #  We load a sample HCP dataset via `kagglehub` which provides structural (`Cmat`) and distance (`Dmat`) connectivity. For each BOLD time series, we compute FC and then average across scans.
 #  

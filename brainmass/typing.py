@@ -19,3 +19,6 @@ from typing import Union, Callable
 import brainstate
 
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
+
+Array = brainstate.typing.ArrayLike
+
