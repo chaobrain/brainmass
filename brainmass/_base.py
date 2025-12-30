@@ -616,4 +616,42 @@ class Delay(Module):
 
 
 class Dynamics(Module):
-    pass
+    def __init__(self, in_size: brainstate.typing.Size, name: Optional[str] = None):
+        # initialize
+        super().__init__(name=name)
+
+        # geometry size of neuron population
+        if isinstance(in_size, (list, tuple)):
+            if len(in_size) <= 0:
+                raise ValueError(f'"in_size" must be int, or a tuple/list of int. But we got {type(in_size)}')
+            if not isinstance(in_size[0], (int, np.integer)):
+                raise ValueError(f'"in_size" must be int, or a tuple/list of int. But we got {type(in_size)}')
+            in_size = tuple(in_size)
+        elif isinstance(in_size, (int, np.integer)):
+            in_size = (in_size,)
+        else:
+            raise ValueError(f'"in_size" must be int, or a tuple/list of int. But we got {type(in_size)}')
+        self.in_size = in_size
+
+        # in-/out- size of neuron population
+        self.out_size = self.in_size
+
+    @property
+    def varshape(self):
+        """
+        Get the shape of variables in the neuron group.
+
+        This property provides access to the geometry (shape) of the neuron population,
+        which determines how variables and states are structured.
+
+        Returns
+        -------
+        tuple
+            A tuple representing the dimensional shape of the neuron group,
+            matching the in_size parameter provided during initialization.
+
+        See Also
+        --------
+        in_size : The input geometry specification for the neuron group
+        """
+        return self.in_size
