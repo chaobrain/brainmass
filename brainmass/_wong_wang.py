@@ -20,7 +20,7 @@ import brainunit as u
 import jax.numpy as jnp
 
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter 
 
 __all__ = [
     'WongWangModel',
@@ -132,23 +132,23 @@ class WongWangModel(brainstate.nn.Dynamics):
         in_size: brainstate.typing.Size,
 
         # NMDA synaptic parameters
-        tau_S: Initializer = 0.1 * u.second,  # NMDA time constant (ms)
-        gamma: Initializer = 0.641,  # saturation factor
+        tau_S: Parameter  = 0.1 * u.second,  # NMDA time constant (ms)
+        gamma: Parameter  = 0.641,  # saturation factor
 
         # Input-output function parameters  
-        a: Initializer = 270. * (u.Hz / u.nA),  # gain (Hz/nA)
-        theta: Initializer = 0.31 * u.nA,  # firing threshold (nA)
+        a: Parameter  = 270. * (u.Hz / u.nA),  # gain (Hz/nA)
+        theta: Parameter  = 0.31 * u.nA,  # firing threshold (nA)
 
         # Network connectivity (nA)
-        J_N11: Initializer = 0.2609 * u.nA,  # self-excitation pop 1
-        J_N22: Initializer = 0.2609 * u.nA,  # self-excitation pop 2
-        J_N12: Initializer = 0.0497 * u.nA,  # cross-inhibition 2->1
-        J_N21: Initializer = 0.0497 * u.nA,  # cross-inhibition 2->1
-        J_A_ext: Initializer = 0.0002243 * (u.nA / u.Hz),  # external input strength (nA·Hz⁻¹)
+        J_N11: Parameter  = 0.2609 * u.nA,  # self-excitation pop 1
+        J_N22: Parameter  = 0.2609 * u.nA,  # self-excitation pop 2
+        J_N12: Parameter  = 0.0497 * u.nA,  # cross-inhibition 2->1
+        J_N21: Parameter  = 0.0497 * u.nA,  # cross-inhibition 2->1
+        J_A_ext: Parameter  = 0.0002243 * (u.nA / u.Hz),  # external input strength (nA·Hz⁻¹)
 
         # External input
-        mu_0: Initializer = 30. * u.Hz,  # baseline input rate (Hz)
-        I_0: Initializer = 0.3255 * u.nA,  # background input current (nA)
+        mu_0: Parameter  = 30. * u.Hz,  # baseline input rate (Hz)
+        I_0: Parameter  = 0.3255 * u.nA,  # background input current (nA)
 
         # Noise processes
         noise_s1: Noise = None,

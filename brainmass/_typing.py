@@ -17,8 +17,10 @@
 from typing import Union, Callable
 
 import brainstate
+from brainstate.nn import Param
 
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
 
 Array = brainstate.typing.ArrayLike
 
+Parameter = Union[Callable, brainstate.typing.ArrayLike, Param]

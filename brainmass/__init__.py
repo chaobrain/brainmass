@@ -17,46 +17,148 @@
 __version__ = "0.0.5"
 __version_info__ = tuple(map(int, __version__.split(".")))
 
-from ._coupling import *
-from ._coupling import __all__ as coupling_all
-from ._fhn import *
-from ._fhn import __all__ as fhn_all
-from ._forward_model import *
-from ._forward_model import __all__ as forward_model_all
-from ._hopf import *
-from ._hopf import __all__ as hopf_all
-from ._jansen_rit import *
-from ._jansen_rit import __all__ as jansen_rit_all
-from ._linear import *
-from ._linear import __all__ as linear_all
-from ._noise import *
-from ._noise import __all__ as noise_all
-from ._qif import *
-from ._qif import __all__ as qif_all
-from ._sl import *
-from ._sl import __all__ as sl_all
-from ._vdp import *
-from ._vdp import __all__ as vdp_all
-from ._wilson_cowan import *
-from ._wilson_cowan import __all__ as wilson_cowan_all
-from ._wong_wang import *
-from ._wong_wang import __all__ as wong_wang_all
+# Common utilities
+from ._common import (
+    XY_Oscillator,
+    sys2nd,
+    sigmoid,
+    bounded_input,
+    euler_step,
+    process_sequence,
+)
 
-__all__ = forward_model_all + coupling_all + jansen_rit_all + noise_all + wilson_cowan_all + wong_wang_all + hopf_all
-__all__ = __all__ + fhn_all + linear_all + vdp_all + qif_all + sl_all + ['ArrayParam']
-del forward_model_all, coupling_all, jansen_rit_all, noise_all, wilson_cowan_all, wong_wang_all, hopf_all
-del fhn_all, linear_all, vdp_all, qif_all, sl_all
+# Type aliases
+from ._typing import (
+    Initializer,
+    Array,
+    Parameter,
+)
 
+# Noise processes
+from ._noise import (
+    Noise,
+    OUProcess,
+    GaussianNoise,
+    WhiteNoise,
+    ColoredNoise,
+    BrownianNoise,
+    PinkNoise,
+    BlueNoise,
+    VioletNoise,
+)
 
-def __getattr__(name):
-    if name == 'ArrayParam':
-        import warnings
-        import braintools
-        warnings.warn(
-            "brainmass.ArrayParam is deprecated and will be removed in a future version. "
-            "Please use braintools.param.Param instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return braintools.param.Param
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+# Neural mass models
+from ._fhn import FitzHughNagumoModel
+from ._hopf import HopfOscillator
+from ._jansen_rit import JansenRitModel
+from ._wilson_cowan import WilsonCowanModel
+from ._wong_wang import WongWangModel
+from ._vdp import VanDerPolOscillator
+from ._qif import QIF
+from ._linear import ThresholdLinearModel
+from ._kuramoto import KuramotoNetwork
+from ._sl import StuartLandauOscillator
+
+# Forward models and lead field
+from ._forward_model import (
+    BOLDSignal,
+    LeadFieldModel,
+    EEGLeadFieldModel,
+    MEGLeadFieldModel,
+)
+
+# Coupling mechanisms
+from ._coupling import (
+    DiffusiveCoupling,
+    AdditiveCoupling,
+    diffusive_coupling,
+    additive_coupling,
+)
+
+# Hook system
+from ._hooks import (
+    Hook,
+    HookContext,
+    HookManager,
+    HookPoint,
+    hook,
+    StateRecorderHook,
+    StateSaturationHook,
+    NaNDetectorHook,
+)
+
+# HORN models
+from ._horn import (
+    HORNStep,
+    HORNSeqLayer,
+    HORNSeqNetwork,
+)
+
+__all__ = [
+    # Version
+    '__version__',
+    '__version_info__',
+
+    # Common utilities
+    'XY_Oscillator',
+    'sys2nd',
+    'sigmoid',
+    'bounded_input',
+    'euler_step',
+    'process_sequence',
+
+    # Type aliases
+    'Initializer',
+    'Array',
+    'Parameter',
+
+    # Noise processes
+    'Noise',
+    'OUProcess',
+    'GaussianNoise',
+    'WhiteNoise',
+    'ColoredNoise',
+    'BrownianNoise',
+    'PinkNoise',
+    'BlueNoise',
+    'VioletNoise',
+
+    # Neural mass models
+    'FitzHughNagumoModel',
+    'HopfOscillator',
+    'JansenRitModel',
+    'WilsonCowanModel',
+    'WongWangModel',
+    'VanDerPolOscillator',
+    'QIF',
+    'ThresholdLinearModel',
+    'KuramotoNetwork',
+    'StuartLandauOscillator',
+
+    # Forward models and lead field
+    'BOLDSignal',
+    'LeadFieldModel',
+    'EEGLeadFieldModel',
+    'MEGLeadFieldModel',
+
+    # Coupling mechanisms
+    'DiffusiveCoupling',
+    'AdditiveCoupling',
+    'diffusive_coupling',
+    'additive_coupling',
+
+    # Hook system
+    'Hook',
+    'HookContext',
+    'HookManager',
+    'HookPoint',
+    'hook',
+    'StateRecorderHook',
+    'StateSaturationHook',
+    'NaNDetectorHook',
+
+    # HORN models
+    'HORNStep',
+    'HORNSeqLayer',
+    'HORNSeqNetwork',
+]

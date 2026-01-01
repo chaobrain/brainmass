@@ -21,7 +21,7 @@ import brainunit as u
 
 from ._common import XY_Oscillator
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter 
 
 __all__ = [
     'StuartLandauOscillator',
@@ -50,9 +50,9 @@ class StuartLandauOscillator(XY_Oscillator):
     in_size : brainstate.typing.Size
         Spatial shape of the node/population. Can be an ``int`` or a tuple of
         ``int``. All parameters are broadcastable to this shape.
-    a : Initializer, optional
+    a : Parameter , optional
         Bifurcation parameter (dimensionless). Default is ``0.25``.
-    w : Initializer, optional
+    w : Parameter , optional
         Angular frequency :math:`\omega` (dimensionless). Default is ``0.2``.
     noise_x : Noise or None, optional
         Additive noise process for the ``x`` component. If provided, called at
@@ -61,10 +61,10 @@ class StuartLandauOscillator(XY_Oscillator):
         Additive noise process for the ``y`` component. If provided, called at
         each update and added to ``y_inp``. Default is ``None``.
     init_x : Callable, optional
-        Initializer for the state ``x``. Default is
+        Parameter  for the state ``x``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     init_y : Callable, optional
-        Initializer for the state ``y``. Default is
+        Parameter  for the state ``y``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     method : str, optional
         Time stepping method. One of ``'exp_euler'`` (default; uses
@@ -97,8 +97,8 @@ class StuartLandauOscillator(XY_Oscillator):
         in_size: brainstate.typing.Size,
 
         # model parameters
-        a: Initializer = 0.25,
-        w: Initializer = 0.2,
+        a: Parameter  = 0.25,
+        w: Parameter  = 0.2,
 
         # noise parameters
         noise_x: Noise = None,

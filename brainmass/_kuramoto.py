@@ -20,7 +20,7 @@ import braintools
 import brainunit as u
 
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter
 
 __all__ = [
     'KuramotoNetwork',
@@ -50,14 +50,14 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
     in_size : brainstate.typing.Size
         Spatial shape for the oscillator array. For network coupling, the last
         dimension is treated as the node index :math:`N`.
-    omega : Initializer, optional
+    omega : Parameter, optional
         Natural frequency for each oscillator (dimensionless here; overall
         derivative has unit ``1/ms`` due to division by ``u.ms``). Broadcastable
         to ``in_size``. Default is ``0.0``.
-    K : Initializer, optional
+    K : Parameter, optional
         Global coupling strength (dimensionless). Broadcastable to ``in_size``
         when used without explicit ``conn``. Default is ``0.0``.
-    alpha : Initializer, optional
+    alpha : Parameter, optional
         Phase lag :math:`\alpha` (dimensionless, radians). Broadcastable to
         ``in_size``. Default is ``0.0``.
     conn : array-like or None, optional
@@ -72,7 +72,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         Additive noise process for the phase dynamics. If provided, its output
         is added to ``theta_inp`` each update. Default is ``None``.
     init_theta : Callable, optional
-        Initializer for the phase state ``theta`` (dimensionless, radians).
+        Parameter for the phase state ``theta`` (dimensionless, radians).
         Default is ``braintools.init.Uniform(0.0, 2 * u.math.pi)``.
 
     Attributes
@@ -106,9 +106,9 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         self,
         in_size: brainstate.typing.Size,
 
-        omega: Initializer = 0.0,
-        K: Initializer = 0.0,
-        alpha: Initializer = 0.0,
+        omega: Parameter = 0.0,
+        K: Parameter = 0.0,
+        alpha: Parameter = 0.0,
         conn: Optional[brainstate.typing.ArrayLike] = None,
         normalize_by_n: bool = True,
         exclude_self: bool = True,

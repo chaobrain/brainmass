@@ -21,7 +21,7 @@ import braintools
 import brainunit as u
 import jax.numpy as jnp
 
-from .typing import Initializer
+from ._typing import Parameter
 
 __all__ = [
     'Noise',
@@ -47,8 +47,8 @@ class GaussianNoise(Noise):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
-        mean: Initializer = None,
-        sigma: Initializer = 1. * u.nA,
+        mean: Parameter = None,
+        sigma: Parameter = 1. * u.nA,
     ):
         super().__init__(in_size=in_size)
 
@@ -77,8 +77,8 @@ class BrownianNoise(Noise):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
-        mean: Initializer = None,
-        sigma: Initializer = 1. * u.nA,
+        mean: Parameter = None,
+        sigma: Parameter = 1. * u.nA,
         init: Callable = braintools.init.ZeroInit(unit=u.nA)
     ):
         super().__init__(in_size=in_size)
@@ -113,8 +113,8 @@ class ColoredNoise(Noise):
         self,
         in_size: brainstate.typing.Size,
         beta: float = 1.0,
-        mean: Initializer = None,
-        sigma: Initializer = 1. * u.nA,
+        mean: Parameter = None,
+        sigma: Parameter = 1. * u.nA,
     ):
         super().__init__(in_size=in_size)
 
@@ -212,9 +212,9 @@ class OUProcess(Noise):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
-        mean: Initializer = None,  # noise mean value
-        sigma: Initializer = 1. * u.nA,  # noise amplitude
-        tau: Initializer = 10. * u.ms,  # time constant
+        mean: Parameter = None,  # noise mean value
+        sigma: Parameter = 1. * u.nA,  # noise amplitude
+        tau: Parameter = 10. * u.ms,  # time constant
         init: Callable = None
     ):
         super().__init__(in_size=in_size)

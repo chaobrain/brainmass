@@ -15,19 +15,20 @@
 
 from typing import Callable
 
-import brainstate
-import braintools
 import brainunit as u
 
+import brainstate
+import braintools
+from brainstate import nn
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter
 
 __all__ = [
     'FitzHughNagumoModel',
 ]
 
 
-class FitzHughNagumoModel(brainstate.nn.Dynamics):
+class FitzHughNagumoModel(nn.Dynamics):
     r"""FitzHugh–Nagumo neural mass model.
 
     A two-dimensional reduction of the Hodgkin–Huxley model that captures
@@ -44,17 +45,17 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
     in_size : brainstate.typing.Size
         Spatial shape of the node/population. Can be an ``int`` or a tuple of
         ``int``. All parameters are broadcastable to this shape.
-    alpha : Initializer, optional
+    alpha : Parameter, optional
         Cubic nonlinearity coefficient (dimensionless). Default is ``3.0``.
-    beta : Initializer, optional
+    beta : Parameter, optional
         Quadratic nonlinearity coefficient (dimensionless). Default is ``4.0``.
-    gamma : Initializer, optional
+    gamma : Parameter, optional
         Linear coefficient (dimensionless). Default is ``-1.5``.
-    delta : Initializer, optional
+    delta : Parameter, optional
         Offset for the recovery nullcline (dimensionless). Default is ``0.0``.
-    epsilon : Initializer, optional
+    epsilon : Parameter, optional
         Recovery coupling strength (dimensionless). Default is ``0.5``.
-    tau : Initializer, optional
+    tau : Parameter, optional
         Recovery time constant with unit of time (e.g., ``20.0 * u.ms``).
         Broadcastable to ``in_size``. Default is ``20.0 * u.ms``.
     noise_V : Noise or None, optional
@@ -64,10 +65,10 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
         Additive noise process for the recovery variable ``w``. If provided, it
         is called at each update and added to ``w_inp``. Default is ``None``.
     init_V : Callable, optional
-        Initializer for the activator state ``V``. Default is
+        Parameter for the activator state ``V``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     init_w : Callable, optional
-        Initializer for the recovery state ``w``. Default is
+        Parameter for the recovery state ``w``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     method: str
         The integration method to use. Either 'exp_euler' for exponential
@@ -105,12 +106,12 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
         in_size: brainstate.typing.Size,
 
         # fhn parameters
-        alpha: Initializer = 3.0,
-        beta: Initializer = 4.0,
-        gamma: Initializer = -1.5,
-        delta: Initializer = 0.0,
-        epsilon: Initializer = 0.5,
-        tau: Initializer = 20.0 * u.ms,
+        alpha: Parameter = 3.0,
+        beta: Parameter = 4.0,
+        gamma: Parameter = -1.5,
+        delta: Parameter = 0.0,
+        epsilon: Parameter = 0.5,
+        tau: Parameter = 20.0 * u.ms,
 
         # noise parameters
         noise_V: Noise = None,
@@ -151,20 +152,8 @@ class FitzHughNagumoModel(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.V = brainstate.HiddenState(braintools.init.param(self.init_V, self.varshape, batch_size))
-        self.w = brainstate.HiddenState(braintools.init.param(self.init_w, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        """Reset model states ``V`` and ``w`` using the initializers.
-
-        Parameters
-        ----------
-        batch_size : int or None, optional
-            Optional batch dimension for reinitialization. If ``None``, keeps
-            current batch shape but resets values. Default is ``None``.
-        """
-        self.V.value = braintools.init.param(self.init_V, self.varshape, batch_size)
-        self.w.value = braintools.init.param(self.init_w, self.varshape, batch_size)
+        self.V = brainstate.HiddenState.init(self.init_V, self.varshape, batch_size)
+        self.w = brainstate.HiddenState.init(self.init_w, self.varshape, batch_size)
 
     def dV(self, V, w, inp):
         """Right-hand side for the activator variable ``V``.

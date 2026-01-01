@@ -18,14 +18,12 @@ from typing import Callable
 
 import brainstate
 import brainunit as u
-import jax
 import numpy as np
-from brainstate.util.struct import dataclass
-
 from braintools.param import Param, Data
-from .typing import Array
-from .dynamics import Dynamics
-from .functions import sys2nd, sigmoid
+
+from ._base import Dynamics
+from ._common import sys2nd, sigmoid
+from ._typing import Array
 
 __all__ = ["JansenRitModel"]
 
@@ -214,7 +212,7 @@ class JansenRitModel(Dynamics):
         self.delay_idx = np.asarray(self.dist / self.mu.value(), dtype=np.int64)
         self.node_idx = np.tile(np.expand_dims(np.arange(self.node_size), axis=1), (1, self.node_size))
 
-    def create_initial_state(self, *args, **kwargs) -> Data:
+    def get_states(self, *args, **kwargs) -> Data:
         max_delay_len = self.delay_idx.max() + 1
         delay = self.delay_init((max_delay_len, self.node_size))
         state = self.state_init((self.node_size, 6))
@@ -228,7 +226,7 @@ class JansenRitModel(Dynamics):
             delay=delay,
         )
 
-    def retrieve_params(self, *args, **kwargs) -> Data:
+    def get_params(self, *args, **kwargs) -> Data:
         dt = self.step_size
 
         # Extract all Param values at the beginning of forward pass

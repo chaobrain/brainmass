@@ -20,7 +20,7 @@ import braintools
 import brainunit as u
 
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter 
 
 __all__ = [
     'ThresholdLinearModel',
@@ -51,21 +51,21 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
     in_size : brainstate.typing.Size
         Spatial shape for the E and I populations. Can be an ``int`` or a
         tuple of ``int``. All parameters are broadcastable to this shape.
-    tau_E : Initializer, optional
+    tau_E : Parameter , optional
         Excitatory time constant with unit of time (e.g., ``2e-2 * u.second``).
         Default is ``2e-2 * u.second``.
-    tau_I : Initializer, optional
+    tau_I : Parameter , optional
         Inhibitory time constant with unit of time (e.g., ``1e-2 * u.second``).
         Default is ``1e-2 * u.second``.
-    beta_E : Initializer, optional
+    beta_E : Parameter , optional
         Excitatory gain (dimensionless). Default is ``0.066``.
-    beta_I : Initializer, optional
+    beta_I : Parameter , optional
         Inhibitory gain (dimensionless). Default is ``0.351``.
     init_E : Callable, optional
-        Initializer for the excitatory rate state ``E``. Default is
+        Parameter  for the excitatory rate state ``E``. Default is
         ``braintools.init.ZeroInit()``.
     init_I : Callable, optional
-        Initializer for the inhibitory rate state ``I``. Default is
+        Parameter  for the inhibitory rate state ``I``. Default is
         ``braintools.init.ZeroInit()``.
     noise_E : Noise or None, optional
         Additive noise process for the E population. If provided, called each
@@ -101,10 +101,10 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
-        tau_E: Initializer = 2e-2 * u.second,
-        tau_I: Initializer = 1e-2 * u.second,
-        beta_E: Initializer = .066,
-        beta_I: Initializer = .351,
+        tau_E: Parameter  = 2e-2 * u.second,
+        tau_I: Parameter  = 1e-2 * u.second,
+        beta_E: Parameter  = .066,
+        beta_I: Parameter  = .351,
         init_E: Callable = braintools.init.ZeroInit(),
         init_I: Callable = braintools.init.ZeroInit(),
         noise_E: Noise = None,

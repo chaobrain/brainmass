@@ -59,7 +59,7 @@ class ModelFitting:
         self.mask = np.tril_indices(self.model.output_size, -1)
 
     def f_loss(self, model_state, inputs, targets):
-        params = self.model.retrieve_params()
+        params = self.model.define_params()
         model_state, (eeg_output, _) = self.model.update(model_state, params, inputs)
 
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
@@ -81,7 +81,7 @@ class ModelFitting:
 
     @brainstate.transform.jit(static_argnums=0)
     def f_predict(self, model_state, inputs):
-        params = self.model.retrieve_params()
+        params = self.model.define_params()
         model_state, output = self.model.update(model_state, params, inputs)
         return model_state, output
 
@@ -94,7 +94,7 @@ class ModelFitting:
         warmup_window: int = 0,
     ):
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
-        model_state = self.model.create_initial_state()
+        model_state = self.model.define_states()
 
         # Get TRs_per_window from model config
         TRs_per_window = TP_per_window
@@ -160,7 +160,7 @@ class ModelFitting:
         if mask is not None:
             self.model.mask = mask
 
-        model_state = self.model.create_initial_state() if model_state is None else model_state
+        model_state = self.model.define_states() if model_state is None else model_state
 
         # target_eeg: (window_size, TR_per_window, node_size) - time dimension first
         num_windows = target_eeg.shape[0]
@@ -870,11 +870,8 @@ def model_fitting():
         delay_init=lambda s, **kwargs: np.random.uniform(0.0, 0.1, s),
     )
 
-    # Create objective function
-    ObjFun = CostsJR(model)
-
     # Call model fit
-    F = ModelFitting(model, ObjFun)
+    F = ModelFitting(model)
 
     # Model Training
     # u: (time_dim, hidden_size, node_size) - time dimension first
@@ -969,7 +966,7 @@ def apply_virtual_dissection(data):
     final_ouput_eeg = []
 
     # Initialize state using nmm API
-    state = data.model.create_initial_state(init_range=(state_lb, state_ub))
+    state = data.model.get_states(init_range=(state_lb, state_ub))
     x0 = state.to_tensor()
 
     # Initialize delay buffer using nmm API

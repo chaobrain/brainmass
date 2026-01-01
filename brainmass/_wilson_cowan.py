@@ -21,7 +21,7 @@ import brainunit as u
 import jax.numpy as jnp
 
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter 
 
 __all__ = [
     'WilsonCowanModel',
@@ -41,37 +41,37 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
     in_size : brainstate.typing.Size
         Spatial shape of each population (E and I). Can be an int, a tuple of
         ints, or any size compatible with ``brainstate``.
-    tau_E : Initializer, optional
+    tau_E : Parameter , optional
         Excitatory time constant with unit of time (e.g., ``1. * u.ms``).
         Broadcastable to ``in_size``. Default is ``1. * u.ms``.
-    a_E : Initializer, optional
+    a_E : Parameter , optional
         Excitatory gain (dimensionless). Broadcastable to ``in_size``.
         Default is ``1.2``.
-    theta_E : Initializer, optional
+    theta_E : Parameter , optional
         Excitatory threshold (dimensionless). Broadcastable to ``in_size``.
         Default is ``2.8``.
-    tau_I : Initializer, optional
+    tau_I : Parameter , optional
         Inhibitory time constant with unit of time (e.g., ``1. * u.ms``).
         Broadcastable to ``in_size``. Default is ``1. * u.ms``.
-    a_I : Initializer, optional
+    a_I : Parameter , optional
         Inhibitory gain (dimensionless). Broadcastable to ``in_size``.
         Default is ``1.``.
-    theta_I : Initializer, optional
+    theta_I : Parameter , optional
         Inhibitory threshold (dimensionless). Broadcastable to ``in_size``.
         Default is ``4.0``.
-    wEE : Initializer, optional
+    wEE : Parameter , optional
         E→E coupling strength (dimensionless). Broadcastable to ``in_size``.
         Default is ``12.``.
-    wIE : Initializer, optional
+    wIE : Parameter , optional
         E→I coupling strength (dimensionless). Broadcastable to ``in_size``.
         Default is ``4.``.
-    wEI : Initializer, optional
+    wEI : Parameter , optional
         I→E coupling strength (dimensionless). Broadcastable to ``in_size``.
         Default is ``13.``.
-    wII : Initializer, optional
+    wII : Parameter , optional
         I→I coupling strength (dimensionless). Broadcastable to ``in_size``.
         Default is ``11.``.
-    r : Initializer, optional
+    r : Parameter , optional
         Refractory parameter (dimensionless) that limits maximum activation.
         Broadcastable to ``in_size``. Default is ``1.``.
     noise_E : Noise or None, optional
@@ -81,10 +81,10 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         Additive noise process for the inhibitory population. If provided, its
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
-        Initializer for the excitatory state ``rE``. Default is
+        Parameter  for the excitatory state ``rE``. Default is
         ``braintools.init.ZeroInit()``.
     rI_init : Callable, optional
-        Initializer for the inhibitory state ``rI``. Default is
+        Parameter  for the inhibitory state ``rI``. Default is
         ``braintools.init.ZeroInit()``.
     method: str
         The numerical integration method to use. One of ``'exp_euler'``,
@@ -133,23 +133,23 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         in_size: brainstate.typing.Size,
 
         # Excitatory parameters
-        tau_E: Initializer = 1. * u.ms,  # excitatory time constant (ms)
-        a_E: Initializer = 1.2,  # excitatory gain (dimensionless)
-        theta_E: Initializer = 2.8,  # excitatory firing threshold (dimensionless)
+        tau_E: Parameter  = 1. * u.ms,  # excitatory time constant (ms)
+        a_E: Parameter  = 1.2,  # excitatory gain (dimensionless)
+        theta_E: Parameter  = 2.8,  # excitatory firing threshold (dimensionless)
 
         # Inhibitory parameters
-        tau_I: Initializer = 1. * u.ms,  # inhibitory time constant (ms)
-        a_I: Initializer = 1.,  # inhibitory gain (dimensionless)
-        theta_I: Initializer = 4.0,  # inhibitory firing threshold (dimensionless)
+        tau_I: Parameter  = 1. * u.ms,  # inhibitory time constant (ms)
+        a_I: Parameter  = 1.,  # inhibitory gain (dimensionless)
+        theta_I: Parameter  = 4.0,  # inhibitory firing threshold (dimensionless)
 
         # Connection parameters
-        wEE: Initializer = 12.,  # local E-E coupling (dimensionless)
-        wIE: Initializer = 4.,  # local E-I coupling (dimensionless)
-        wEI: Initializer = 13.,  # local I-E coupling (dimensionless)
-        wII: Initializer = 11.,  # local I-I coupling (dimensionless)
+        wEE: Parameter  = 12.,  # local E-E coupling (dimensionless)
+        wIE: Parameter  = 4.,  # local E-I coupling (dimensionless)
+        wEI: Parameter  = 13.,  # local I-E coupling (dimensionless)
+        wII: Parameter  = 11.,  # local I-I coupling (dimensionless)
 
         # Refractory parameter
-        r: Initializer = 1.,  # refractory parameter (dimensionless)
+        r: Parameter  = 1.,  # refractory parameter (dimensionless)
 
         # noise
         noise_E: Noise = None,  # excitatory noise process

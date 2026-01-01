@@ -6,16 +6,15 @@ Transforms neural mass model source activity to sensor-space EEG signals.
 
 import brainunit as u
 
-from braintools.param import Param, Data
-from .typing import Array
-from .dynamics import Dynamics
+from brainstate import nn
+from ._typing import Array, Parameter
 
 __all__ = [
     'LeadfieldReadout',
 ]
 
 
-class LeadfieldReadout(Dynamics):
+class LeadfieldReadout(nn.Module):
     """
     Leadfield matrix EEG readout.
 
@@ -27,9 +26,9 @@ class LeadfieldReadout(Dynamics):
 
     def __init__(
         self,
-        lm: Param,
-        y0: Param,
-        cy0: Param,
+        lm: Array,
+        y0: Parameter,
+        cy0: Parameter,
         normalize: bool = True,
         demean: bool = True,
     ):
@@ -42,11 +41,10 @@ class LeadfieldReadout(Dynamics):
             cy0: Scaling coefficient parameter.
             normalize: Whether to L2-normalize leadfield rows.
             demean: Whether to remove mean across channels.
-            hook_manager: Optional hook manager.
         """
         super().__init__()
 
-        self.lm = lm
+        self.lm = nn.Param(lm, precompute=self.normalize_leadfield)
         self.y0 = y0
         self.cy0 = cy0
         self.normalize = normalize
@@ -74,21 +72,9 @@ class LeadfieldReadout(Dynamics):
 
         return lm
 
-    def create_initial_state(self, *args, **kwargs) -> Data:
-        return Data()
-
-    def retrieve_params(self, *args, **kwargs) -> Data:
-        return Data(
-            lm=self.normalize_leadfield(self.lm.value()),
-            y0=self.y0.value(),
-            cy0=self.cy0.value(),
-        )
-
-    def update(
-        self,
-        state: None,
-        param: Data,
-        x: Array,
-    ):
-        eeg = param.cy0 * (param.lm @ x) - param.y0
-        return state, eeg
+    def update(self, x: Array):
+        lm = self.lm.value()
+        y0 = self.y0.value()
+        cy0 = self.cy0.value()
+        eeg = cy0 * (lm @ x) - y0
+        return eeg

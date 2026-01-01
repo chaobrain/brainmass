@@ -102,13 +102,13 @@ def simulation(k, sigma):
 # - This step is memory hungry. Reduce grid size or simulation length if you see OOM.
 # - Consider fixing `signal_speed` first, then scanning `k`/`sigma`.
 #%%
-all_ks = jnp.linspace(0.5, 3.0, 4)
-all_sigmas = jnp.linspace(0.01, 0.2, 4)
+all_ks = jnp.linspace(0.5, 3.0, 2)
+all_sigmas = jnp.linspace(0.01, 0.2, 2)
 #%%
 @brainstate.transform.jit
 def parameter_exploration(ks, sigmas):
-    results = brainstate.transform.vmap(
-        lambda k: brainstate.transform.vmap(lambda sigma: simulation(k, sigma))(sigmas)
+    results = brainstate.transform.vmap2(
+        lambda k: brainstate.transform.vmap2(lambda sigma: simulation(k, sigma))(sigmas)
     )(ks)
     return results
 #%%

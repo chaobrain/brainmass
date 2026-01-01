@@ -21,7 +21,7 @@ import brainunit as u
 
 from ._common import XY_Oscillator
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter 
 
 __all__ = [
     'VanDerPolOscillator',
@@ -75,7 +75,7 @@ class VanDerPolOscillator(XY_Oscillator):
     in_size : brainstate.typing.Size
         Spatial shape of the node/population. Can be an ``int`` or a tuple of
         ``int``. All parameters are broadcastable to this shape.
-    mu : Initializer, optional
+    mu : Parameter , optional
         Nonlinearity/damping parameter (dimensionless). Default is ``1.0``.
     noise_x : Noise or None, optional
         Additive noise process for the :math:`x`-equation. If provided, called
@@ -84,10 +84,10 @@ class VanDerPolOscillator(XY_Oscillator):
         Additive noise process for the :math:`y`-equation. If provided, called
         each update and added to ``y_inp``. Default is ``None``.
     init_x : Callable, optional
-        Initializer for the state ``x``. Default is
+        Parameter  for the state ``x``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     init_y : Callable, optional
-        Initializer for the state ``y``. Default is
+        Parameter  for the state ``y``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     method : str, optional
         Time stepping method. One of ``'exp_euler'`` (exponential Euler; default)
@@ -126,7 +126,7 @@ class VanDerPolOscillator(XY_Oscillator):
         in_size: brainstate.typing.Size,
 
         # parameters
-        mu: Initializer = 1.0,
+        mu: Parameter  = 1.0,
 
         # noise parameters
         noise_x: Noise = None,

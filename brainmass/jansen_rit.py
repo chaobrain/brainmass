@@ -16,18 +16,20 @@
 from typing import Callable, Optional
 
 import brainstate.environ
+import braintools.init
 import brainunit as u
 import numpy as np
-
-import braintools.init
 from braintools.param import Param, Data
-from .typing import Array
-from .delay import Delay
-from .dynamics import Dynamics, MultiStepDynamics
-from .functions import sys2nd, sigmoid, bounded_input
-from .leadfield import LeadfieldReadout
+
+from ._delay import OutputDelay
+from ._base import Dynamics, MultiStepDynamics
+from ._common import sys2nd, sigmoid, bounded_input
+from ._leadfield import LeadfieldReadout
+from ._typing import Array
 
 __all__ = [
+    "JansenRitStep",
+    "JansenRitTR",
     "JansenRitWindow",
 ]
 
@@ -85,7 +87,7 @@ class JansenRitStep(Dynamics):
         self.kE = kE
         self.kI = kI
 
-    def create_initial_state(self, *args, **kwargs) -> Data:
+    def get_states(self, *args, **kwargs) -> Data:
         state = self.state_init((6, self.node_size))
         return Data(
             P=state[0],
@@ -96,7 +98,7 @@ class JansenRitStep(Dynamics):
             Iv=state[5],
         )
 
-    def retrieve_params(self, *args, **kwargs) -> Data:
+    def get_params(self, *args, **kwargs) -> Data:
         return Data(
             A=self.A.value(),
             B=self.B.value(),
@@ -209,7 +211,7 @@ class LaplacianConnectivity(Dynamics):
         self.g_b = g_b
         self.mask = mask
 
-    def retrieve_params(self, *args, **kwargs) -> Data:
+    def get_params(self, *args, **kwargs) -> Data:
         w_bb = self.w_bb.value()
         w_ff = self.w_ff.value()
         w_ll = self.w_ll.value()
@@ -240,7 +242,6 @@ class LaplacianConnectivity(Dynamics):
             w_n_l = w_n_l * self.mask
         dg_l = -u.math.diag(u.math.sum(w_n_l, axis=1))
 
-
         return Data(
             w_n_b=w_n_b * gb,
             w_n_f=w_n_f * gf,
@@ -250,8 +251,8 @@ class LaplacianConnectivity(Dynamics):
             dg_l=dg_l * gl,
         )
 
-    def create_initial_state(self, *args, **kwargs) -> Data:
-        return None
+    def get_states(self, *args, **kwargs) -> Data:
+        return Data()
 
     def update(self, state: Data, param: Data, Ed: Array):
         LEd_b = u.math.sum(param.w_n_b * Ed.T, axis=1)
@@ -344,7 +345,7 @@ class JansenRitTR(Dynamics):
             input_saturation=input_saturation,
             state_init=state_init,
         )
-        self.delay = Delay(
+        self.delay = OutputDelay(
             node_size=node_size,
             delay_idx=np.asarray(dist / mu, dtype=brainstate.environ.ditype()),
             init=delay_init,

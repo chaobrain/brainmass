@@ -22,7 +22,7 @@ import jax.nn
 import brainstate
 from brainstate.nn import exp_euler_step
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter
 
 __all__ = [
     'JansenRitModel',
@@ -186,18 +186,18 @@ class JansenRitModel(brainstate.nn.Dynamics):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
-        Ae: Initializer = 3.25 * u.mV,  # Excitatory gain
-        Ai: Initializer = 22. * u.mV,  # Inhibitory gain
-        be: Initializer = 100. * u.Hz,  # Excit. time const
-        bi: Initializer = 50. * u.Hz,  # Inhib. time const.
-        C: Initializer = 135.,  # Connect. const.
-        a1: Initializer = 1.,  # Connect. param.
-        a2: Initializer = 0.8,  # Connect. param.
-        a3: Initializer = 0.25,  # Connect. param
-        a4: Initializer = 0.25,  # Connect. param.
-        s_max: Initializer = 5.0 * u.Hz,  # Max firing rate
-        v0: Initializer = 6. * u.mV,  # Firing threshold
-        r: Initializer = 0.56,  # Sigmoid steepness
+        Ae: Parameter = 3.25 * u.mV,  # Excitatory gain
+        Ai: Parameter = 22. * u.mV,  # Inhibitory gain
+        be: Parameter = 100. * u.Hz,  # Excit. time const
+        bi: Parameter = 50. * u.Hz,  # Inhib. time const.
+        C: Parameter = 135.,  # Connect. const.
+        a1: Parameter = 1.,  # Connect. param.
+        a2: Parameter = 0.8,  # Connect. param.
+        a3: Parameter = 0.25,  # Connect. param
+        a4: Parameter = 0.25,  # Connect. param.
+        s_max: Parameter = 5.0 * u.Hz,  # Max firing rate
+        v0: Parameter = 6. * u.mV,  # Firing threshold
+        r: Parameter = 0.56,  # Sigmoid steepness
         M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
         E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
         I_init: Callable = braintools.init.ZeroInit(unit=u.mV),

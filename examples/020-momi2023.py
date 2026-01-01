@@ -46,7 +46,7 @@ class ModelFitting:
 
     def f_loss(self, model_state, inputs, targets):
         # Forward pass
-        params = self.model.retrieve_params()
+        params = self.model.get_params()
         model_state, (eeg_output, _) = self.model.update(model_state, params, inputs)
 
         # Calculate prior reg loss using Param API
@@ -70,7 +70,7 @@ class ModelFitting:
     @brainstate.transform.jit(static_argnums=0)
     def f_predict(self, model_state, inputs):
         # Forward pass (no gradient computation)
-        params = self.model.retrieve_params()
+        params = self.model.get_params()
         model_state, (eeg_output, state_output) = self.model.update(model_state, params, inputs)
         return model_state, eeg_output, state_output
 
@@ -88,7 +88,7 @@ class ModelFitting:
         w_cost = 10  # Weight for data fitting cost
 
         # Initialize states - ModelData contains dynamics_state and delay_state
-        model_state = self.model.create_initial_state()
+        model_state = self.model.get_states()
 
         # Define masks for lower triangle matrices
         mask_e = np.tril_indices(self.model.output_size, -1)
@@ -133,7 +133,7 @@ class ModelFitting:
         return np.array(loss_his)
 
     def test(self, base_batch_num: int, u):
-        model_state = self.model.create_initial_state()
+        model_state = self.model.get_states()
 
         # ts: (num_windows, batch_size, output_size)
         batch_size = self.ts.shape[1]

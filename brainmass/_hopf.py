@@ -22,7 +22,7 @@ import brainunit as u
 
 from ._common import XY_Oscillator
 from ._noise import Noise
-from .typing import Initializer
+from ._typing import Parameter
 
 __all__ = [
     'HopfOscillator',
@@ -54,18 +54,18 @@ class HopfOscillator(XY_Oscillator):
     ----------
     in_size : brainstate.typing.Size
         Spatial shape of the node. Can be an int or tuple of ints.
-    a : Initializer, optional
+    a : Parameter, optional
         Bifurcation parameter (dimensionless). For ``a > 0`` the system exhibits
         a stable limit cycle; for ``a < 0`` the origin is a stable focus.
         Broadcastable to ``in_size``. Default is ``0.25``.
-    w : Initializer, optional
+    w : Parameter, optional
         Angular frequency :math:`\omega` (dimensionless in this implementation).
         Broadcastable to ``in_size``. Default is ``0.2``.
-    K_gl : Initializer, optional
+    K_gl : Parameter, optional
         Global coupling gain (dimensionless), included for convenience when used
         in networked settings. Not applied directly in the local node dynamics.
         Broadcastable to ``in_size``. Default is ``1.0``.
-    beta : Initializer, optional
+    beta : Parameter, optional
         Nonlinear saturation coefficient (dimensionless) setting the limit-cycle
         amplitude (approximately :math:`\sqrt{a/\beta}` when ``a>0``).
         Broadcastable to ``in_size``. Default is ``1.0``.
@@ -95,10 +95,10 @@ class HopfOscillator(XY_Oscillator):
         self,
         in_size: brainstate.typing.Size,
 
-        a: Initializer = 0.25,  # Hopf bifurcation parameter
-        w: Initializer = 0.2,  # Oscillator frequency
-        K_gl: Initializer = 1.0,  # global coupling strength
-        beta: Initializer = 1.0,  # nonlinear saturation coefficient
+        a: Parameter = 0.25,  # Hopf bifurcation parameter
+        w: Parameter = 0.2,  # Oscillator frequency
+        K_gl: Parameter = 1.0,  # global coupling strength
+        beta: Parameter = 1.0,  # nonlinear saturation coefficient
 
         # noise
         noise_x: Noise = None,

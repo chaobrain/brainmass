@@ -3,18 +3,18 @@ import pickle
 from collections import defaultdict
 
 import brainstate
+import braintools
 import brainunit as u
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
 import pandas as pd
 import scipy.signal
+from braintools.param import Param, Const, ReluT, ExpT, GaussianReg
 from scipy.io import loadmat
 from sklearn.metrics.pairwise import cosine_similarity
 
-import braintools
-from brainmass.jansen_rit_v2 import JansenRitWindow
-from braintools.param import Param, Const, ReluT, ExpT, GaussianReg
+from brainmass.jansen_rit import JansenRitWindow
 
 
 def dataloader(emp, TR_per_window):
@@ -27,25 +27,11 @@ def dataloader(emp, TR_per_window):
     return data_out
 
 
-class Costs:
-    def __init__(self):
-        self.w_cost = 10
-
-    def cost_eff(self, sim, emp, model):
-        loss_main = u.math.sqrt(u.math.mean((sim - emp) ** 2))
-        loss_prior = []
-        for module in model.nodes(Param).values():
-            loss_prior.append(module.reg_loss())
-        loss = self.w_cost * loss_main + sum(loss_prior)
-        return loss
-
-
 class ModelFitting:
     def __init__(self, model: JansenRitWindow, ts, n_epoches: int):
         self.model = model
         self.n_epoches = n_epoches
         self.ts = ts
-        self.cost = Costs()
         self.optimizer = braintools.optim.Adam(lr=5e-2)
         # self.optimizer = braintools.optim.Adam(lr=5e-3)
         self.weights = model.states(brainstate.ParamState)
@@ -53,14 +39,21 @@ class ModelFitting:
 
     def f_loss(self, model_state, inputs, targets):
         # Use the model.forward() function to update next state and get simulated EEG
-        param = self.model.retrieve_params()
+        param = self.model.define_params()
         model_state, (eeg_output, _) = self.model.update(model_state, param, inputs)
-        loss = self.cost.cost_eff(eeg_output, targets, self.model)
+
+        loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
+        loss_prior = []
+        for module in self.model.nodes(Param).values():
+            loss_prior.append(module.reg_loss())
+        loss = 10. * loss_main + sum(loss_prior)
+
         return loss, (model_state, eeg_output)
 
     @brainstate.transform.jit(static_argnums=0)
     def f_train(self, model_state, inputs, targets):
-        f_grad = brainstate.transform.fwd_grad(self.f_loss, self.weights, tangent_size=128, has_aux=True, return_value=True)
+        f_grad = brainstate.transform.fwd_grad(self.f_loss, self.weights, tangent_size=128, has_aux=True,
+                                               return_value=True)
         f_grad = brainstate.transform.grad(self.f_loss, self.weights, has_aux=True, return_value=True)
         grads, loss, (model_state, eeg_output) = f_grad(model_state, inputs, targets)
         self.optimizer.step(grads)
@@ -69,13 +62,13 @@ class ModelFitting:
     @brainstate.transform.jit(static_argnums=0)
     def f_predict(self, model_state, inputs):
         # Use the model.forward() function
-        model_param = self.model.retrieve_params()
+        model_param = self.model.define_params()
         model_state, (eeg_output, state_output) = self.model(model_state, model_param, inputs)
         return model_state, eeg_output, state_output
 
     def train(self, inputs):
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
-        model_state = self.model.create_initial_state()
+        model_state = self.model.define_states()
 
         # define masks for getting lower triangle matrix indices
         mask_e = np.tril_indices(self.model.output_size, -1)
@@ -125,7 +118,7 @@ class ModelFitting:
         transient_num = 10
 
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
-        model_state = self.model.create_initial_state()
+        model_state = self.model.define_states()
 
         # define mask for getting lower triangle matrix
         mask_e = np.tril_indices(self.model.output_size, -1)
@@ -206,7 +199,7 @@ node_size = sc.shape[0]
 output_size = verb_meg.shape[0]
 batch_size = 250
 model_dt = 0.0001
-num_epoches = 40  # used 250 in paper using 2 for example
+num_epoches = 200  # used 250 in paper using 2 for example
 data_dt = 0.001
 state_size = 6
 base_batch_num = 20
@@ -264,8 +257,8 @@ def create_model(fit_hyper=True) -> JansenRitWindow:
         w_bb=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
         w_ff=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
         w_ll=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
-        state_init=lambda s, **kwargs: np.asarray(np.random.uniform(-0.01, 0.01, s), dtype=brainstate.environ.dftype()),
-        delay_init=lambda s, **kwargs: np.asarray(np.random.uniform(-0.01, 0.01, s), dtype=brainstate.environ.dftype()),
+        state_init=lambda s, **kwargs: brainstate.random.uniform(-0.01, 0.01, s),
+        delay_init=lambda s, **kwargs: brainstate.random.uniform(-0.01, 0.01, s),
     )
 
     return JansenRitWindow(
