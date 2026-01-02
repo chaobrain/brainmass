@@ -148,7 +148,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         self.theta = brainstate.HiddenState.init(self.init_theta, self.varshape, batch_size)
 
     def _pairwise_coupling(self, theta):
-        """Compute coupling term for each oscillator.
+        r"""Compute coupling term for each oscillator.
 
         Parameters
         ----------
@@ -177,7 +177,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         # Broadcast pairwise differences: (..., N_out, N_in)
         theta_i = u.math.expand_dims(theta, axis=-1)  # (..., N, 1)
         theta_j = u.math.expand_dims(theta, axis=-2)  # (..., 1, N)
-        delta = theta_j - theta_i - self.alpha  # broadcast alpha
+        delta = theta_j - theta_i - self.alpha.value()  # broadcast alpha
         s_mat = u.math.sin(delta)  # (..., N, N)
 
         if self.exclude_self:

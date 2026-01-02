@@ -26,7 +26,7 @@ class TestWongWangModel:
 
     def test_initialization(self):
         """Test model initialization and parameter setting."""
-        model = brainmass.WongWangModel(in_size=10)
+        model = brainmass.WongWangStep(in_size=10)
 
         # Check default parameter values
         assert model.tau_S == 100. * u.ms
@@ -44,7 +44,7 @@ class TestWongWangModel:
 
     def test_state_initialization(self):
         """Test state initialization and reset."""
-        model = brainmass.WongWangModel(in_size=5)
+        model = brainmass.WongWangStep(in_size=5)
 
         # Test single instance initialization
         model.init_state()
@@ -69,7 +69,7 @@ class TestWongWangModel:
 
     def test_phi_function(self):
         """Test the input-output transfer function."""
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
 
         # Test threshold behavior
         I_below = 0.3 * u.nA  # Below threshold
@@ -86,7 +86,7 @@ class TestWongWangModel:
 
     def test_compute_inputs(self):
         """Test input computation with different coherence levels."""
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
         model.init_state()
 
         # Test zero coherence (equal inputs)
@@ -108,7 +108,7 @@ class TestWongWangModel:
         """Test single time step update."""
         brainstate.environ.set(dt=0.1 * u.second)  # Set 0.1 second timestep
 
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
         model.init_state()
 
         # Initial state should be zero
@@ -131,7 +131,7 @@ class TestWongWangModel:
         """Test decision-making dynamics over time."""
         brainstate.environ.set(dt=0.1 * u.second)  # 0.1 s timestep
 
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
         model.init_state()
 
         # Simulate decision with strong rightward coherence
@@ -164,7 +164,7 @@ class TestWongWangModel:
         """Test effect of different coherence levels."""
         brainstate.environ.set(dt=0.1 * u.second)
 
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
         model.init_state()
 
         coherence_levels = [-0.8, -0.4, 0., 0.4, 0.8]
@@ -190,7 +190,7 @@ class TestWongWangModel:
 
     def test_get_decision(self):
         """Test decision detection method."""
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
         model.init_state()
 
         # Set states to create clear decision
@@ -212,7 +212,7 @@ class TestWongWangModel:
         noise_s1 = brainmass.OUProcess(1, tau=2. * u.second, sigma=0.02 * u.nA, mean=0. * u.nA)
         noise_s2 = brainmass.OUProcess(1, tau=2. * u.second, sigma=0.02 * u.nA, mean=0. * u.nA)
 
-        model = brainmass.WongWangModel(
+        model = brainmass.WongWangStep(
             in_size=1,
             noise_s1=noise_s1,
             noise_s2=noise_s2
@@ -238,7 +238,7 @@ class TestWongWangModel:
         brainstate.environ.set(dt=0.1 * u.second)
 
         batch_size = 4
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
         model.init_state(batch_size=batch_size)
 
         # Update with different coherence for each batch element
@@ -262,7 +262,7 @@ class TestWongWangModel:
 
     def run_all_tests(self):
         """Run all tests."""
-        print("Running WongWangModel tests...")
+        print("Running WongWangStep tests...")
         print("=" * 40)
 
         self.test_initialization()
@@ -277,13 +277,13 @@ class TestWongWangModel:
         self.test_batch_processing()
 
         print("=" * 40)
-        print("All WongWangModel tests passed! ✓")
+        print("All WongWangStep tests passed! ✓")
 
     def test_demo_decision_making(self, plot=True):
         """Demonstrate decision-making behavior."""
         brainstate.environ.set(dt=0.0001 * u.second)
 
-        model = brainmass.WongWangModel(in_size=1)
+        model = brainmass.WongWangStep(in_size=1)
         model.init_state()
 
         n_steps = 8000  # 800 ms
@@ -329,7 +329,7 @@ class TestWongWangModel:
         """Demonstrate decision-making behavior."""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WongWangModel(in_size=1, tau_S=100. * u.ms)
+        model = brainmass.WongWangStep(in_size=1, tau_S=100. * u.ms)
         model.init_state()
 
         n_steps = 8000  # 800 ms
@@ -373,7 +373,7 @@ class TestWongWangModel:
         """Demonstrate decision-making behavior."""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WongWangModel(in_size=1, tau_S=0.1 * u.second)
+        model = brainmass.WongWangStep(in_size=1, tau_S=0.1 * u.second)
         model.init_state()
 
         n_steps = 8000  # 800 ms

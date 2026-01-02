@@ -23,7 +23,7 @@ import brainmass
 
 class TestThresholdLinearModel:
     def test_initialization_defaults(self):
-        m = brainmass.ThresholdLinearModel(in_size=1)
+        m = brainmass.ThresholdLinearStep(in_size=1)
         assert m.in_size == (1,)
         assert m.tau_E == 2e-2 * u.second
         assert m.tau_I == 1e-2 * u.second
@@ -33,7 +33,7 @@ class TestThresholdLinearModel:
         assert m.noise_I is None
 
     def test_state_initialization_and_reset(self):
-        m = brainmass.ThresholdLinearModel(
+        m = brainmass.ThresholdLinearStep(
             in_size=4,
             init_E=braintools.init.ZeroInit(),
             init_I=braintools.init.ZeroInit(),
@@ -59,7 +59,7 @@ class TestThresholdLinearModel:
         assert u.math.allclose(m.I.value, jnp.zeros((3, 4)))
 
     def test_update_basic_and_nonnegativity(self):
-        m = brainmass.ThresholdLinearModel(
+        m = brainmass.ThresholdLinearStep(
             in_size=2,
             init_E=braintools.init.ZeroInit(),
             init_I=braintools.init.ZeroInit(),
@@ -83,13 +83,13 @@ class TestThresholdLinearModel:
 
     def test_beta_effect_on_gain(self):
         # Larger beta_E should yield larger E update from zero under same positive input
-        m1 = brainmass.ThresholdLinearModel(
+        m1 = brainmass.ThresholdLinearStep(
             in_size=1,
             beta_E=0.05,
             init_E=braintools.init.ZeroInit(),
             init_I=braintools.init.ZeroInit(),
         )
-        m2 = brainmass.ThresholdLinearModel(
+        m2 = brainmass.ThresholdLinearStep(
             in_size=1,
             beta_E=0.20,
             init_E=braintools.init.ZeroInit(),
@@ -104,7 +104,7 @@ class TestThresholdLinearModel:
 
     def test_shapes_batch_and_multidimensional(self):
         sz = (2, 3)
-        m = brainmass.ThresholdLinearModel(
+        m = brainmass.ThresholdLinearStep(
             in_size=sz,
             init_E=braintools.init.ZeroInit(),
             init_I=braintools.init.ZeroInit(),
@@ -119,23 +119,23 @@ class TestThresholdLinearModel:
     def test_invalid_noise_and_initializers(self):
         # Invalid noise types should raise
         try:
-            _ = brainmass.ThresholdLinearModel(1, noise_E=object())
+            _ = brainmass.ThresholdLinearStep(1, noise_E=object())
             assert False, "Expected assertion for invalid noise_E"
         except AssertionError:
             pass
         try:
-            _ = brainmass.ThresholdLinearModel(1, noise_I=object())
+            _ = brainmass.ThresholdLinearStep(1, noise_I=object())
             assert False, "Expected assertion for invalid noise_I"
         except AssertionError:
             pass
         # Invalid initializers should raise
         try:
-            _ = brainmass.ThresholdLinearModel(1, init_E=None)
+            _ = brainmass.ThresholdLinearStep(1, init_E=None)
             assert False, "Expected assertion for invalid init_E"
         except AssertionError:
             pass
         try:
-            _ = brainmass.ThresholdLinearModel(1, init_I=None)
+            _ = brainmass.ThresholdLinearStep(1, init_I=None)
             assert False, "Expected assertion for invalid init_I"
         except AssertionError:
             pass

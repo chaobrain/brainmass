@@ -25,11 +25,11 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'QIF',
+    'QIFStep',
 ]
 
 
-class QIF(brainstate.nn.Dynamics):
+class QIFStep(brainstate.nn.Dynamics):
     r"""Quadratic integrate-and-fire mean-field model (Montbrió–Pazó–Roxin).
 
     Implements the exact mean-field reduction of a population of all-to-all

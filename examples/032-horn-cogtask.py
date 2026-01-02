@@ -24,7 +24,7 @@ import cogtask
 from brainmass import HORNSeqNetwork
 from brainstate import DelayState
 
-brainstate.environ.set(dt=1. * u.ms)
+brainstate.environ.set(dt=10. * u.ms)
 
 task = cogtask.DelayMatchSample(
     t_fixation=10.0 * u.ms,

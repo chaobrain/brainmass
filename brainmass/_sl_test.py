@@ -26,7 +26,7 @@ class TestStuartLandauOscillator:
         # XY_Oscillator asserts callability of noise args, so pass Noise objects
         nx = brainmass.OUProcess(1, sigma=0.0)
         ny = brainmass.OUProcess(1, sigma=0.0)
-        m = brainmass.StuartLandauOscillator(in_size=1, noise_x=nx, noise_y=ny)
+        m = brainmass.StuartLandauStep(in_size=1, noise_x=nx, noise_y=ny)
         assert m.in_size == (1,)
         assert m.a == 0.25
         assert m.w == 0.2
@@ -36,7 +36,7 @@ class TestStuartLandauOscillator:
     def test_state_initialization_and_reset(self):
         nx = brainmass.OUProcess(4, sigma=0.0)
         ny = brainmass.OUProcess(4, sigma=0.0)
-        m = brainmass.StuartLandauOscillator(
+        m = brainmass.StuartLandauStep(
             in_size=4,
             init_x=braintools.init.ZeroInit(),
             init_y=braintools.init.ZeroInit(),
@@ -68,7 +68,7 @@ class TestStuartLandauOscillator:
     def test_dx_dy_units_and_finiteness(self):
         nx = brainmass.OUProcess(1, sigma=0.0)
         ny = brainmass.OUProcess(1, sigma=0.0)
-        m = brainmass.StuartLandauOscillator(in_size=1, noise_x=nx, noise_y=ny)
+        m = brainmass.StuartLandauStep(in_size=1, noise_x=nx, noise_y=ny)
         x = jnp.array([0.1])
         y = jnp.array([0.2])
         inp = jnp.array([0.3])
@@ -83,7 +83,7 @@ class TestStuartLandauOscillator:
         # Only test that x changes under x input; y change depends on specific form
         nx = brainmass.OUProcess(2, sigma=0.0)
         ny = brainmass.OUProcess(2, sigma=0.0)
-        m = brainmass.StuartLandauOscillator(
+        m = brainmass.StuartLandauStep(
             in_size=2,
             init_x=braintools.init.ZeroInit(),
             init_y=braintools.init.ZeroInit(),
@@ -105,7 +105,7 @@ class TestStuartLandauOscillator:
         sz = (2, 3)
         nx = brainmass.OUProcess(sz, sigma=0.0)
         ny = brainmass.OUProcess(sz, sigma=0.0)
-        m = brainmass.StuartLandauOscillator(
+        m = brainmass.StuartLandauStep(
             in_size=sz,
             init_x=braintools.init.ZeroInit(),
             init_y=braintools.init.ZeroInit(),

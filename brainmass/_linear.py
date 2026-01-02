@@ -24,11 +24,11 @@ from ._noise import Noise
 from ._typing import Parameter 
 
 __all__ = [
-    'ThresholdLinearModel',
+    'ThresholdLinearStep',
 ]
 
 
-class ThresholdLinearModel(Dynamics):
+class ThresholdLinearStep(Dynamics):
     r"""Threshold-linear two-population rate model.
 
     This model describes excitatory (E) and inhibitory (I) population rates

@@ -24,11 +24,11 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'FitzHughNagumoModel',
+    'FitzHughNagumoStep',
 ]
 
 
-class FitzHughNagumoModel(Dynamics):
+class FitzHughNagumoStep(Dynamics):
     r"""FitzHugh–Nagumo neural mass model.
 
     A two-dimensional reduction of the Hodgkin–Huxley model that captures
@@ -144,14 +144,6 @@ class FitzHughNagumoModel(Dynamics):
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
-        """Initialize model states ``V`` and ``w``.
-
-        Parameters
-        ----------
-        batch_size : int or None, optional
-            Optional leading batch dimension. If ``None``, no batch dimension is
-            used. Default is ``None``.
-        """
         self.V = brainstate.HiddenState.init(self.init_V, self.varshape, batch_size)
         self.w = brainstate.HiddenState.init(self.init_w, self.varshape, batch_size)
 
@@ -240,7 +232,8 @@ class FitzHughNagumoModel(Dynamics):
             w = brainstate.nn.exp_euler_step(self.dw, self.w.value, self.V.value, w_inp)
         else:
             method = getattr(braintools.quad, f'ode_{self.method}_step')
-            V, w = method(self.derivative, (self.V.value, self.w.value), 0 * u.ms, V_inp, w_inp)
+            t = brainstate.environ.get('t', 0 * u.ms)
+            V, w = method(self.derivative, (self.V.value, self.w.value), t, V_inp, w_inp)
         self.V.value = V
         self.w.value = w
         return V

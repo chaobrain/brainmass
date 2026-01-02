@@ -26,11 +26,11 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'HopfOscillator',
+    'HopfStep',
 ]
 
 
-class HopfOscillator(XY_Oscillator):
+class HopfStep(XY_Oscillator):
     r"""Normal-form Hopf oscillator (two-dimensional rate model).
 
     This model implements the supercritical Hopf normal form for a single node
@@ -62,10 +62,6 @@ class HopfOscillator(XY_Oscillator):
     w : Parameter, optional
         Angular frequency :math:`\omega` (dimensionless in this implementation).
         Broadcastable to ``in_size``. Default is ``0.2``.
-    K_gl : Parameter, optional
-        Global coupling gain (dimensionless), included for convenience when used
-        in networked settings. Not applied directly in the local node dynamics.
-        Broadcastable to ``in_size``. Default is ``1.0``.
     beta : Parameter, optional
         Nonlinear saturation coefficient (dimensionless) setting the limit-cycle
         amplitude (approximately :math:`\sqrt{a/\beta}` when ``a>0``).
@@ -98,7 +94,6 @@ class HopfOscillator(XY_Oscillator):
 
         a: Parameter = 0.25,  # Hopf bifurcation parameter
         w: Parameter = 0.2,  # Oscillator frequency
-        K_gl: Parameter = 1.0,  # global coupling strength
         beta: Parameter = 1.0,  # nonlinear saturation coefficient
 
         # noise
@@ -121,7 +116,6 @@ class HopfOscillator(XY_Oscillator):
 
         self.a = Param.init(a, self.varshape)
         self.w = Param.init(w, self.varshape)
-        self.K_gl = Param.init(K_gl, self.varshape)
         self.beta = Param.init(beta, self.varshape)
 
     def dx(self, x, y, inp):

@@ -23,8 +23,8 @@ import brainmass
 
 class TestWilsonCowanModel:
     def test_initialization_basic(self):
-        """Test basic WilsonCowanModel initialization with default parameters"""
-        model = brainmass.WilsonCowanModel(1)
+        """Test basic WilsonCowanStep initialization with default parameters"""
+        model = brainmass.WilsonCowanStep(1)
         assert model.in_size == (1,)
         assert model.tau_E == 1. * u.ms
         assert model.tau_I == 1. * u.ms
@@ -41,8 +41,8 @@ class TestWilsonCowanModel:
         assert model.noise_I is None
 
     def test_initialization_with_custom_parameters(self):
-        """Test WilsonCowanModel initialization with custom parameters"""
-        model = brainmass.WilsonCowanModel(
+        """Test WilsonCowanStep initialization with custom parameters"""
+        model = brainmass.WilsonCowanStep(
             in_size=5,
             tau_E=2.0 * u.ms,
             tau_I=1.5 * u.ms,
@@ -70,36 +70,36 @@ class TestWilsonCowanModel:
         assert model.r == 0.8
 
     def test_initialization_multidimensional(self):
-        """Test WilsonCowanModel initialization with multidimensional input"""
-        model = brainmass.WilsonCowanModel((3, 4))
+        """Test WilsonCowanStep initialization with multidimensional input"""
+        model = brainmass.WilsonCowanStep((3, 4))
         assert model.in_size == (3, 4)
 
     def test_initialization_with_noise(self):
-        """Test WilsonCowanModel initialization with noise processes"""
+        """Test WilsonCowanStep initialization with noise processes"""
         noise_E = brainmass.OUProcess(1, sigma=0.5, tau=10. * u.ms)
         noise_I = brainmass.OUProcess(1, sigma=0.3, tau=15. * u.ms)
 
-        model = brainmass.WilsonCowanModel(1, noise_E=noise_E, noise_I=noise_I)
+        model = brainmass.WilsonCowanStep(1, noise_E=noise_E, noise_I=noise_I)
         assert model.noise_E is noise_E
         assert model.noise_I is noise_I
 
     def test_initialization_invalid_noise(self):
         """Test that invalid noise objects raise assertion errors"""
         try:
-            model = brainmass.WilsonCowanModel(1, noise_E="invalid")
+            model = brainmass.WilsonCowanStep(1, noise_E="invalid")
             assert False, "Should raise assertion error for invalid noise_E"
         except AssertionError:
             pass
 
         try:
-            model = brainmass.WilsonCowanModel(1, noise_I="invalid")
+            model = brainmass.WilsonCowanStep(1, noise_I="invalid")
             assert False, "Should raise assertion error for invalid noise_I"
         except AssertionError:
             pass
 
     def test_state_initialization(self):
         """Test state initialization creates correct shape and initial values"""
-        model = brainmass.WilsonCowanModel((2, 3))
+        model = brainmass.WilsonCowanStep((2, 3))
         model.init_state()
 
         assert hasattr(model, 'rE')
@@ -115,7 +115,7 @@ class TestWilsonCowanModel:
 
     def test_state_initialization_with_batch(self):
         """Test state initialization with batch dimension"""
-        model = brainmass.WilsonCowanModel(3)
+        model = brainmass.WilsonCowanStep(3)
         batch_size = 5
         model.init_state(batch_size=batch_size)
 
@@ -126,7 +126,7 @@ class TestWilsonCowanModel:
 
     def test_state_reset(self):
         """Test state reset functionality"""
-        model = brainmass.WilsonCowanModel(2)
+        model = brainmass.WilsonCowanStep(2)
         model.init_state()
 
         # Modify state
@@ -142,7 +142,7 @@ class TestWilsonCowanModel:
 
     def test_state_reset_with_batch(self):
         """Test state reset with batch dimension"""
-        model = brainmass.WilsonCowanModel(2)
+        model = brainmass.WilsonCowanStep(2)
         batch_size = 3
         model.init_state(batch_size=batch_size)
 
@@ -157,7 +157,7 @@ class TestWilsonCowanModel:
 
     def test_F_sigmoid_function(self):
         """Test the sigmoid activation function F"""
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
 
         # Test with typical parameters
         x = jnp.array([0., 1., 2., 3., 4., 5.])
@@ -181,7 +181,7 @@ class TestWilsonCowanModel:
 
     def test_drE_differential_equation(self):
         """Test excitatory population differential equation"""
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
 
         rE = 0.5  # dimensionless activity
         rI = 0.3  # dimensionless activity  
@@ -198,7 +198,7 @@ class TestWilsonCowanModel:
 
     def test_drI_differential_equation(self):
         """Test inhibitory population differential equation"""
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
 
         rE = 0.5  # dimensionless activity
         rI = 0.3  # dimensionless activity
@@ -215,7 +215,7 @@ class TestWilsonCowanModel:
 
     def test_update_returns_correct_shape(self):
         """Test that update returns correct shape"""
-        model = brainmass.WilsonCowanModel((2, 3))
+        model = brainmass.WilsonCowanStep((2, 3))
         model.init_state()
 
         brainstate.environ.set(dt=0.1 * u.ms)
@@ -227,7 +227,7 @@ class TestWilsonCowanModel:
         """Test that update modifies the internal state"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
         model.init_state()
 
         initial_rE = model.rE.value.copy()
@@ -244,7 +244,7 @@ class TestWilsonCowanModel:
         """Test update with external inputs"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
         model.init_state()
 
         # Test with different external inputs
@@ -266,7 +266,7 @@ class TestWilsonCowanModel:
         noise_E.init_state()
         noise_I.init_state()
 
-        model = brainmass.WilsonCowanModel(1, noise_E=noise_E, noise_I=noise_I)
+        model = brainmass.WilsonCowanStep(1, noise_E=noise_E, noise_I=noise_I)
         model.init_state()
 
         # Multiple updates should produce different results due to noise
@@ -295,7 +295,7 @@ class TestWilsonCowanModel:
         brainstate.environ.set(dt=0.01 * u.ms)
 
         # Parameters chosen to promote oscillations
-        model = brainmass.WilsonCowanModel(
+        model = brainmass.WilsonCowanStep(
             1,
             tau_E=1.0 * u.ms,
             tau_I=2.0 * u.ms,
@@ -327,7 +327,7 @@ class TestWilsonCowanModel:
         """Test convergence to steady state with constant input"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
         model.init_state()
 
         def step_run(i):
@@ -345,11 +345,11 @@ class TestWilsonCowanModel:
         assert final_var_val < 0.01, "Model should converge to steady state"
 
     def test_batch_processing(self):
-        """Test WilsonCowanModel with batch processing"""
+        """Test WilsonCowanStep with batch processing"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
         batch_size = 10
-        model = brainmass.WilsonCowanModel(3)
+        model = brainmass.WilsonCowanStep(3)
         model.init_state(batch_size=batch_size)
 
         result = model.update(rE_inp=1.0, rI_inp=0.5)
@@ -360,7 +360,7 @@ class TestWilsonCowanModel:
         """Test model with multidimensional input size"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WilsonCowanModel((2, 3))
+        model = brainmass.WilsonCowanStep((2, 3))
         model.init_state()
 
         result = model.update()
@@ -375,7 +375,7 @@ class TestWilsonCowanModel:
         tau_E_array = jnp.array([1.0, 2.0, 1.5]) * u.ms
         tau_I_array = jnp.array([1.0, 1.5, 2.0]) * u.ms
 
-        model = brainmass.WilsonCowanModel(
+        model = brainmass.WilsonCowanStep(
             3,
             tau_E=tau_E_array,
             tau_I=tau_I_array
@@ -390,7 +390,7 @@ class TestWilsonCowanModel:
         """Test stability over long simulation"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
         model.init_state()
 
         def step_run(i):
@@ -412,11 +412,11 @@ class TestWilsonCowanModel:
         brainstate.environ.set(dt=0.1 * u.ms)
 
         # High excitation model
-        model_exc = brainmass.WilsonCowanModel(1, wEE=15., wEI=5.)
+        model_exc = brainmass.WilsonCowanStep(1, wEE=15., wEI=5.)
         model_exc.init_state()
 
         # High inhibition model
-        model_inh = brainmass.WilsonCowanModel(1, wEE=5., wEI=15.)
+        model_inh = brainmass.WilsonCowanStep(1, wEE=5., wEI=15.)
         model_inh.init_state()
 
         def run_model(model):
@@ -440,12 +440,12 @@ class TestWilsonCowanModel:
 
 class TestWilsonCowanIntegration:
     def test_integration_with_coupling(self):
-        """Test WilsonCowanModel integration with coupling for network simulation"""
+        """Test WilsonCowanStep integration with coupling for network simulation"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
         # Create two coupled regions
         n_regions = 2
-        models = [brainmass.WilsonCowanModel(1) for _ in range(n_regions)]
+        models = [brainmass.WilsonCowanStep(1) for _ in range(n_regions)]
 
         # Initialize all models
         for model in models:
@@ -486,7 +486,7 @@ class TestWilsonCowanIntegration:
         """Test model response to time-varying external stimulus"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
-        model = brainmass.WilsonCowanModel(1)
+        model = brainmass.WilsonCowanStep(1)
         model.init_state()
 
         def step_run(i):

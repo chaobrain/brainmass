@@ -25,11 +25,11 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'StuartLandauOscillator',
+    'StuartLandauStep',
 ]
 
 
-class StuartLandauOscillator(XY_Oscillator):
+class StuartLandauStep(XY_Oscillator):
     r"""Stuart–Landau oscillator (Hopf normal form).
 
     Implements the real two-dimensional Stuart–Landau equations that describe

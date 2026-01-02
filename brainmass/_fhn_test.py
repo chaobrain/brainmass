@@ -27,7 +27,7 @@ class TestFitzHughNagumoModel:
         # even when None, so we provide Noise objects to pass validation.
         nV = brainmass.OUProcess(1, sigma=0.01)
         nW = brainmass.OUProcess(1, sigma=0.01)
-        m = brainmass.FitzHughNagumoModel(in_size=1, noise_V=nV, noise_w=nW)
+        m = brainmass.FitzHughNagumoStep(in_size=1, noise_V=nV, noise_w=nW)
         assert m.in_size == (1,)
         assert m.alpha == 3.0
         assert m.beta == 4.0
@@ -40,7 +40,7 @@ class TestFitzHughNagumoModel:
     def test_state_initialization_and_reset(self):
         nV = brainmass.OUProcess(4, sigma=0.0)
         nW = brainmass.OUProcess(4, sigma=0.0)
-        m = brainmass.FitzHughNagumoModel(
+        m = brainmass.FitzHughNagumoStep(
             in_size=4,
             init_V=braintools.init.ZeroInit(),
             init_w=braintools.init.ZeroInit(),
@@ -73,7 +73,7 @@ class TestFitzHughNagumoModel:
     def test_dv_dw_units_and_finiteness(self):
         nV = brainmass.OUProcess(1, sigma=0.0)
         nW = brainmass.OUProcess(1, sigma=0.0)
-        m = brainmass.FitzHughNagumoModel(in_size=1, noise_V=nV, noise_w=nW)
+        m = brainmass.FitzHughNagumoStep(in_size=1, noise_V=nV, noise_w=nW)
 
         V = jnp.array([0.1])
         w = jnp.array([0.2])
@@ -90,7 +90,7 @@ class TestFitzHughNagumoModel:
     def test_update_single_step_changes_state(self):
         nV = brainmass.OUProcess(2, sigma=0.0)
         nW = brainmass.OUProcess(2, sigma=0.0)
-        m = brainmass.FitzHughNagumoModel(
+        m = brainmass.FitzHughNagumoStep(
             in_size=2,
             init_V=braintools.init.ZeroInit(),
             init_w=braintools.init.ZeroInit(),
@@ -115,7 +115,7 @@ class TestFitzHughNagumoModel:
         n = (2, 3)
         nV = brainmass.OUProcess(n, sigma=0.0)
         nW = brainmass.OUProcess(n, sigma=0.0)
-        m = brainmass.FitzHughNagumoModel(
+        m = brainmass.FitzHughNagumoStep(
             in_size=n,
             init_V=braintools.init.ZeroInit(),
             init_w=braintools.init.ZeroInit(),
@@ -136,7 +136,7 @@ class TestFitzHughNagumoModel:
     def test_invalid_noise_type_raises(self):
         # Not a Noise instance
         try:
-            _ = brainmass.FitzHughNagumoModel(in_size=1, noise_V=object(), noise_w=object())
+            _ = brainmass.FitzHughNagumoStep(in_size=1, noise_V=object(), noise_w=object())
             assert False, "Expected assertion for invalid noise types"
         except AssertionError:
             pass

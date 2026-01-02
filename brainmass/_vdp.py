@@ -25,11 +25,11 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'VanDerPolOscillator',
+    'VanDerPolStep',
 ]
 
 
-class VanDerPolOscillator(XY_Oscillator):
+class VanDerPolStep(XY_Oscillator):
     r"""Van der Pol oscillator (two-dimensional form).
 
      In the study of dynamical systems, the van der Pol oscillator

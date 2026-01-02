@@ -25,11 +25,11 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'WilsonCowanModel',
+    'WilsonCowanStep',
 ]
 
 
-class WilsonCowanModel(brainstate.nn.Dynamics):
+class WilsonCowanStep(brainstate.nn.Dynamics):
     r"""Wilson–Cowan neural mass model.
 
     The model captures the interaction between an excitatory (E) and an

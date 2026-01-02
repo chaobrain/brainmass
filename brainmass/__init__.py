@@ -34,7 +34,7 @@ from ._coupling import (
     additive_coupling,
 )
 # Neural mass models
-from ._fhn import FitzHughNagumoModel
+from ._fhn import FitzHughNagumoStep
 # Forward models and lead field
 from ._forward_model import (
     BOLDSignal,
@@ -42,7 +42,7 @@ from ._forward_model import (
     EEGLeadFieldModel,
     MEGLeadFieldModel,
 )
-from ._hopf import HopfOscillator
+from ._hopf import HopfStep
 # HORN models
 from ._horn import (
     HORNStep,
@@ -51,7 +51,7 @@ from ._horn import (
 )
 from ._jansen_rit import JansenRitStep
 from ._kuramoto import KuramotoNetwork
-from ._linear import ThresholdLinearModel
+from ._linear import ThresholdLinearStep
 # Noise processes
 from ._noise import (
     Noise,
@@ -64,17 +64,17 @@ from ._noise import (
     BlueNoise,
     VioletNoise,
 )
-from ._qif import QIF
-from ._sl import StuartLandauOscillator
+from ._qif import QIFStep
+from ._sl import StuartLandauStep
 # Type aliases
 from ._typing import (
     Initializer,
     Array,
     Parameter,
 )
-from ._vdp import VanDerPolOscillator
-from ._wilson_cowan import WilsonCowanModel
-from ._wong_wang import WongWangModel
+from ._vdp import VanDerPolStep
+from ._wilson_cowan import WilsonCowanStep
+from ._wong_wang import WongWangStep
 
 __all__ = [
     # Version
@@ -106,16 +106,16 @@ __all__ = [
     'VioletNoise',
 
     # Neural mass models
-    'FitzHughNagumoModel',
-    'HopfOscillator',
+    'FitzHughNagumoStep',
+    'HopfStep',
     'JansenRitStep',
-    'WilsonCowanModel',
-    'WongWangModel',
-    'VanDerPolOscillator',
-    'QIF',
-    'ThresholdLinearModel',
+    'WilsonCowanStep',
+    'WongWangStep',
+    'VanDerPolStep',
+    'QIFStep',
+    'ThresholdLinearStep',
     'KuramotoNetwork',
-    'StuartLandauOscillator',
+    'StuartLandauStep',
 
     # Forward models and lead field
     'BOLDSignal',

@@ -23,11 +23,11 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'WongWangModel',
+    'WongWangStep',
 ]
 
 
-class WongWangModel(brainstate.nn.Dynamics):
+class WongWangStep(brainstate.nn.Dynamics):
     r"""
     The Wong-Wang neural mass model for perceptual decision-making.
     
@@ -110,7 +110,7 @@ class WongWangModel(brainstate.nn.Dynamics):
     Usage Example
     =============
     
-    >>> model = WongWangModel(in_size=100)
+    >>> model = WongWangStep(in_size=100)
     >>> model.init_state(batch_size=1)
     >>> 
     >>> # Simulate decision making with rightward motion (c=0.32)

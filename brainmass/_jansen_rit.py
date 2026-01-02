@@ -261,9 +261,9 @@ class JansenRitStep(brainstate.nn.Dynamics):
 
     def dMv(self, Mv, M, E, I, inp):
         # Pyramidal population driven by the difference of PSPs (no extra C here)
-        fr = self.S(E - I + inp)
         be = self.be.value()
         Ae = self.Ae.value()
+        fr = self.S(E - I + inp)
         return Ae * be * self.fr_scale(fr) - 2 * be * Mv - be ** 2 * M
 
     def dEv(self, Ev, M, E, inp=0. * u.Hz):

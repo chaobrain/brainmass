@@ -31,7 +31,7 @@ class Network(brainstate.nn.Module):
         delay_time = delay_time * u.ms
         indices_ = np.tile(np.arange(conn_weight.shape[1]), conn_weight.shape[0])
 
-        self.node = brainmass.WilsonCowanModel(
+        self.node = brainmass.WilsonCowanStep(
             80,
             noise_E=brainmass.OUProcess(80, sigma=0.01),
             noise_I=brainmass.OUProcess(80, sigma=0.01),

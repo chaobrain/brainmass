@@ -23,7 +23,7 @@ import brainmass
 
 class TestQIFModel:
     def test_initialization_basic(self):
-        m = brainmass.QIF(in_size=1)
+        m = brainmass.QIFStep(in_size=1)
         assert m.in_size == (1,)
         assert m.tau == 1.0 * u.ms
         assert m.eta == -5.0
@@ -33,7 +33,7 @@ class TestQIFModel:
         assert m.noise_v is None
 
     def test_custom_parameters(self):
-        m = brainmass.QIF(
+        m = brainmass.QIFStep(
             in_size=(2, 3),
             tau=2.0 * u.ms,
             eta=-3.0,
@@ -47,7 +47,7 @@ class TestQIFModel:
         assert m.J == 12.0
 
     def test_state_initialization_and_reset(self):
-        m = brainmass.QIF(
+        m = brainmass.QIFStep(
             in_size=4,
             init_r=braintools.init.ZeroInit(),
             init_v=braintools.init.ZeroInit(),
@@ -77,7 +77,7 @@ class TestQIFModel:
         assert u.math.allclose(m.v.value, jnp.zeros((3, 4)))
 
     def test_derivative_units_and_finiteness(self):
-        m = brainmass.QIF(in_size=1)
+        m = brainmass.QIFStep(in_size=1)
         r = jnp.array([0.05]) * u.Hz
         v = jnp.array([0.1])
         rex = jnp.array([0.0]) * u.Hz
@@ -92,7 +92,7 @@ class TestQIFModel:
         assert u.math.isfinite(dv_dt).item()
 
     def test_update_single_step_changes_state(self):
-        m = brainmass.QIF(
+        m = brainmass.QIFStep(
             in_size=2,
             init_r=braintools.init.ZeroInit(unit=u.Hz),
             init_v=braintools.init.ZeroInit(),
@@ -113,7 +113,7 @@ class TestQIFModel:
 
     def test_batch_and_multidimensional_update_shapes(self):
         sz = (2, 3)
-        m = brainmass.QIF(
+        m = brainmass.QIFStep(
             in_size=sz,
             init_r=braintools.init.ZeroInit(unit=u.Hz),
             init_v=braintools.init.ZeroInit(),
@@ -132,7 +132,7 @@ class TestQIFModel:
     def test_parameter_arrays(self):
         # Provide an array tau to ensure broadcasting works per element
         tau_arr = jnp.ones((3,)) * (2.0 * u.ms)
-        m = brainmass.QIF(in_size=3, tau=tau_arr)
+        m = brainmass.QIFStep(in_size=3, tau=tau_arr)
         m.init_state()
         with brainstate.environ.context(dt=0.1 * u.ms):
             out = m.update()
