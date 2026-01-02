@@ -37,10 +37,10 @@ class ModelFitting:
         self.weights = model.states(brainstate.ParamState)
         self.optimizer.register_trainable_weights(self.weights)
 
-    def f_loss(self, model_state, inputs, targets):
+    def f_loss(self, inputs, targets):
         # Use the model.forward() function to update next state and get simulated EEG
-        param = self.model.define_params()
-        model_state, (eeg_output, _) = self.model.update(model_state, param, inputs)
+        self.model.param_precompute()
+        model_state, (eeg_output, _) = self.model.update(inputs)
 
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
         loss_prior = []
@@ -52,8 +52,6 @@ class ModelFitting:
 
     @brainstate.transform.jit(static_argnums=0)
     def f_train(self, model_state, inputs, targets):
-        f_grad = brainstate.transform.fwd_grad(self.f_loss, self.weights, tangent_size=128, has_aux=True,
-                                               return_value=True)
         f_grad = brainstate.transform.grad(self.f_loss, self.weights, has_aux=True, return_value=True)
         grads, loss, (model_state, eeg_output) = f_grad(model_state, inputs, targets)
         self.optimizer.step(grads)
@@ -68,7 +66,7 @@ class ModelFitting:
 
     def train(self, inputs):
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
-        model_state = self.model.define_states()
+        self.model.init_all_states()
 
         # define masks for getting lower triangle matrix indices
         mask_e = np.tril_indices(self.model.output_size, -1)

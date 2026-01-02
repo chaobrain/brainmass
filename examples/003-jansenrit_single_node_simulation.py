@@ -67,7 +67,7 @@ def show(times, data, title):
 # - Duration: 10 seconds.
 #%%
 # Alpha-like idle rhythm (baseline JR)
-node = brainmass.JansenRitModel(1)
+node = brainmass.JansenRitStep(1)
 brainstate.nn.init_all_states(node)
 
 def step_run(inp):
@@ -86,7 +86,7 @@ show(indices * dt, data, title='Alpha-like oscillation')
 # - Drive: `inp(t) = 80 + 70 sin(2π f t)` Hz with `f = 10 Hz`.
 # - Duration: 5 seconds.
 #%%
-node = brainmass.JansenRitModel(1)
+node = brainmass.JansenRitStep(1)
 brainstate.nn.init_all_states(node)
 f_drive = 10. * u.Hz
 
@@ -109,7 +109,7 @@ show(indices * dt, data, title='Sinusoidal-driven oscillation')
 # - Drive: mean 90 Hz with moderate noise.
 # - Duration: 10 seconds.
 #%%
-node = brainmass.JansenRitModel(1, Ae=4.5 * u.mV, Ai=18. * u.mV, bi=40. * u.Hz)
+node = brainmass.JansenRitStep(1, Ae=4.5 * u.mV, Ai=18. * u.mV, bi=40. * u.Hz)
 brainstate.nn.init_all_states(node)
 
 def step_run(inp):
@@ -129,7 +129,7 @@ show(indices * dt, data, title='Spike-wave-like oscillation')
 # - Drive: mean 100 Hz with noise SD ≈ 20 Hz per sqrt(second).
 # - Duration: 10 seconds.
 #%%
-node = brainmass.JansenRitModel(1, Ai=15. * u.mV, bi=40. * u.Hz)
+node = brainmass.JansenRitStep(1, Ai=15. * u.mV, bi=40. * u.Hz)
 brainstate.nn.init_all_states(node)
 
 def step_run(inp):
@@ -148,7 +148,7 @@ show(indices * dt, data, title='Low inhibition oscillation')
 # - Drive: mean 220 Hz with high noise SD ≈ 80 Hz per sqrt(second).
 # - Duration: 10 seconds.
 #%%
-node = brainmass.JansenRitModel(1)
+node = brainmass.JansenRitStep(1)
 brainstate.nn.init_all_states(node)
 
 def step_run(inp):

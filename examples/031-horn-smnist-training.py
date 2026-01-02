@@ -15,14 +15,14 @@
 
 import argparse
 
+import braintools
 import jax.numpy as jnp
 import numpy as np
 import torch
 import torchvision
 
 import brainstate
-import braintools
-from brainmass._horn import HORNSeqNetwork
+from brainmass import HORNSeqNetwork
 
 # command line arguments
 parser = argparse.ArgumentParser(description='HORN training script')
@@ -91,8 +91,8 @@ optimizer.register_trainable_weights(weights)
 
 def batch_run(xs):
     batch_size = xs.shape[0]
-    vmap_module = brainstate.nn.Vmap2Module(model)
-    vmap_module.init_all_states(batch_size)
+    vmap_module = brainstate.nn.Vmap2Module(model, init_map_size=batch_size)
+    vmap_module.init_all_states()
     vmap_module.param_precompute()
     out = vmap_module(xs)
     return out

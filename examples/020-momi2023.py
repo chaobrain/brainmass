@@ -6,7 +6,6 @@ Rewritten using nmm/ modular APIs.
 
 import os
 import time
-os.environ['JAX_TRACEBACK_FILTERING'] = 'off'
 
 import brainstate
 import brainunit as u
@@ -19,7 +18,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 import braintools
 from brainmass.jansen_rit_v3 import JansenRitModel
-from braintools.param import Param, Const, ReluT, GaussianReg
+from brainstate.nn import Param, Const, ReluT, GaussianReg
 
 
 class ModelFitting:
