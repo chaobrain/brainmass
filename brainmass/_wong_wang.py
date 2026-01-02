@@ -14,13 +14,13 @@
 # ==============================================================================
 
 
-import brainstate
-import braintools
 import brainunit as u
 import jax.numpy as jnp
 
+import brainstate
+from brainstate.nn import Param
 from ._noise import Noise
-from ._typing import Parameter 
+from ._typing import Parameter
 
 __all__ = [
     'WongWangModel',
@@ -132,23 +132,23 @@ class WongWangModel(brainstate.nn.Dynamics):
         in_size: brainstate.typing.Size,
 
         # NMDA synaptic parameters
-        tau_S: Parameter  = 0.1 * u.second,  # NMDA time constant (ms)
-        gamma: Parameter  = 0.641,  # saturation factor
+        tau_S: Parameter = 0.1 * u.second,  # NMDA time constant (ms)
+        gamma: Parameter = 0.641,  # saturation factor
 
         # Input-output function parameters  
-        a: Parameter  = 270. * (u.Hz / u.nA),  # gain (Hz/nA)
-        theta: Parameter  = 0.31 * u.nA,  # firing threshold (nA)
+        a: Parameter = 270. * (u.Hz / u.nA),  # gain (Hz/nA)
+        theta: Parameter = 0.31 * u.nA,  # firing threshold (nA)
 
         # Network connectivity (nA)
-        J_N11: Parameter  = 0.2609 * u.nA,  # self-excitation pop 1
-        J_N22: Parameter  = 0.2609 * u.nA,  # self-excitation pop 2
-        J_N12: Parameter  = 0.0497 * u.nA,  # cross-inhibition 2->1
-        J_N21: Parameter  = 0.0497 * u.nA,  # cross-inhibition 2->1
-        J_A_ext: Parameter  = 0.0002243 * (u.nA / u.Hz),  # external input strength (nA·Hz⁻¹)
+        J_N11: Parameter = 0.2609 * u.nA,  # self-excitation pop 1
+        J_N22: Parameter = 0.2609 * u.nA,  # self-excitation pop 2
+        J_N12: Parameter = 0.0497 * u.nA,  # cross-inhibition 2->1
+        J_N21: Parameter = 0.0497 * u.nA,  # cross-inhibition 2->1
+        J_A_ext: Parameter = 0.0002243 * (u.nA / u.Hz),  # external input strength (nA·Hz⁻¹)
 
         # External input
-        mu_0: Parameter  = 30. * u.Hz,  # baseline input rate (Hz)
-        I_0: Parameter  = 0.3255 * u.nA,  # background input current (nA)
+        mu_0: Parameter = 30. * u.Hz,  # baseline input rate (Hz)
+        I_0: Parameter = 0.3255 * u.nA,  # background input current (nA)
 
         # Noise processes
         noise_s1: Noise = None,
@@ -157,23 +157,23 @@ class WongWangModel(brainstate.nn.Dynamics):
         super().__init__(in_size=in_size)
 
         # NMDA parameters
-        self.tau_S = braintools.init.param(tau_S, self.varshape)
-        self.gamma = braintools.init.param(gamma, self.varshape)
+        self.tau_S = Param.init(tau_S, self.varshape)
+        self.gamma = Param.init(gamma, self.varshape)
 
         # I-O function parameters
-        self.a = braintools.init.param(a, self.varshape)
-        self.theta = braintools.init.param(theta, self.varshape)
+        self.a = Param.init(a, self.varshape)
+        self.theta = Param.init(theta, self.varshape)
 
         # Network connectivity
-        self.J_N11 = braintools.init.param(J_N11, self.varshape)
-        self.J_N22 = braintools.init.param(J_N22, self.varshape)
-        self.J_N12 = braintools.init.param(J_N12, self.varshape)
-        self.J_N21 = braintools.init.param(J_N21, self.varshape)
-        self.J_A_ext = braintools.init.param(J_A_ext, self.varshape)
+        self.J_N11 = Param.init(J_N11, self.varshape)
+        self.J_N22 = Param.init(J_N22, self.varshape)
+        self.J_N12 = Param.init(J_N12, self.varshape)
+        self.J_N21 = Param.init(J_N21, self.varshape)
+        self.J_A_ext = Param.init(J_A_ext, self.varshape)
 
         # External input
-        self.mu_0 = braintools.init.param(mu_0, self.varshape)
-        self.I_0 = braintools.init.param(I_0, self.varshape)
+        self.mu_0 = Param.init(mu_0, self.varshape)
+        self.I_0 = Param.init(I_0, self.varshape)
 
         # Noise processes
         self.noise_s1 = noise_s1
@@ -182,14 +182,8 @@ class WongWangModel(brainstate.nn.Dynamics):
     def init_state(self, batch_size=None, **kwargs):
         """Initialize the synaptic gating variables S1 and S2."""
         size = self.varshape if batch_size is None else (batch_size,) + self.varshape
-        self.S1 = brainstate.HiddenState(braintools.init.param(jnp.zeros, size))
-        self.S2 = brainstate.HiddenState(braintools.init.param(jnp.zeros, size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        """Reset the synaptic gating variables to initial conditions."""
-        size = self.varshape if batch_size is None else (batch_size,) + self.varshape
-        self.S1.value = braintools.init.param(jnp.zeros, size)
-        self.S2.value = braintools.init.param(jnp.zeros, size)
+        self.S1 = brainstate.HiddenState.init(jnp.zeros, size)
+        self.S2 = brainstate.HiddenState.init(jnp.zeros, size)
 
     def phi(self, I):
         """
@@ -201,7 +195,9 @@ class WongWangModel(brainstate.nn.Dynamics):
         Returns:
             Firing rate (Hz)
         """
-        return u.math.where(I > self.theta, self.a * (I - self.theta), 0. * u.Hz)
+        theta = self.theta.value()
+        a = self.a.value()
+        return u.math.where(I > theta, a * (I - theta), 0. * u.Hz)
 
     def compute_inputs(self, coherence=0., noise_1_val=0. * u.nA, noise_2_val=0. * u.nA):
         """
@@ -215,9 +211,12 @@ class WongWangModel(brainstate.nn.Dynamics):
         Returns:
             Tuple of (I1, I2) input currents
         """
+        J_A_ext = self.J_A_ext.value()
+        mu_0 = self.mu_0.value()
+
         # External stimulus inputs
-        I_stim_1 = self.J_A_ext * self.mu_0 * (1 + coherence)
-        I_stim_2 = self.J_A_ext * self.mu_0 * (1 - coherence)
+        I_stim_1 = J_A_ext * mu_0 * (1 + coherence)
+        I_stim_2 = J_A_ext * mu_0 * (1 - coherence)
 
         # Recurrent inputs
         I_rec_1 = self.J_N11 * self.S1.value - self.J_N12 * self.S2.value
@@ -231,11 +230,15 @@ class WongWangModel(brainstate.nn.Dynamics):
 
     def dS1_dt(self, S1, r1):
         """Differential equation for synaptic gating variable S1."""
-        return (-S1 / self.tau_S + (1 - S1) * self.gamma * r1).to(u.Hz)
+        tau_S = self.tau_S.value()
+        gamma = self.gamma.value()
+        return (-S1 / tau_S + (1 - S1) * gamma * r1).to(u.Hz)
 
     def dS2_dt(self, S2, r2):
         """Differential equation for synaptic gating variable S2."""
-        return (-S2 / self.tau_S + (1 - S2) * self.gamma * r2).to(u.Hz)
+        tau_S = self.tau_S.value()
+        gamma = self.gamma.value()
+        return (-S2 / tau_S + (1 - S2) * gamma * r2).to(u.Hz)
 
     def update(self, coherence=0.):
         """

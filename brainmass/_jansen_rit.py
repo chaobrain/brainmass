@@ -20,12 +20,12 @@ import brainunit as u
 import jax.nn
 
 import brainstate
-from brainstate.nn import exp_euler_step
+from brainstate.nn import exp_euler_step, Param
 from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'JansenRitModel',
+    'JansenRitStep',
 ]
 
 
@@ -34,7 +34,7 @@ class Identity:
         return x
 
 
-class JansenRitModel(brainstate.nn.Dynamics):
+class JansenRitStep(brainstate.nn.Dynamics):
     r"""
     Jansen-Rit neural mass model.
 
@@ -212,18 +212,18 @@ class JansenRitModel(brainstate.nn.Dynamics):
     ):
         super().__init__(in_size)
 
-        self.Ae = braintools.init.param(Ae, self.varshape)
-        self.Ai = braintools.init.param(Ai, self.varshape)
-        self.be = braintools.init.param(be, self.varshape)
-        self.bi = braintools.init.param(bi, self.varshape)
-        self.a1 = braintools.init.param(a1, self.varshape)
-        self.a2 = braintools.init.param(a2, self.varshape)
-        self.a3 = braintools.init.param(a3, self.varshape)
-        self.a4 = braintools.init.param(a4, self.varshape)
-        self.v0 = braintools.init.param(v0, self.varshape)
-        self.C = braintools.init.param(C, self.varshape)
-        self.r = braintools.init.param(r, self.varshape)
-        self.s_max = braintools.init.param(s_max, self.varshape)
+        self.Ae = Param.init(Ae, self.varshape)
+        self.Ai = Param.init(Ai, self.varshape)
+        self.be = Param.init(be, self.varshape)
+        self.bi = Param.init(bi, self.varshape)
+        self.a1 = Param.init(a1, self.varshape)
+        self.a2 = Param.init(a2, self.varshape)
+        self.a3 = Param.init(a3, self.varshape)
+        self.a4 = Param.init(a4, self.varshape)
+        self.v0 = Param.init(v0, self.varshape)
+        self.C = Param.init(C, self.varshape)
+        self.r = Param.init(r, self.varshape)
+        self.s_max = Param.init(s_max, self.varshape)
 
         assert callable(fr_scale), 'fr_scale must be a callable function'
         assert callable(M_init), 'M_init must be a callable function'
@@ -245,41 +245,48 @@ class JansenRitModel(brainstate.nn.Dynamics):
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
-        self.M = brainstate.HiddenState(braintools.init.param(self.M_init, self.varshape, batch_size))
-        self.E = brainstate.HiddenState(braintools.init.param(self.E_init, self.varshape, batch_size))
-        self.I = brainstate.HiddenState(braintools.init.param(self.I_init, self.varshape, batch_size))
-        self.Mv = brainstate.HiddenState(braintools.init.param(self.Mv_init, self.varshape, batch_size))
-        self.Ev = brainstate.HiddenState(braintools.init.param(self.Ev_init, self.varshape, batch_size))
-        self.Iv = brainstate.HiddenState(braintools.init.param(self.Iv_init, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        self.M.value = braintools.init.param(self.M_init, self.varshape, batch_size)
-        self.E.value = braintools.init.param(self.E_init, self.varshape, batch_size)
-        self.I.value = braintools.init.param(self.I_init, self.varshape, batch_size)
-        self.Mv.value = braintools.init.param(self.Mv_init, self.varshape, batch_size)
-        self.Ev.value = braintools.init.param(self.Ev_init, self.varshape, batch_size)
-        self.Iv.value = braintools.init.param(self.Iv_init, self.varshape, batch_size)
+        self.M = brainstate.HiddenState.init(self.M_init, self.varshape, batch_size)
+        self.E = brainstate.HiddenState.init(self.E_init, self.varshape, batch_size)
+        self.I = brainstate.HiddenState.init(self.I_init, self.varshape, batch_size)
+        self.Mv = brainstate.HiddenState.init(self.Mv_init, self.varshape, batch_size)
+        self.Ev = brainstate.HiddenState.init(self.Ev_init, self.varshape, batch_size)
+        self.Iv = brainstate.HiddenState.init(self.Iv_init, self.varshape, batch_size)
 
     def S(self, v):
         # Sigmoid ranges from 0 to s_max, centered at v0
-        return self.s_max * jax.nn.sigmoid(self.r * (self.v0 - v) / u.mV)
+        s_max = self.s_max.value()
+        v0 = self.v0.value()
+        r = self.r.value()
+        return s_max * jax.nn.sigmoid(-r * (v0 - v) / u.mV)
 
     def dMv(self, Mv, M, E, I, inp):
         # Pyramidal population driven by the difference of PSPs (no extra C here)
         fr = self.S(E - I + inp)
-        return self.Ae * self.be * self.fr_scale(fr) - 2 * self.be * Mv - self.be ** 2 * M
+        be = self.be.value()
+        Ae = self.Ae.value()
+        return Ae * be * self.fr_scale(fr) - 2 * be * Mv - be ** 2 * M
 
     def dEv(self, Ev, M, E, inp=0. * u.Hz):
         # Excitatory interneuron population: A*a*(p + C2*S(C1*M)) - 2*a*y' - a^2*y
-        s_M = self.C * self.a2 * self.S(self.C * self.a1 * M)
+        C = self.C.value()
+        a2 = self.a2.value()
+        a1 = self.a1.value()
+        Ae = self.Ae.value()
+        be = self.be.value()
+        s_M = C * a2 * self.S(C * a1 * M)
         fr_total = self.fr_scale(inp + s_M)
-        return self.Ae * self.be * fr_total - 2 * self.be * Ev - self.be ** 2 * E
+        return Ae * be * fr_total - 2 * be * Ev - be ** 2 * E
 
     def dIv(self, Iv, M, I, inp):
         # Inhibitory interneuron population: B*b*(C4*S(C3*M)) - 2*b*y' - b^2*y
-        s_M = self.C * self.a4 * self.S(self.C * self.a3 * M + inp)
+        C = self.C.value()
+        a3 = self.a3.value()
+        a4 = self.a4.value()
+        Ai = self.Ai.value()
+        bi = self.bi.value()
+        s_M = C * a4 * self.S(C * a3 * M + inp)
         fr_total = self.fr_scale(s_M)
-        return self.Ai * self.bi * fr_total - 2 * self.bi * Iv - self.bi ** 2 * I
+        return Ai * bi * fr_total - 2 * bi * Iv - bi ** 2 * I
 
     def derivative(self, state, t, M_inp, E_inp, I_inp):
         M, E, I, Mv, Ev, Iv = state

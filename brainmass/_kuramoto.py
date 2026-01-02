@@ -15,10 +15,11 @@
 
 from typing import Callable, Optional
 
-import brainstate
 import braintools
 import brainunit as u
 
+import brainstate
+from brainstate.nn import Param
 from ._noise import Noise
 from ._typing import Parameter
 
@@ -119,9 +120,9 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         super().__init__(in_size=in_size)
 
         # parameters
-        self.omega = braintools.init.param(omega, self.varshape)
-        self.K = braintools.init.param(K, self.varshape)
-        self.alpha = braintools.init.param(alpha, self.varshape)
+        self.omega = Param.init(omega, self.varshape)
+        self.K = Param.init(K, self.varshape)
+        self.alpha = Param.init(alpha, self.varshape)
 
         # coupling configuration
         self.conn = None if conn is None else u.math.asarray(conn)
@@ -144,20 +145,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.theta = brainstate.HiddenState(
-            braintools.init.param(self.init_theta, self.varshape, batch_size)
-        )
-
-    def reset_state(self, batch_size=None, **kwargs):
-        """Reset phase state ``theta`` using the initializer.
-
-        Parameters
-        ----------
-        batch_size : int or None, optional
-            Optional batch dimension for reinitialization. If ``None``, keeps
-            current batch shape but resets values. Default is ``None``.
-        """
-        self.theta.value = braintools.init.param(self.init_theta, self.varshape, batch_size)
+        self.theta = brainstate.HiddenState.init(self.init_theta, self.varshape, batch_size)
 
     def _pairwise_coupling(self, theta):
         """Compute coupling term for each oscillator.
@@ -227,7 +215,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         if self.normalize_by_n and n > 0:
             coupling = coupling / n
 
-        return self.K * coupling
+        return self.K.value() * coupling
 
     def dtheta(self, theta, drive):
         """Phase dynamics right-hand side.
@@ -245,7 +233,8 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         array-like
             Time derivative ``dtheta/dt`` with unit ``1/ms``.
         """
-        return (self.omega + drive) / u.ms
+        omega = self.omega.value()
+        return (omega + drive) / u.ms
 
     def update(self, theta_inp=None):
         """Advance the system by one time step.

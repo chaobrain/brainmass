@@ -15,17 +15,16 @@
 
 from typing import Callable, Optional
 
-import brainstate.environ
 import braintools.init
 import brainunit as u
 import numpy as np
-from braintools.param import Param, Data
 
-from ._delay import OutputDelay
-from ._base import Dynamics, MultiStepDynamics
+import brainstate.environ
+from brainstate import HiddenState
+from brainstate import nn
 from ._common import sys2nd, sigmoid, bounded_input
 from ._leadfield import LeadfieldReadout
-from ._typing import Array
+from ._typing import Array, Parameter
 
 __all__ = [
     "JansenRitStep",
@@ -34,91 +33,66 @@ __all__ = [
 ]
 
 
-class JansenRitStep(Dynamics):
+class JansenRitStep(nn.Dynamics):
     def __init__(
         self,
-        node_size: int,
-        step_size: float,
+        in_size: int,
         # dynamics parameters
-        A: Param,
-        a: Param,
-        B: Param,
-        b: Param,
-        vmax: Param,
-        v0: Param,
-        r: Param,
-        c1: Param,
-        c2: Param,
-        c3: Param,
-        c4: Param,
-        std_in: Param,
-        k: Param,
-        ki: Param,
-        kE: Param,
-        kI: Param,
+        A: Parameter,
+        a: Parameter,
+        B: Parameter,
+        b: Parameter,
+        vmax: Parameter,
+        v0: Parameter,
+        r: Parameter,
+        c1: Parameter,
+        c2: Parameter,
+        c3: Parameter,
+        c4: Parameter,
+        std_in: Parameter,
+        k: Parameter,
+        ki: Parameter,
+        kE: Parameter,
+        kI: Parameter,
         # other parameters
         state_saturation: bool = True,
         input_saturation: bool = True,
         state_init: Callable = braintools.init.ZeroInit(),
     ):
-        super().__init__()
+        super().__init__(in_size)
 
-        self.node_size = node_size
-        self.step_size = step_size
+        self.node_size = in_size
         self.state_saturation = state_saturation
         self.input_saturation = input_saturation
         self.state_init = state_init
         self.u_2ndsys_ub = 500.
 
-        self.A = A
-        self.a = a
-        self.B = B
-        self.b = b
-        self.vmax = vmax
-        self.v0 = v0
-        self.r = r
-        self.c1 = c1
-        self.c2 = c2
-        self.c3 = c3
-        self.c4 = c4
-        self.std_in = std_in
-        self.k = k
-        self.ki = ki
-        self.kE = kE
-        self.kI = kI
+        self.A = nn.Param.init(A, self.varshape)
+        self.a = nn.Param.init(a, self.varshape)
+        self.B = nn.Param.init(B, self.varshape)
+        self.b = nn.Param.init(b, self.varshape)
+        self.vmax = nn.Param.init(vmax, self.varshape)
+        self.v0 = nn.Param.init(v0, self.varshape)
+        self.r = nn.Param.init(r, self.varshape)
+        self.c1 = nn.Param.init(c1, self.varshape)
+        self.c2 = nn.Param.init(c2, self.varshape)
+        self.c3 = nn.Param.init(c3, self.varshape)
+        self.c4 = nn.Param.init(c4, self.varshape)
+        self.std_in = nn.Param.init(std_in, self.varshape)
+        self.k = nn.Param.init(k, self.varshape)
+        self.ki = nn.Param.init(ki, self.varshape)
+        self.kE = nn.Param.init(kE, self.varshape)
+        self.kI = nn.Param.init(kE, self.varshape)
 
-    def get_states(self, *args, **kwargs) -> Data:
-        state = self.state_init((6, self.node_size))
-        return Data(
-            P=state[0],
-            E=state[1],
-            I=state[2],
-            Pv=state[3],
-            Ev=state[4],
-            Iv=state[5],
-        )
+    def init_state(self, *args, **kwargs):
+        self.P = HiddenState.init(self.state_init, self.varshape)
+        self.E = HiddenState.init(self.state_init, self.varshape)
+        self.I = HiddenState.init(self.state_init, self.varshape)
+        self.Pv = HiddenState.init(self.state_init, self.varshape)
+        self.Ev = HiddenState.init(self.state_init, self.varshape)
+        self.Iv = HiddenState.init(self.state_init, self.varshape)
 
-    def get_params(self, *args, **kwargs) -> Data:
-        return Data(
-            A=self.A.value(),
-            B=self.B.value(),
-            a=self.a.value(),
-            b=self.b.value(),
-            vmax=self.vmax.value(),
-            v0=self.v0.value(),
-            r=self.r.value(),
-            c1=self.c1.value(),
-            c2=self.c2.value(),
-            c3=self.c3.value(),
-            c4=self.c4.value(),
-            std_in=self.std_in.value(),
-            k=self.k.value(),
-            ki=self.ki.value(),
-            kE=self.kE.value(),
-            kI=self.kI.value(),
-        )
-
-    def update(self, state: Data, param: Data, input: Array):
+    def update(self, input: Array):
         pi1 = getattr(param, "pi1", None)
         pi2 = getattr(param, "pi2", None)
         ei1 = getattr(param, "ei1", None)
@@ -126,21 +100,38 @@ class JansenRitStep(Dynamics):
         ii1 = getattr(param, "ii1", None)
         ii2 = getattr(param, "ii2", None)
 
-        P = state.P
-        E = state.E
-        I = state.I
-        Pv = state.Pv
-        Ev = state.Ev
-        Iv = state.Iv
+        P = self.P.value
+        E = self.E.value
+        I = self.I.value
+        Pv = self.Pv.value
+        Ev = self.Ev.value
+        Iv = self.Iv.value
 
-        ext = param.k * param.ki * input  # (node_size,)
+        A = self.A.value()
+        B = self.B.value()
+        a = self.a.value()
+        b = self.b.value()
+        vmax = self.vmax.value()
+        v0 = self.v0.value()
+        r = self.r.value()
+        c1 = self.c1.value()
+        c2 = self.c2.value()
+        c3 = self.c3.value()
+        c4 = self.c4.value()
+        std_in = self.std_in.value()
+        k = self.k.value()
+        ki = self.ki.value()
+        kE = self.kE.value()
+        kI = self.kI.value()
+
+        ext = k * ki * input  # (node_size,)
         node_size = ext.shape[0]
 
         # 计算各群体的发放率
         rP = (
             ext +
-            param.std_in * brainstate.random.randn(node_size) +  # (node_size,)
-            sigmoid(state.E - I, param.vmax, param.v0, param.r)  # (node_size,) firing rate for Main population
+            std_in * brainstate.random.randn(node_size) +  # (node_size,)
+            sigmoid(E - I, vmax, v0, r)  # (node_size,) firing rate for Main population
         )
         if pi1 is not None:
             rP += pi1
@@ -148,9 +139,9 @@ class JansenRitStep(Dynamics):
             rP += u.math.matmul(pi2, P)
 
         rE = (
-            param.kE +
-            param.std_in * brainstate.random.randn(node_size) +  # (node_size,)
-            param.c2 * sigmoid(param.c1 * P, param.vmax, param.v0, param.r)
+            kE +
+            std_in * brainstate.random.randn(node_size) +  # (node_size,)
+            c2 * sigmoid(c1 * P, vmax, v0, r)
         )
         if ei1 is not None:
             rE += ei1
@@ -158,9 +149,9 @@ class JansenRitStep(Dynamics):
             rE += u.math.matmul(ei2, E - I)
 
         rI = (
-            param.kI +
-            param.std_in * brainstate.random.randn(node_size) +  # (node_size,)
-            param.c4 * sigmoid(param.c3 * P, param.vmax, param.v0, param.r)
+            kI +
+            std_in * brainstate.random.randn(node_size) +  # (node_size,)
+            c4 * sigmoid(c3 * P, vmax, v0, r)
         )
         if ii1 is not None:
             rI += ii1
@@ -172,31 +163,30 @@ class JansenRitStep(Dynamics):
         ddP = P + dt * Pv
         ddE = E + dt * Ev
         ddI = I + dt * Iv
-        ddPv = Pv + dt * sys2nd(param.A, param.a, bounded_input(rP, self.u_2ndsys_ub), P, Pv)
-        ddEv = Ev + dt * sys2nd(param.A, param.a, bounded_input(rE, self.u_2ndsys_ub), E, Ev)
-        ddIv = Iv + dt * sys2nd(param.B, param.b, bounded_input(rI, self.u_2ndsys_ub), I, Iv)
+        ddPv = Pv + dt * sys2nd(A, a, bounded_input(rP, self.u_2ndsys_ub), P, Pv)
+        ddEv = Ev + dt * sys2nd(A, a, bounded_input(rE, self.u_2ndsys_ub), E, Ev)
+        ddIv = Iv + dt * sys2nd(B, b, bounded_input(rI, self.u_2ndsys_ub), I, Iv)
 
         # Calculate the saturation for model states (for stability and gradient calculation).
-        E = bounded_input(ddE, 1e3)
-        I = bounded_input(ddI, 1e3)
-        P = bounded_input(ddP, 1e3)
-        Ev = bounded_input(ddEv, 1e3)
-        Iv = bounded_input(ddIv, 1e3)
-        Pv = bounded_input(ddPv, 1e3)
-        state = Data(E=E, I=I, P=P, Ev=Ev, Iv=Iv, Pv=Pv)
-        return state, state.to_dict()
+        self.E.value = bounded_input(ddE, 1e3)
+        self.I.value = bounded_input(ddI, 1e3)
+        self.P.value = bounded_input(ddP, 1e3)
+        self.Ev.value = bounded_input(ddEv, 1e3)
+        self.Iv.value = bounded_input(ddIv, 1e3)
+        self.Pv.value = bounded_input(ddPv, 1e3)
+        return self.E.value
 
 
 class LaplacianConnectivity(Dynamics):
     def __init__(
         self,
         sc: Array,
-        w_ll: Param,
-        w_ff: Param,
-        w_bb: Param,
-        g_l: Param,
-        g_f: Param,
-        g_b: Param,
+        w_ll: Parameter,
+        w_ff: Parameter,
+        w_bb: Parameter,
+        g_l: Parameter,
+        g_f: Parameter,
+        g_b: Parameter,
         mask: Optional[Array] = None,
     ):
         super().__init__()
@@ -251,21 +241,18 @@ class LaplacianConnectivity(Dynamics):
             dg_l=dg_l * gl,
         )
 
-    def get_states(self, *args, **kwargs) -> Data:
-        return Data()
-
     def update(self, state: Data, param: Data, Ed: Array):
-        LEd_b = u.math.sum(param.w_n_b * Ed.T, axis=1)
-        LEd_f = u.math.sum(param.w_n_f * Ed.T, axis=1)
-        LEd_l = u.math.sum(param.w_n_l * Ed.T, axis=1)
+        LEd_b = u.math.sum(w_n_b * Ed.T, axis=1)
+        LEd_f = u.math.sum(w_n_f * Ed.T, axis=1)
+        LEd_l = u.math.sum(w_n_l * Ed.T, axis=1)
 
         return state, dict(
             pi1=LEd_l,
-            pi2=param.dg_l,
+            pi2=dg_l,
             ei1=LEd_f,
-            ei2=param.dg_f,
+            ei2=dg_f,
             ii1=-LEd_b,
-            ii2=-param.dg_b,
+            ii2=-dg_b,
         )
 
 
@@ -276,22 +263,22 @@ class JansenRitTR(Dynamics):
         step_size: float,
 
         # dynamics parameters
-        A: Param,
-        a: Param,
-        B: Param,
-        b: Param,
-        vmax: Param,
-        v0: Param,
-        r: Param,
-        c1: Param,
-        c2: Param,
-        c3: Param,
-        c4: Param,
-        std_in: Param,
-        k: Param,
-        ki: Param,
-        kE: Param,
-        kI: Param,
+        A: Parameter,
+        a: Parameter,
+        B: Parameter,
+        b: Parameter,
+        vmax: Parameter,
+        v0: Parameter,
+        r: Parameter,
+        c1: Parameter,
+        c2: Parameter,
+        c3: Parameter,
+        c4: Parameter,
+        std_in: Parameter,
+        k: Parameter,
+        ki: Parameter,
+        kE: Parameter,
+        kI: Parameter,
 
         # distance parameters
         mu: Array,
@@ -299,17 +286,17 @@ class JansenRitTR(Dynamics):
 
         # structural parameters
         sc: Array,
-        w_ll: Param,
-        w_ff: Param,
-        w_bb: Param,
-        g_l: Param,
-        g_f: Param,
-        g_b: Param,
+        w_ll: Parameter,
+        w_ff: Parameter,
+        w_bb: Parameter,
+        g_l: Parameter,
+        g_f: Parameter,
+        g_b: Parameter,
 
         # leadfield parameters
-        cy0: Param,
-        y0: Param,
-        lm: Param,
+        cy0: Parameter,
+        y0: Parameter,
+        lm: Parameter,
 
         # other parameters
         mask: Optional[Array] = None,
@@ -323,7 +310,7 @@ class JansenRitTR(Dynamics):
         self.step_size = step_size
 
         self.step = JansenRitStep(
-            node_size=node_size,
+            in_size=node_size,
             step_size=step_size,
             A=A,
             a=a,
@@ -371,10 +358,10 @@ class JansenRitTR(Dynamics):
 
         # connection
         Ed = self.delay.get_delayed_value(state.delay)
-        conn_out = self.conn(None, param.conn, Ed)[1]
+        conn_out = self.conn(None, conn, Ed)[1]
 
         # for loop step model
-        step_param = param.step.add(conn_out)
+        step_param = step.add(conn_out)
         step_state = state.step
         step_state, _ = brainstate.transform.scan(lambda s, i: self.step(s, step_param, i), step_state, inputs)
 
@@ -382,7 +369,7 @@ class JansenRitTR(Dynamics):
         delay_state, _ = self.delay(state.delay, None, step_state.P)
 
         # leadfield
-        _, eeg = self.leadfield(None, param.leadfield, step_state.E - step_state.I)
+        _, eeg = self.leadfield(None, leadfield, step_state.E - step_state.I)
 
         return state.replace(step=step_state, delay=delay_state), (eeg, step_state)
 
@@ -404,32 +391,32 @@ class JansenRitWindow(MultiStepDynamics):
         sc: np.ndarray,
         dist: np.ndarray,
         # Model parameters using Param API
-        A: Param,
-        a: Param,
-        B: Param,
-        b: Param,
-        g: Param,
-        g_f: Param,
-        g_b: Param,
-        c1: Param,
-        c2: Param,
-        c3: Param,
-        c4: Param,
-        std_in: Param,
-        vmax: Param,
-        v0: Param,
-        r: Param,
-        y0: Param,
+        A: Parameter,
+        a: Parameter,
+        B: Parameter,
+        b: Parameter,
+        g: Parameter,
+        g_f: Parameter,
+        g_b: Parameter,
+        c1: Parameter,
+        c2: Parameter,
+        c3: Parameter,
+        c4: Parameter,
+        std_in: Parameter,
+        vmax: Parameter,
+        v0: Parameter,
+        r: Parameter,
+        y0: Parameter,
         mu,
-        k: Param,
-        kE: Param,
-        kI: Param,
-        cy0: Param,
-        ki: Param,
-        lm: Param,
-        w_bb: Param,
-        w_ff: Param,
-        w_ll: Param,
+        k: Parameter,
+        kE: Parameter,
+        kI: Parameter,
+        cy0: Parameter,
+        ki: Parameter,
+        lm: Parameter,
+        w_bb: Parameter,
+        w_ff: Parameter,
+        w_ll: Parameter,
         state_init: Callable,
         delay_init: Callable,
         mask=None,

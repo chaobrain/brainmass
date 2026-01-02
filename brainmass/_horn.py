@@ -16,11 +16,10 @@
 import math
 from typing import Callable, Sequence, Optional
 
-import brainunit as u
+import braintools.init
 import jax.numpy as jnp
 
 import brainstate
-import braintools.init
 from brainstate import nn
 from ._typing import Initializer, Parameter
 
@@ -78,6 +77,7 @@ class HORNStep(nn.Dynamics):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # Amplitude feedback
+        h: brainstate.typing.ArrayLike = 1.0,  # integration step size
         recurrent_fn: Callable = zeros,  # Velocity feedback
         state_init: Initializer = braintools.init.ZeroInit(),
     ):
@@ -87,6 +87,7 @@ class HORNStep(nn.Dynamics):
         self.omega = nn.Param.init(omega, self.in_size)
         self.gamma = nn.Param.init(gamma, self.in_size)
         self.v = nn.Param.init(v, self.in_size)
+        self.h = h
         self.gain_rec = 1. / math.sqrt(self.in_size[0])
         self.state_init = state_init
         self.recurrent_fn = recurrent_fn
@@ -98,16 +99,10 @@ class HORNStep(nn.Dynamics):
     def update(self, inputs):
         # one discrete dynamics step based on sympletic Euler integration
 
-        # time step
-        h = u.get_magnitude(brainstate.environ.get_dt())
-        # current states
+        # current states and parameters
         y = self.y.value
         x = self.x.value
-
-        # omega^2 for DHO equation
         omega_factor = self.omega.value() ** 2
-
-        # 2 * gamma for DHO equation
         gamma_factor = 2.0 * self.gamma.value()
         v = self.v.value()
         alpha = self.alpha.value()
@@ -115,14 +110,14 @@ class HORNStep(nn.Dynamics):
         # 1. integrate y_t
         # external input + recurrent input from network
         inp = (inputs + self.gain_rec * (self.recurrent_fn(y) + v * x))
-        y_t = y + h * (
+        y_t = y + self.h * (
             alpha * jnp.tanh(inp)  # input (forcing) on y_t
             - omega_factor * x  # natural frequency term
             - gamma_factor * y  # damping term
         )
 
         # 2. integrate x_t with updated y_t, no input here
-        x_t = x + h * y_t
+        x_t = x + self.h * y_t
 
         self.x.value = x_t
         self.y.value = y_t
@@ -138,6 +133,7 @@ class HORNSeqLayer(nn.Module):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
+        h: brainstate.typing.ArrayLike = 1.0,  # integration step size
         state_init: Callable = braintools.init.ZeroInit(),
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
         rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
@@ -157,7 +153,7 @@ class HORNSeqLayer(nn.Module):
         self.h2h = brainstate.nn.Linear(n_hidden, n_hidden, w_init=rec_w_init, b_init=rec_b_init)
         self.horn = HORNStep(
             n_hidden,
-            alpha=alpha, omega=omega, gamma=gamma, v=v,
+            alpha=alpha, omega=omega, gamma=gamma, v=v, h=h,
             state_init=state_init, recurrent_fn=self.h2h
         )
 
@@ -181,6 +177,7 @@ class HORNSeqNetwork(nn.Module):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
+        h: brainstate.typing.ArrayLike = 1.0,  # integration step size
         state_init: Callable = braintools.init.ZeroInit(),
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
         rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
@@ -202,6 +199,7 @@ class HORNSeqNetwork(nn.Module):
                 omega=omega,
                 gamma=gamma,
                 v=v,
+                h=h,
                 state_init=state_init,
                 rec_w_init=rec_w_init,
                 rec_b_init=rec_b_init,
@@ -219,3 +217,13 @@ class HORNSeqNetwork(nn.Module):
             x = layer(x)
         output = self.h2o(self.layers[-1].horn.x.value)
         return output
+
+    def predict(self, inputs):
+        x = inputs
+        outputs = []
+        for layer in self.layers:
+            x = layer(x)
+            outputs.append(x)
+        return outputs
+
+

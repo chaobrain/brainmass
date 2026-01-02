@@ -15,11 +15,11 @@
 
 from typing import Callable
 
+import braintools
 import brainunit as u
 
 import brainstate
-import braintools
-from brainstate import nn
+from brainstate.nn import Param, Dynamics
 from ._noise import Noise
 from ._typing import Parameter
 
@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 
-class FitzHughNagumoModel(nn.Dynamics):
+class FitzHughNagumoModel(Dynamics):
     r"""FitzHugh–Nagumo neural mass model.
 
     A two-dimensional reduction of the Hodgkin–Huxley model that captures
@@ -125,12 +125,12 @@ class FitzHughNagumoModel(nn.Dynamics):
         super().__init__(in_size=in_size)
 
         # model parameters
-        self.alpha = braintools.init.param(alpha, self.varshape)
-        self.beta = braintools.init.param(beta, self.varshape)
-        self.gamma = braintools.init.param(gamma, self.varshape)
-        self.delta = braintools.init.param(delta, self.varshape)
-        self.epsilon = braintools.init.param(epsilon, self.varshape)
-        self.tau = braintools.init.param(tau, self.varshape)
+        self.alpha = Param.init(alpha, self.varshape)
+        self.beta = Param.init(beta, self.varshape)
+        self.gamma = Param.init(gamma, self.varshape)
+        self.delta = Param.init(delta, self.varshape)
+        self.epsilon = Param.init(epsilon, self.varshape)
+        self.tau = Param.init(tau, self.varshape)
 
         # initializers
         assert isinstance(noise_V, Noise) or noise_V is None, "noise_V must be a Noise instance or None."
@@ -172,7 +172,10 @@ class FitzHughNagumoModel(nn.Dynamics):
         array-like
             Time derivative ``dV/dt`` with unit ``1/ms``.
         """
-        return (- self.alpha * V ** 3 + self.beta * V ** 2 + self.gamma * V - w + inp) / u.ms
+        alpha = self.alpha.value()
+        beta = self.beta.value()
+        gamma = self.gamma.value()
+        return (- alpha * V ** 3 + beta * V ** 2 + gamma * V - w + inp) / u.ms
 
     def dw(self, w, x, inp=0.):
         """Right-hand side for the recovery variable ``w``.
@@ -192,7 +195,10 @@ class FitzHughNagumoModel(nn.Dynamics):
         array-like
             Time derivative ``dw/dt`` with unit ``1/ms``.
         """
-        return (x - self.delta - self.epsilon * w) / self.tau + inp / u.ms
+        delta = self.delta.value()
+        epsilon = self.epsilon.value()
+        tau = self.tau.value()
+        return (x - delta - epsilon * w) / tau + inp / u.ms
 
     def derivative(self, state, t, V_inp, w_inp):
         V, w = state

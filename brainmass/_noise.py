@@ -16,11 +16,12 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
 import jax.numpy as jnp
 
+import brainstate
+from brainstate.nn import Dynamics, Param
 from ._typing import Parameter
 
 __all__ = [
@@ -36,7 +37,7 @@ __all__ = [
 ]
 
 
-class Noise(brainstate.nn.Dynamics):
+class Noise(Dynamics):
     __module__ = 'brainmass'
 
 
@@ -52,12 +53,17 @@ class GaussianNoise(Noise):
     ):
         super().__init__(in_size=in_size)
 
-        self.sigma = sigma
-        self.mean = 0. * u.get_unit(sigma) if mean is None else mean
+        self.sigma = Param.init(sigma, self.varshape)
+        self.mean = Param.init(
+            0. * u.get_unit(self.sigma.value()) if mean is None else mean,
+            self.varshape
+        )
 
     def update(self):
+        mean = self.mean.value()
+        sigma = self.sigma.value()
         z = brainstate.random.normal(loc=0.0, scale=1.0, size=self.varshape)
-        return self.mean + self.sigma * z
+        return mean + sigma * z
 
 
 class WhiteNoise(GaussianNoise):
@@ -83,21 +89,23 @@ class BrownianNoise(Noise):
     ):
         super().__init__(in_size=in_size)
 
-        self.sigma = sigma
-        self.mean = 0. * u.get_unit(sigma) if mean is None else mean
+        self.sigma = Param.init(sigma, self.varshape)
+        self.mean = Param.init(
+            0. * u.get_unit(self.sigma.value()) if mean is None else mean,
+            self.varshape
+        )
         self.init = init
 
     def init_state(self, batch_size=None, **kwargs):
-        self.x = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        self.x.value = braintools.init.param(self.init, self.varshape, batch_size)
+        self.x = brainstate.HiddenState.init(self.init, self.varshape, batch_size)
 
     def update(self):
+        mean = self.mean.value()
+        sigma = self.sigma.value()
         noise = brainstate.random.randn(*self.varshape)
         dt_sqrt = u.math.sqrt(brainstate.environ.get_dt())
-        self.x.value = self.x.value + self.sigma / dt_sqrt * dt_sqrt * noise
-        return self.mean + self.x.value
+        self.x.value = self.x.value + sigma / dt_sqrt * dt_sqrt * noise
+        return mean + self.x.value
 
 
 class ColoredNoise(Noise):
@@ -119,21 +127,26 @@ class ColoredNoise(Noise):
         super().__init__(in_size=in_size)
 
         self.beta = beta
-        self.sigma = sigma
-        self.mean = 0. * u.get_unit(sigma) if mean is None else mean
+        self.sigma = Param.init(sigma, self.varshape)
+        self.mean = Param.init(
+            0. * u.get_unit(self.sigma.value()) if mean is None else mean,
+            self.varshape
+        )
 
     def update(self):
+        mean = self.mean.value()
+        sigma = self.sigma.value()
         size = self.varshape
         if len(size) == 0:
             # scalar: fallback to Gaussian
             z = brainstate.random.normal(loc=0.0, scale=1.0, size=())
-            return self.mean + self.sigma * z
+            return mean + sigma * z
 
         n = size[-1]
         if n < 2:
             # not enough points to shape spectrum; fallback to Gaussian
             z = brainstate.random.normal(loc=0.0, scale=1.0, size=size)
-            return self.mean + self.sigma * z
+            return mean + sigma * z
 
         # white noise
         x = brainstate.random.normal(loc=0.0, scale=1.0, size=size)
@@ -149,7 +162,7 @@ class ColoredNoise(Noise):
         # normalize std over last axis and scale
         std = jnp.std(y, axis=-1, keepdims=True)
         y = jnp.where(std > 0, y / std, y)
-        return self.mean + self.sigma * y
+        return mean + sigma * y
 
 
 class PinkNoise(ColoredNoise):
@@ -220,19 +233,22 @@ class OUProcess(Noise):
         super().__init__(in_size=in_size)
 
         # parameters
-        self.sigma = sigma
-        self.mean = 0. * u.get_unit(sigma) if mean is None else mean
-        self.tau = tau
+        self.sigma = Param.init(sigma, self.varshape)
+        self.mean = Param.init(
+            0. * u.get_unit(self.sigma.value()) if mean is None else mean,
+            self.varshape
+        )
+        self.tau = Param.init(tau, self.varshape)
         self.init = braintools.init.ZeroInit(unit=u.get_unit(sigma)) if init is None else init
 
     def init_state(self, batch_size=None, **kwargs):
-        self.x = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        self.x.value = braintools.init.param(self.init, self.varshape, batch_size)
+        self.x = brainstate.HiddenState.init(self.init, self.varshape, batch_size)
 
     def update(self):
-        df = lambda x: (self.mean - x) / self.tau
-        dg = lambda x: self.sigma / u.math.sqrt(self.tau)
+        mean = self.mean.value()
+        sigma = self.sigma.value()
+        tau = self.tau.value()
+        df = lambda x: (mean - x) / tau
+        dg = lambda x: sigma / u.math.sqrt(tau)
         self.x.value = brainstate.nn.exp_euler_step(df, dg, self.x.value)
         return self.x.value

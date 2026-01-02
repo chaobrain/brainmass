@@ -16,10 +16,11 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
 
+import brainstate
+from brainstate.nn import Param
 from ._common import XY_Oscillator
 from ._noise import Noise
 from ._typing import Parameter
@@ -118,10 +119,10 @@ class HopfOscillator(XY_Oscillator):
             method=method,
         )
 
-        self.a = braintools.init.param(a, self.varshape)
-        self.w = braintools.init.param(w, self.varshape)
-        self.K_gl = braintools.init.param(K_gl, self.varshape)
-        self.beta = braintools.init.param(beta, self.varshape)
+        self.a = Param.init(a, self.varshape)
+        self.w = Param.init(w, self.varshape)
+        self.K_gl = Param.init(K_gl, self.varshape)
+        self.beta = Param.init(beta, self.varshape)
 
     def dx(self, x, y, inp):
         """Right-hand side for ``x``.
@@ -140,8 +141,11 @@ class HopfOscillator(XY_Oscillator):
         array-like
             Time derivative ``dx/dt`` with unit ``1/ms``.
         """
+        a = self.a.value()
+        w = self.w.value()
+        beta = self.beta.value()
         r = x ** 2 + y ** 2
-        dx_dt = (self.a - self.beta * r) * x - self.w * y + inp
+        dx_dt = (a - beta * r) * x - w * y + inp
         return dx_dt / u.ms
 
     def dy(self, y, x, inp):
@@ -161,6 +165,9 @@ class HopfOscillator(XY_Oscillator):
         array-like
             Time derivative ``dy/dt`` with unit ``1/ms``.
         """
+        a = self.a.value()
+        beta = self.beta.value()
+        w = self.w.value()
         r = x ** 2 + y ** 2
-        dy_dt = (self.a - self.beta * r) * y + self.w * x + inp
+        dy_dt = (a - beta * r) * y + w * x + inp
         return dy_dt / u.ms

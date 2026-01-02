@@ -26,14 +26,32 @@ from ._common import (
     euler_step,
     process_sequence,
 )
-
-# Type aliases
-from ._typing import (
-    Initializer,
-    Array,
-    Parameter,
+# Coupling mechanisms
+from ._coupling import (
+    DiffusiveCoupling,
+    AdditiveCoupling,
+    diffusive_coupling,
+    additive_coupling,
 )
-
+# Neural mass models
+from ._fhn import FitzHughNagumoModel
+# Forward models and lead field
+from ._forward_model import (
+    BOLDSignal,
+    LeadFieldModel,
+    EEGLeadFieldModel,
+    MEGLeadFieldModel,
+)
+from ._hopf import HopfOscillator
+# HORN models
+from ._horn import (
+    HORNStep,
+    HORNSeqLayer,
+    HORNSeqNetwork,
+)
+from ._jansen_rit import JansenRitStep
+from ._kuramoto import KuramotoNetwork
+from ._linear import ThresholdLinearModel
 # Noise processes
 from ._noise import (
     Noise,
@@ -46,53 +64,17 @@ from ._noise import (
     BlueNoise,
     VioletNoise,
 )
-
-# Neural mass models
-from ._fhn import FitzHughNagumoModel
-from ._hopf import HopfOscillator
-from ._jansen_rit import JansenRitModel
+from ._qif import QIF
+from ._sl import StuartLandauOscillator
+# Type aliases
+from ._typing import (
+    Initializer,
+    Array,
+    Parameter,
+)
+from ._vdp import VanDerPolOscillator
 from ._wilson_cowan import WilsonCowanModel
 from ._wong_wang import WongWangModel
-from ._vdp import VanDerPolOscillator
-from ._qif import QIF
-from ._linear import ThresholdLinearModel
-from ._kuramoto import KuramotoNetwork
-from ._sl import StuartLandauOscillator
-
-# Forward models and lead field
-from ._forward_model import (
-    BOLDSignal,
-    LeadFieldModel,
-    EEGLeadFieldModel,
-    MEGLeadFieldModel,
-)
-
-# Coupling mechanisms
-from ._coupling import (
-    DiffusiveCoupling,
-    AdditiveCoupling,
-    diffusive_coupling,
-    additive_coupling,
-)
-
-# Hook system
-from ._hooks import (
-    Hook,
-    HookContext,
-    HookManager,
-    HookPoint,
-    hook,
-    StateRecorderHook,
-    StateSaturationHook,
-    NaNDetectorHook,
-)
-
-# HORN models
-from ._horn import (
-    HORNStep,
-    HORNSeqLayer,
-    HORNSeqNetwork,
-)
 
 __all__ = [
     # Version
@@ -126,7 +108,7 @@ __all__ = [
     # Neural mass models
     'FitzHughNagumoModel',
     'HopfOscillator',
-    'JansenRitModel',
+    'JansenRitStep',
     'WilsonCowanModel',
     'WongWangModel',
     'VanDerPolOscillator',
@@ -146,16 +128,6 @@ __all__ = [
     'AdditiveCoupling',
     'diffusive_coupling',
     'additive_coupling',
-
-    # Hook system
-    'Hook',
-    'HookContext',
-    'HookManager',
-    'HookPoint',
-    'hook',
-    'StateRecorderHook',
-    'StateSaturationHook',
-    'NaNDetectorHook',
 
     # HORN models
     'HORNStep',

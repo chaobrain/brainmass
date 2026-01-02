@@ -15,13 +15,14 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
 
+import brainstate
+from brainstate.nn import Param
 from ._common import XY_Oscillator
 from ._noise import Noise
-from ._typing import Parameter 
+from ._typing import Parameter
 
 __all__ = [
     'StuartLandauOscillator',
@@ -97,8 +98,8 @@ class StuartLandauOscillator(XY_Oscillator):
         in_size: brainstate.typing.Size,
 
         # model parameters
-        a: Parameter  = 0.25,
-        w: Parameter  = 0.2,
+        a: Parameter = 0.25,
+        w: Parameter = 0.2,
 
         # noise parameters
         noise_x: Noise = None,
@@ -119,8 +120,8 @@ class StuartLandauOscillator(XY_Oscillator):
         )
 
         # model parameters
-        self.a = braintools.init.param(a, self.varshape, allow_none=False)
-        self.w = braintools.init.param(w, self.varshape, allow_none=False)
+        self.a = Param.init(a, self.varshape)
+        self.w = Param.init(w, self.varshape)
 
     def dx(self, x, y, x_ext):
         """Right-hand side for the ``x`` component.
@@ -139,7 +140,9 @@ class StuartLandauOscillator(XY_Oscillator):
         array-like
             Time derivative ``dx/dt`` with unit ``1/ms``.
         """
-        return ((self.a - x * x - y * y) * x - self.w * y + x_ext) / u.ms
+        a = self.a.value()
+        w = self.w.value()
+        return ((a - x * x - y * y) * x - w * y + x_ext) / u.ms
 
     def dy(self, y, x, y_ext):
         """Right-hand side for the ``y`` component.
@@ -158,4 +161,6 @@ class StuartLandauOscillator(XY_Oscillator):
         array-like
             Time derivative ``dy/dt`` with unit ``1/ms``.
         """
-        return ((self.a - x * x - y * y) * y - self.w * y + y_ext) / u.ms
+        a = self.a.value
+        w = self.w.value
+        return ((a - x * x - y * y) * y - w * y + y_ext) / u.ms

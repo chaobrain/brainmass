@@ -15,13 +15,14 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
 import jax.numpy as jnp
 
+import brainstate
+from brainstate.nn import Param
 from ._noise import Noise
-from ._typing import Parameter 
+from ._typing import Parameter
 
 __all__ = [
     'WilsonCowanModel',
@@ -133,23 +134,23 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         in_size: brainstate.typing.Size,
 
         # Excitatory parameters
-        tau_E: Parameter  = 1. * u.ms,  # excitatory time constant (ms)
-        a_E: Parameter  = 1.2,  # excitatory gain (dimensionless)
-        theta_E: Parameter  = 2.8,  # excitatory firing threshold (dimensionless)
+        tau_E: Parameter = 1. * u.ms,  # excitatory time constant (ms)
+        a_E: Parameter = 1.2,  # excitatory gain (dimensionless)
+        theta_E: Parameter = 2.8,  # excitatory firing threshold (dimensionless)
 
         # Inhibitory parameters
-        tau_I: Parameter  = 1. * u.ms,  # inhibitory time constant (ms)
-        a_I: Parameter  = 1.,  # inhibitory gain (dimensionless)
-        theta_I: Parameter  = 4.0,  # inhibitory firing threshold (dimensionless)
+        tau_I: Parameter = 1. * u.ms,  # inhibitory time constant (ms)
+        a_I: Parameter = 1.,  # inhibitory gain (dimensionless)
+        theta_I: Parameter = 4.0,  # inhibitory firing threshold (dimensionless)
 
         # Connection parameters
-        wEE: Parameter  = 12.,  # local E-E coupling (dimensionless)
-        wIE: Parameter  = 4.,  # local E-I coupling (dimensionless)
-        wEI: Parameter  = 13.,  # local I-E coupling (dimensionless)
-        wII: Parameter  = 11.,  # local I-I coupling (dimensionless)
+        wEE: Parameter = 12.,  # local E-E coupling (dimensionless)
+        wIE: Parameter = 4.,  # local E-I coupling (dimensionless)
+        wEI: Parameter = 13.,  # local I-E coupling (dimensionless)
+        wII: Parameter = 11.,  # local I-I coupling (dimensionless)
 
         # Refractory parameter
-        r: Parameter  = 1.,  # refractory parameter (dimensionless)
+        r: Parameter = 1.,  # refractory parameter (dimensionless)
 
         # noise
         noise_E: Noise = None,  # excitatory noise process
@@ -162,17 +163,17 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
     ):
         super().__init__(in_size=in_size)
 
-        self.a_E = braintools.init.param(a_E, self.varshape)
-        self.a_I = braintools.init.param(a_I, self.varshape)
-        self.tau_E = braintools.init.param(tau_E, self.varshape)
-        self.tau_I = braintools.init.param(tau_I, self.varshape)
-        self.theta_E = braintools.init.param(theta_E, self.varshape)
-        self.theta_I = braintools.init.param(theta_I, self.varshape)
-        self.wEE = braintools.init.param(wEE, self.varshape)
-        self.wIE = braintools.init.param(wIE, self.varshape)
-        self.wEI = braintools.init.param(wEI, self.varshape)
-        self.wII = braintools.init.param(wII, self.varshape)
-        self.r = braintools.init.param(r, self.varshape)
+        self.a_E = Param.init(a_E, self.varshape)
+        self.a_I = Param.init(a_I, self.varshape)
+        self.tau_E = Param.init(tau_E, self.varshape)
+        self.tau_I = Param.init(tau_I, self.varshape)
+        self.theta_E = Param.init(theta_E, self.varshape)
+        self.theta_I = Param.init(theta_I, self.varshape)
+        self.wEE = Param.init(wEE, self.varshape)
+        self.wIE = Param.init(wIE, self.varshape)
+        self.wEI = Param.init(wEI, self.varshape)
+        self.wII = Param.init(wII, self.varshape)
+        self.r = Param.init(r, self.varshape)
         self.noise_E = noise_E
         self.noise_I = noise_I
         assert isinstance(noise_I, Noise) or noise_I is None, "noise_I must be an OUProcess or None"
@@ -182,12 +183,8 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
-        self.rE = brainstate.HiddenState(braintools.init.param(self.rE_init, self.varshape, batch_size))
-        self.rI = brainstate.HiddenState(braintools.init.param(self.rI_init, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        self.rE.value = braintools.init.param(self.rE_init, self.varshape, batch_size)
-        self.rI.value = braintools.init.param(self.rI_init, self.varshape, batch_size)
+        self.rE = brainstate.HiddenState.init(self.rE_init, self.varshape, batch_size)
+        self.rI = brainstate.HiddenState.init(self.rI_init, self.varshape, batch_size)
 
     def F(self, x, a, theta):
         """Sigmoidal transfer function.
@@ -226,8 +223,14 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         array-like
             Time derivative ``drE/dt`` with unit of ``1/time``.
         """
-        xx = self.wEE * rE - self.wIE * rI + ext
-        return (-rE + (1 - self.r * rE) * self.F(xx, self.a_E, self.theta_E)) / self.tau_E
+        wEE = self.wEE.value()
+        wIE = self.wIE.value()
+        r = self.r.value()
+        a_E = self.a_E.value()
+        theta_E = self.theta_E.value()
+        tau_E = self.tau_E.value()
+        xx = wEE * rE - wIE * rI + ext
+        return (-rE + (1 - r * rE) * self.F(xx, a_E, theta_E)) / tau_E
 
     def drI(self, rI, rE, ext):
         """Right-hand side for the inhibitory population.
@@ -246,8 +249,14 @@ class WilsonCowanModel(brainstate.nn.Dynamics):
         array-like
             Time derivative ``drI/dt`` with unit of ``1/time``.
         """
-        xx = self.wEI * rE - self.wII * rI + ext
-        return (-rI + (1 - self.r * rI) * self.F(xx, self.a_I, self.theta_I)) / self.tau_I
+        wEI = self.wEI.value()
+        wII = self.wII.value()
+        r = self.r.value()
+        a_I = self.a_I.value()
+        theta_I = self.theta_I.value()
+        tau_I = self.tau_I.value()
+        xx = wEI * rE - wII * rI + ext
+        return (-rI + (1 - r * rI) * self.F(xx, a_I, theta_I)) / tau_I
 
     def derivaitive(self, state, t, E_exp, I_exp):
         rE, rI = state

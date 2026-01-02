@@ -19,6 +19,13 @@ from typing import Union, Callable
 import brainstate
 from brainstate.nn import Param
 
+__all__ = [
+    'Initializer',
+    'Array',
+    'Parameter',
+]
+
+
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
 
 Array = brainstate.typing.ArrayLike

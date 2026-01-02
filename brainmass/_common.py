@@ -15,11 +15,11 @@
 
 from typing import Union, Sequence, Dict, Tuple, List, Callable
 
-import brainstate
 import braintools
 import brainunit as u
 import jax.tree
 
+import brainstate
 from ._noise import Noise
 from ._typing import Array
 
@@ -86,6 +86,7 @@ def sigmoid(
     Returns:
         Firing rate in range (0, vmax).
     """
+    return vmax * u.math.sigmoid(-r * (v0 - x))
     return vmax / (1 + u.math.exp(r * (v0 - x)))
 
 
@@ -233,20 +234,8 @@ class XY_Oscillator(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.x = brainstate.HiddenState(braintools.init.param(self.init_x, self.varshape, batch_size))
-        self.y = brainstate.HiddenState(braintools.init.param(self.init_y, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        """Reset model states ``x`` and ``y`` using the initializers.
-
-        Parameters
-        ----------
-        batch_size : int or None, optional
-            Optional batch dimension for reinitialization. If ``None``, keeps
-            current batch shape but resets values. Default is ``None``.
-        """
-        self.x.value = braintools.init.param(self.init_x, self.varshape, batch_size)
-        self.y.value = braintools.init.param(self.init_y, self.varshape, batch_size)
+        self.x = brainstate.HiddenState.init(self.init_x, self.varshape, batch_size)
+        self.y = brainstate.HiddenState.init(self.init_y, self.varshape, batch_size)
 
     def dx(self, x, y, x_ext):
         raise NotImplementedError

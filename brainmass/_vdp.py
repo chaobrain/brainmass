@@ -15,13 +15,14 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
 
+import brainstate
+from brainstate.nn import Param
 from ._common import XY_Oscillator
 from ._noise import Noise
-from ._typing import Parameter 
+from ._typing import Parameter
 
 __all__ = [
     'VanDerPolOscillator',
@@ -126,7 +127,7 @@ class VanDerPolOscillator(XY_Oscillator):
         in_size: brainstate.typing.Size,
 
         # parameters
-        mu: Parameter  = 1.0,
+        mu: Parameter = 1.0,
 
         # noise parameters
         noise_x: Noise = None,
@@ -147,7 +148,7 @@ class VanDerPolOscillator(XY_Oscillator):
         )
 
         # model parameters
-        self.mu = braintools.init.param(mu, self.varshape)
+        self.mu = Param.init(mu, self.varshape)
 
     def dx(self, x, y, inp):
         """Right-hand side for the state ``x``.
@@ -166,7 +167,8 @@ class VanDerPolOscillator(XY_Oscillator):
         array-like
             Time derivative ``dx/dt`` with unit ``1/ms``.
         """
-        return self.mu * (x - x ** 3 / 3 - y) / u.ms + inp / u.ms
+        mu = self.mu.value()
+        return mu * (x - x ** 3 / 3 - y) / u.ms + inp / u.ms
 
     def dy(self, y, x, inp=0.):
         """Right-hand side for the state ``y``.
@@ -186,7 +188,8 @@ class VanDerPolOscillator(XY_Oscillator):
         array-like
             Time derivative ``dy/dt`` with unit ``1/ms``.
         """
-        return (x / self.mu + inp) / u.ms
+        mu = self.mu.value()
+        return (x / mu + inp) / u.ms
 
     def derivative(self, state, t, x_inp, y_inp):
         """Vector field for ODE integrators.

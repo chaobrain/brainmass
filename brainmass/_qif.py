@@ -16,13 +16,13 @@
 
 from typing import Callable
 
+import braintools
 import brainunit as u
 
 import brainstate
-import braintools
 from brainstate.nn import Param
 from ._noise import Noise
-from ._typing import Parameter 
+from ._typing import Parameter
 
 __all__ = [
     'QIF',
@@ -122,10 +122,10 @@ class QIF(brainstate.nn.Dynamics):
         in_size: brainstate.typing.Size,
 
         # model parameters
-        tau: Parameter  = 1. * u.ms,
-        eta: Parameter  = -5.0,
-        delta: Parameter  = 1.0 * u.Hz,
-        J: Parameter  = 15.,
+        tau: Parameter = 1. * u.ms,
+        eta: Parameter = -5.0,
+        delta: Parameter = 1.0 * u.Hz,
+        J: Parameter = 15.,
 
         # initializers
         init_r: Callable = braintools.init.Uniform(0, 0.05, unit=u.Hz),
@@ -188,7 +188,9 @@ class QIF(brainstate.nn.Dynamics):
         array-like
             Time derivative ``dr/dt`` with unit ``1/ms``.
         """
-        return self.delta / u.math.pi / self.tau + (2. * v * r + r_ext) / u.ms
+        delta = self.delta.value()
+        tau = self.tau.value()
+        return delta / u.math.pi / tau + (2. * v * r + r_ext) / u.ms
 
     def dv(self, v, r, v_ext):
         """Right-hand side for the mean membrane potential ``v``.
@@ -207,10 +209,13 @@ class QIF(brainstate.nn.Dynamics):
         array-like
             Time derivative ``dv/dt`` with unit ``1/ms``.
         """
+        eta = self.eta.value()
+        J = self.J.value()
+        tau = self.tau.value()
         return (
-            v ** 2 + self.eta + v_ext + self.J * r * self.tau -
-            (u.math.pi * r * self.tau) ** 2
-        ) / self.tau
+            v ** 2 + eta + v_ext + J * r * tau -
+            (u.math.pi * r * tau) ** 2
+        ) / tau
 
     def derivative(self, state, t, r_ext, v_ext):
         r, v = state
