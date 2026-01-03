@@ -17,7 +17,7 @@ import scipy.io
 from sklearn.metrics.pairwise import cosine_similarity
 
 import braintools
-from brainmass.jansen_rit_v3 import JansenRitModel
+from brainmass import JansenRitModel
 from brainstate.nn import Param, Const, ReluT, GaussianReg
 
 

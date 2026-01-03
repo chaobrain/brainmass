@@ -20,7 +20,7 @@ import brainunit as u
 
 import brainstate
 from brainstate.nn import Param
-from ._common import XY_Oscillator
+from ._utils import XY_Oscillator
 from ._noise import Noise
 from ._typing import Parameter
 

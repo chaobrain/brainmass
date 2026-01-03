@@ -18,7 +18,7 @@ __version__ = "0.0.5"
 __version_info__ = tuple(map(int, __version__.split(".")))
 
 # Common utilities
-from ._common import (
+from ._utils import (
     XY_Oscillator,
     sys2nd,
     sigmoid,
@@ -55,7 +55,6 @@ from ._jansen_rit2 import (
     JansenRit2Step,
     JansenRit2TR,
     JansenRit2Window,
-    LaplacianConnectivity,
 )
 from ._kuramoto import KuramotoNetwork
 from ._linear import ThresholdLinearStep
@@ -127,7 +126,6 @@ __all__ = [
     'JansenRit2Step',
     'JansenRit2TR',
     'JansenRit2Window',
-    'LaplacianConnectivity',
 
     # Forward models and lead field
     'BOLDSignal',

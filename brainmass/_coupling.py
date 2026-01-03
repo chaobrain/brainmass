@@ -14,15 +14,14 @@
 # ==============================================================================
 
 
-from typing import Union, Tuple, Callable, Optional
+from typing import Union, Tuple, Callable, Literal, Optional
 
-import braintools
 import brainunit as u
 
 import brainstate
 from brainstate.nn import Param, Module, init_maybe_prefetch
-from ._common import set_module_as
-from ._typing import Parameter, Initializer
+from ._typing import Parameter
+from ._utils import set_module_as
 
 # Typing alias for static type hints
 Prefetch = Union[
@@ -138,6 +137,68 @@ def diffusive_coupling(
     return k * diffusive.sum(axis=-1)  # (..., N_out)
 
 
+class DiffusiveCoupling(Module):
+    r"""
+    Diffusive coupling.
+
+    This class implements a diffusive coupling mechanism for neural network modules.
+    It simulates the following model:
+
+    $$
+    \mathrm{current}_i = k * \sum_j g_{ij} * (x_{D_{ij}} - y_i)
+    $$
+
+    where:
+        - $\mathrm{current}_i$: the output current for neuron $i$
+        - $g_{ij}$: the connection strength between neuron $i$ and neuron $j$
+        - $x_{D_{ij}}$: the delayed state variable for neuron $j$, as seen by neuron $i$
+        - $y_i$: the state variable for neuron i
+
+    Parameters
+    ----------
+    x : Prefetch
+        The delayed state variable for the source units.
+    y : Prefetch
+        The delayed state variable for the target units.
+    conn : Param, array_like
+        The connection matrix (1D or 2D array) specifying the coupling strengths between units.
+    k: Param, array_like
+        The global coupling strength. Default is 1.0.
+
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        x: Prefetch,
+        y: Prefetch,
+        conn: Parameter,
+        k: Parameter = 1.0
+    ):
+        super().__init__()
+        self.x = _check_type(x)
+        self.y = _check_type(y)
+
+        # global coupling strength
+        self.k = Param.init(k)
+
+        # Connection matrix (support 1D flattened (N_out*N_in,) or 2D (N_out, N_in))
+        self.conn = Param.init(conn)
+        ndim = self.conn.value().ndim
+        if ndim not in (1, 2):
+            raise ValueError(
+                f'Connection must be 1D (flattened) or 2D matrix; got {ndim}D.'
+            )
+
+    @brainstate.nn.call_order(2)
+    def init_state(self, *args, **kwargs):
+        init_maybe_prefetch(self.x)
+        init_maybe_prefetch(self.y)
+
+    def update(self, *args, **kwargs):
+        return diffusive_coupling(self.x, self.y, self.conn.value(), self.k.value())
+
+
 @set_module_as('brainmass')
 def additive_coupling(
     delayed_x: Callable | Array,
@@ -192,68 +253,6 @@ def additive_coupling(
     return k * additive.sum(axis=-1)  # (..., N_out)
 
 
-class DiffusiveCoupling(Module):
-    r"""
-    Diffusive coupling.
-
-    This class implements a diffusive coupling mechanism for neural network modules.
-    It simulates the following model:
-
-    $$
-    \mathrm{current}_i = k * \sum_j g_{ij} * (x_{D_{ij}} - y_i)
-    $$
-
-    where:
-        - $\mathrm{current}_i$: the output current for neuron $i$
-        - $g_{ij}$: the connection strength between neuron $i$ and neuron $j$
-        - $x_{D_{ij}}$: the delayed state variable for neuron $j$, as seen by neuron $i$
-        - $y_i$: the state variable for neuron i
-
-    Parameters
-    ----------
-    x : Prefetch
-        The delayed state variable for the source units.
-    y : Prefetch
-        The delayed state variable for the target units.
-    conn : brainstate.typing.Array
-        The connection matrix (1D or 2D array) specifying the coupling strengths between units.
-    k: float
-        The global coupling strength. Default is 1.0.
-
-    """
-    __module__ = 'brainmass'
-
-    def __init__(
-        self,
-        x: Prefetch,
-        y: Prefetch,
-        conn: Parameter,
-        k: Parameter = 1.0
-    ):
-        super().__init__()
-        self.x = _check_type(x)
-        self.y = _check_type(y)
-
-        # global coupling strength
-        self.k = Param.init(k)
-
-        # Connection matrix (support 1D flattened (N_out*N_in,) or 2D (N_out, N_in))
-        self.conn = Param.init(conn)
-        ndim = self.conn.value().ndim
-        if ndim not in (1, 2):
-            raise ValueError(
-                f'Connection must be 1D (flattened) or 2D matrix; got {ndim}D.'
-            )
-
-    @brainstate.nn.call_order(2)
-    def init_state(self, *args, **kwargs):
-        init_maybe_prefetch(self.x)
-        init_maybe_prefetch(self.y)
-
-    def update(self, *args, **kwargs):
-        return diffusive_coupling(self.x, self.y, self.conn.value(), self.k.value())
-
-
 class AdditiveCoupling(Module):
     r"""
     Additive coupling.
@@ -274,9 +273,9 @@ class AdditiveCoupling(Module):
     ----------
     x : Prefetch, Callable
         The delayed state variable for the source units.
-    conn : brainstate.typing.Array
+    conn : Param, array_like
         The connection matrix (1D or 2D array) specifying the coupling strengths between units.
-    k: float
+    k: Param, array_like
         The global coupling strength. Default is 1.0.
 
     """
@@ -307,3 +306,43 @@ class AdditiveCoupling(Module):
     def update(self, *args, **kwargs):
         return additive_coupling(self.x, self.conn.value(), self.k.value())
 
+
+def laplacian_connectivity(
+    W: Array,
+    *,
+    normalize: Optional[Literal["rw", "sym"]] = None,
+    eps: float = 1e-12,
+) -> Array:
+    """
+    Build Laplacian L from dense adjacency W.
+
+    L = D - W (unnormalized)
+    If normalize == "rw":  L_rw  = I - D^{-1} W
+    If normalize == "sym": L_sym = I - D^{-1/2} W D^{-1/2}
+
+    Notes:
+      - Assumes nonnegative weights; for directed graphs, use with care.
+      - Adds eps for numerical stability in inverses.
+    """
+    W = u.math.asarray(W)
+    d = u.math.sum(W, axis=-1)  # (N,)
+    if normalize is None:
+        return u.math.diag(d) - W
+
+    n = W.shape[-1]
+    I = u.math.eye(n, dtype=W.dtype, unit=u.get_unit(W))
+
+    if normalize == "rw":
+        inv_d = 1.0 / u.math.maximum(d, eps)
+        DinvW = W * inv_d[:, None]
+        return I - DinvW
+
+    if normalize == "sym":
+        inv_sqrt_d = 1.0 / u.math.sqrt(u.math.maximum(d, eps))
+        Wn = (W * inv_sqrt_d[:, None]) * inv_sqrt_d[None, :]
+        return I - Wn
+
+    raise ValueError(
+        f"Unknown normalize={normalize}, "
+        f"only None, 'rw', 'sym' are supported."
+    )

@@ -13,21 +13,21 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Callable, Optional
+from typing import Callable
 
 import braintools
 import brainunit as u
 import jax.nn
 
 import brainstate
+from brainstate import HiddenState
 from brainstate.nn import exp_euler_step, Param
 from ._noise import Noise
-from ._typing import Parameter, Initializer
+from ._typing import Parameter
 
 __all__ = [
     'JansenRitStep',
 ]
-
 
 Array = brainstate.typing.ArrayLike
 
@@ -253,12 +253,12 @@ class JansenRitStep(brainstate.nn.Dynamics):
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
-        self.M = brainstate.HiddenState.init(self.M_init, self.varshape, batch_size)
-        self.E = brainstate.HiddenState.init(self.E_init, self.varshape, batch_size)
-        self.I = brainstate.HiddenState.init(self.I_init, self.varshape, batch_size)
-        self.Mv = brainstate.HiddenState.init(self.Mv_init, self.varshape, batch_size)
-        self.Ev = brainstate.HiddenState.init(self.Ev_init, self.varshape, batch_size)
-        self.Iv = brainstate.HiddenState.init(self.Iv_init, self.varshape, batch_size)
+        self.M = HiddenState.init(self.M_init, self.varshape, batch_size)
+        self.E = HiddenState.init(self.E_init, self.varshape, batch_size)
+        self.I = HiddenState.init(self.I_init, self.varshape, batch_size)
+        self.Mv = HiddenState.init(self.Mv_init, self.varshape, batch_size)
+        self.Ev = HiddenState.init(self.Ev_init, self.varshape, batch_size)
+        self.Iv = HiddenState.init(self.Iv_init, self.varshape, batch_size)
 
     def S(self, v):
         # Sigmoid ranges from 0 to s_max, centered at v0
@@ -338,4 +338,3 @@ class JansenRitStep(brainstate.nn.Dynamics):
     def eeg(self):
         # EEG-like proxy: difference between excitatory and inhibitory PSPs at pyramidal
         return self.E.value - self.I.value
-

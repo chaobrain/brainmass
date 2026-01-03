@@ -25,7 +25,7 @@ import brainstate
 import brainstate.environ
 from brainstate import HiddenState
 from brainstate.nn import Dynamics, Delay, Param, Module, init_maybe_prefetch
-from ._common import sys2nd, sigmoid, bounded_input
+from ._utils import sys2nd, sigmoid, bounded_input
 from ._leadfield import LeadfieldReadout
 from ._noise import Noise, GaussianNoise
 from ._typing import Parameter, Initializer
@@ -51,17 +51,17 @@ class JansenRit2Step(Dynamics):
         self,
         in_size: Size,
         # dynamics parameters
-        A: Parameter,
-        a: Parameter,
-        B: Parameter,
-        b: Parameter,
-        vmax: Parameter,
-        v0: Parameter,
-        r: Parameter,
-        c1: Parameter,
-        c2: Parameter,
-        c3: Parameter,
-        c4: Parameter,
+        A: Parameter = 3.25,
+        B: Parameter = 22.,
+        a: Parameter = 100.,
+        b: Parameter = 50.,
+        vmax: Parameter = 5.0,
+        v0: Parameter = 6.0,
+        r: Parameter = 0.56,
+        c1: Parameter = 135.,
+        c2: Parameter = 135 * 0.8,
+        c3: Parameter = 135 * 0.25,
+        c4: Parameter = 135 * 0.25,
         kP: Parameter = 0.,
         kE: Parameter = 0.,
         kI: Parameter = 0.,
@@ -324,24 +324,24 @@ class LaplacianConnectivity(Module):
         init_maybe_prefetch(self.E)
         init_maybe_prefetch(self.I)
 
-    def _normalize(self, w_bb: Array) -> Tuple[Array, Array]:
+    def _normalize(self, w: Array) -> Tuple[Array, Array]:
         """Normalize weights with standard L2 normalization."""
-        w_b = u.math.exp(w_bb) * self.sc
-        w_n_b = w_b / u.math.linalg.norm(w_b)
+        w_b = u.math.exp(w) * self.sc
+        w_n = w_b / u.math.linalg.norm(w_b)
         if self.mask is not None:
-            w_n_b = w_n_b * self.mask
-        dg_b = -u.math.sum(w_n_b, axis=1)
-        return w_n_b, dg_b
+            w_n = w_n * self.mask
+        diag = -u.math.sum(w_n, axis=1)
+        return w_n, diag
 
-    def _symmetric_normalize(self, w_ll: Array) -> Tuple[Array, Array]:
+    def _symmetric_normalize(self, w: Array) -> Tuple[Array, Array]:
         """Normalize weights with symmetric normalization (for lateral pathway)."""
-        w = u.math.exp(w_ll) * self.sc
+        w = u.math.exp(w) * self.sc
         w = 0.5 * (w + u.math.transpose(w, (0, 1)))
-        w_n_l = w / u.linalg.norm(w)
+        w_n = w / u.linalg.norm(w)
         if self.mask is not None:
-            w_n_l = w_n_l * self.mask
-        dg_l = -u.math.sum(w_n_l, axis=1)
-        return w_n_l, dg_l
+            w_n = w_n * self.mask
+        diag = -u.math.sum(w_n, axis=1)
+        return w_n, diag
 
     def update_tr(self, *args, **kwargs):
         # Get pathway gains
