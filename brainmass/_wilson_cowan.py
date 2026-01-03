@@ -303,8 +303,9 @@ class WilsonCowanStep(brainstate.nn.Dynamics):
             rE = brainstate.nn.exp_euler_step(self.drE, self.rE.value, self.rI.value, rE_inp)
             rI = brainstate.nn.exp_euler_step(self.drI, self.rI.value, self.rE.value, rI_inp)
         else:
+            t = brainstate.environ.get('t', 0. * u.ms)
             rE, rI = getattr(braintools.quad, f'ode_{self.method}_step')(
-                (self.rE.value, self.rI.value), 0. * u.ms, rE_inp, rI_inp,
+                (self.rE.value, self.rI.value), t, rE_inp, rI_inp,
             )
         self.rE.value = rE
         self.rI.value = rI

@@ -1,8 +1,8 @@
 ``brainmass`` documentation
 ============================
 
-`brainmass <https://github.com/chaobrain/brainmass>`_ implements neural filed models with `brainstate <https://github.com/chaobrain/brainstate>`_,
-a JAX-based framework for large-scale brain dynamics programming.
+`brainmass <https://github.com/chaobrain/brainmass>`_ implements neural mass models with `brainstate <https://github.com/chaobrain/brainstate>`_,
+enabling whole-brain brain modeling with differentiable programming.
 
 
 
