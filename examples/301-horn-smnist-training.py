@@ -156,7 +156,6 @@ def evaluate_model(data_loader):
 # training loop
 best_eval = 0.
 for epoch in range(args.epochs):
-
     # loop over batches for one epoch
     for batch, (images, labels) in enumerate(train_loader):
         images, labels = data_processing(images, labels)

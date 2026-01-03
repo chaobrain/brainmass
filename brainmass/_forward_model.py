@@ -127,12 +127,6 @@ class BOLDSignal(nn.Dynamics):
         self.v = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
         self.q = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
 
-    def reset_state(self, batch_size=None, **kwargs):
-        self.x.value = braintools.init.param(self.init, self.varshape, batch_size)
-        self.f.value = braintools.init.param(self.init, self.varshape, batch_size)
-        self.v.value = braintools.init.param(self.init, self.varshape, batch_size)
-        self.q.value = braintools.init.param(self.init, self.varshape, batch_size)
-
     def derivative(self, y, t, z):
         x, f, v, q = y
         dx = z - self.k * x - self.gamma * (f - 1)
