@@ -43,6 +43,7 @@ __all__ = [
     'AdditiveCoupling',
     'diffusive_coupling',
     'additive_coupling',
+    'laplacian_connectivity',
 ]
 
 
@@ -313,16 +314,96 @@ def laplacian_connectivity(
     normalize: Optional[Literal["rw", "sym"]] = None,
     eps: float = 1e-12,
 ) -> Array:
-    """
-    Build Laplacian L from dense adjacency W.
+    r"""
+    Build graph Laplacian matrix from adjacency/connectivity matrix.
 
-    L = D - W (unnormalized)
-    If normalize == "rw":  L_rw  = I - D^{-1} W
-    If normalize == "sym": L_sym = I - D^{-1/2} W D^{-1/2}
+    The graph Laplacian is a fundamental matrix representation used in spectral graph
+    theory, graph signal processing, and network analysis. Given an adjacency matrix W
+    and degree matrix D = diag(sum_j W_ij), this function computes one of three standard
+    Laplacian forms.
 
-    Notes:
-      - Assumes nonnegative weights; for directed graphs, use with care.
-      - Adds eps for numerical stability in inverses.
+    **Unnormalized Laplacian** (``normalize=None``):
+
+    $$
+    L = D - W
+    $$
+
+    **Random Walk Normalized Laplacian** (``normalize="rw"``):
+
+    $$
+    L_{\mathrm{rw}} = I - D^{-1} W = D^{-1} L
+    $$
+
+    This form is asymmetric and commonly used in diffusion processes and random walks on graphs.
+
+    **Symmetric Normalized Laplacian** (``normalize="sym"``):
+
+    $$
+    L_{\mathrm{sym}} = I - D^{-1/2} W D^{-1/2} = D^{-1/2} L D^{-1/2}
+    $$
+
+    This form is symmetric, preserves spectral properties, and is widely used in spectral clustering
+    and graph neural networks.
+
+    Parameters
+    ----------
+    W : ArrayLike
+        Adjacency or connectivity matrix with shape ``(N, N)`` representing weighted edges
+        between N nodes. Should contain non-negative weights. For directed graphs, W[i, j]
+        represents edge weight from node j to node i.
+    normalize : {None, "rw", "sym"}, optional
+        Normalization mode for the Laplacian:
+
+        - ``None`` (default): Returns unnormalized Laplacian L = D - W
+        - ``"rw"``: Returns random walk normalized Laplacian L_rw = I - D^{-1}W
+        - ``"sym"``: Returns symmetric normalized Laplacian L_sym = I - D^{-1/2}W D^{-1/2}
+    eps : float, default=1e-12
+        Small constant added for numerical stability when computing D^{-1} or D^{-1/2},
+        preventing division by zero for isolated nodes (zero degree).
+
+    Returns
+    -------
+    ArrayLike
+        The graph Laplacian matrix with the same shape ``(N, N)`` and dtype as input W.
+        If W carries units via `brainunit`, the output preserves unit consistency.
+
+    Raises
+    ------
+    ValueError
+        If ``normalize`` is not one of {None, "rw", "sym"}.
+
+    Notes
+    -----
+    - **Assumptions**: This function assumes non-negative edge weights. For directed graphs,
+      interpretation requires care as the degree matrix D uses row sums.
+    - **Numerical stability**: The ``eps`` parameter prevents division-by-zero errors for
+      isolated nodes with degree zero. Nodes with degree < eps will be treated as having
+      degree = eps.
+    - **Unit safety**: Fully compatible with `brainunit` for unit-safe array operations.
+    - **Use cases**:
+        - Unnormalized: Best for preserving absolute connectivity structure and scale
+        - Random walk: Suitable for diffusion analysis and probabilistic processes
+        - Symmetric: Preferred for spectral analysis, clustering, and eigendecomposition
+
+    Examples
+    --------
+    Compute unnormalized Laplacian for a simple 3-node graph:
+
+    >>> import brainunit as u
+    >>> W = u.math.asarray([[0., 1., 1.],
+    ...                      [1., 0., 1.],
+    ...                      [1., 1., 0.]])
+    >>> L = laplacian_connectivity(W)
+    >>> # L = [[ 2, -1, -1],
+    >>> #      [-1,  2, -1],
+    >>> #      [-1, -1,  2]]
+
+    Compute symmetric normalized Laplacian:
+
+    >>> L_sym = laplacian_connectivity(W, normalize="sym")
+    >>> # L_sym = [[ 1.0, -0.5, -0.5],
+    >>> #          [-0.5,  1.0, -0.5],
+    >>> #          [-0.5, -0.5,  1.0]]
     """
     W = u.math.asarray(W)
     d = u.math.sum(W, axis=-1)  # (N,)

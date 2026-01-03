@@ -29,6 +29,7 @@ __all__ = [
     'sigmoid',
     'bounded_input',
     'process_sequence',
+    'set_module_as',
 ]
 
 
