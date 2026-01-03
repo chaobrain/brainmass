@@ -64,10 +64,8 @@ class ModelFitting:
 
     def f_loss(self, inputs, targets):
         eeg_output = self.model.update(inputs)
-
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
         loss = loss_main + self.model.reg_loss()
-
         return loss, (eeg_output, loss_main)
 
     @brainstate.transform.jit(static_argnums=0)
@@ -94,9 +92,8 @@ class ModelFitting:
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
         self.model.init_all_states()
 
-        # Get TRs_per_window from model config
-        TRs_per_window = TP_per_window
-        loss_his = []  # loss placeholder to take the average for the epoch at the end of the epoch
+        # loss placeholder to take the average for the epoch at the end of the epoch
+        loss_his = []
 
         # LOOP 1/4: Number of Training Epochs
         for i_epoch in range(num_epochs):
@@ -104,7 +101,7 @@ class ModelFitting:
             warmup_windows = 0 if i_epoch == 0 else warmup_window
 
             # LOOP 2/4: Number of Recordings in the Training Dataset
-            external = np.zeros([TRs_per_window, self.steps_per_TR, self.node_size])
+            external = np.zeros([TP_per_window, self.steps_per_TR, self.node_size])
             for TR_i in range(warmup_windows):
                 output = self.f_predict(external)
 
@@ -114,7 +111,7 @@ class ModelFitting:
             for i_win in range(target_eeg.shape[0]):
                 # Slice external input from u
                 # u: (time_dim, steps_per_TR, node_size)
-                external = inputs[i_win * TRs_per_window:(i_win + 1) * TRs_per_window]
+                external = inputs[i_win * TP_per_window:(i_win + 1) * TP_per_window]
 
                 # Get empirical signal window
                 # windowedTS: (window_size, TR_per_window, node_size)
