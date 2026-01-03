@@ -93,4 +93,4 @@ class XY_Oscillator(brainstate.nn.Dynamics):
             x, y = method(self.derivative, (self.x.value, self.y.value), t, x_inp, y_inp)
         self.x.value = x
         self.y.value = y
-        return x
+        return x, y
