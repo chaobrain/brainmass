@@ -54,7 +54,7 @@ keywords = [
 dependencies = [
     'numpy',
     'jax',
-    'brainstate>=0.1.8',
+    'brainstate>=0.2.8',
     'brainunit',
     'braintools',
 ]

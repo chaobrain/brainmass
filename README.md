@@ -1,6 +1,4 @@
-# BrainMass
-
-**Whole-brain modeling with differentiable neural mass models**
+# BrainMass: whole-brain modeling with differentiable neural mass models
 
 <p align="center">
   	<img alt="Header image of braintrace." src="https://raw.githubusercontent.com/chaobrain/brainmass/main/docs/_static/brainmass.png" width=40%>

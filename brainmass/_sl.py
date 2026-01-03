@@ -20,9 +20,9 @@ import brainunit as u
 
 import brainstate
 from brainstate.nn import Param
-from ._utils import XY_Oscillator
 from ._noise import Noise
 from ._typing import Parameter
+from ._xy_model import XY_Oscillator
 
 __all__ = [
     'StuartLandauStep',
@@ -161,6 +161,6 @@ class StuartLandauStep(XY_Oscillator):
         array-like
             Time derivative ``dy/dt`` with unit ``1/ms``.
         """
-        a = self.a.value
-        w = self.w.value
+        a = self.a.value()
+        w = self.w.value()
         return ((a - x * x - y * y) * y - w * y + y_ext) / u.ms
