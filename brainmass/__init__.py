@@ -17,20 +17,14 @@
 __version__ = "0.0.5"
 __version_info__ = tuple(map(int, __version__.split(".")))
 
-# Common utilities
-from ._utils import (
-    XY_Oscillator,
-    sys2nd,
-    sigmoid,
-    bounded_input,
-    process_sequence,
-)
 # Coupling mechanisms
 from ._coupling import (
     DiffusiveCoupling,
     AdditiveCoupling,
     diffusive_coupling,
     additive_coupling,
+    laplacian_connectivity,
+    LaplacianConnParam,
 )
 # Neural mass models
 from ._fhn import FitzHughNagumoStep
@@ -77,6 +71,14 @@ from ._typing import (
     Initializer,
     Array,
     Parameter,
+)
+# Common utilities
+from ._utils import (
+    XY_Oscillator,
+    sys2nd,
+    sigmoid,
+    bounded_input,
+    process_sequence,
 )
 from ._vdp import VanDerPolStep
 from ._wilson_cowan import WilsonCowanStep
@@ -138,6 +140,8 @@ __all__ = [
     'AdditiveCoupling',
     'diffusive_coupling',
     'additive_coupling',
+    'laplacian_connectivity',
+    'LaplacianConnParam',
 
     # HORN models
     'HORNStep',

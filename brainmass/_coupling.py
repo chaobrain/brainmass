@@ -44,6 +44,7 @@ __all__ = [
     'diffusive_coupling',
     'additive_coupling',
     'laplacian_connectivity',
+    'LaplacianConnParam',
 ]
 
 
@@ -308,6 +309,7 @@ class AdditiveCoupling(Module):
         return additive_coupling(self.x, self.conn.value(), self.k.value())
 
 
+@set_module_as('brainmass')
 def laplacian_connectivity(
     W: Array,
     *,
@@ -408,7 +410,7 @@ def laplacian_connectivity(
     W = u.math.asarray(W)
     d = u.math.sum(W, axis=-1)  # (N,)
     if normalize is None:
-        return u.math.diag(d) - W
+        return W - u.math.diag(d)
 
     n = W.shape[-1]
     I = u.math.eye(n, dtype=W.dtype, unit=u.get_unit(W))
@@ -416,14 +418,65 @@ def laplacian_connectivity(
     if normalize == "rw":
         inv_d = 1.0 / u.math.maximum(d, eps)
         DinvW = W * inv_d[:, None]
-        return I - DinvW
+        return DinvW - I
 
     if normalize == "sym":
         inv_sqrt_d = 1.0 / u.math.sqrt(u.math.maximum(d, eps))
         Wn = (W * inv_sqrt_d[:, None]) * inv_sqrt_d[None, :]
-        return I - Wn
+        return Wn - I
 
     raise ValueError(
         f"Unknown normalize={normalize}, "
         f"only None, 'rw', 'sym' are supported."
     )
+
+
+class LaplacianConnParam(Param):
+    r"""
+    Graph Laplacian connectivity module.
+
+    This module computes the graph Laplacian matrix from a given adjacency/connectivity
+    matrix using one of three standard forms: unnormalized, random walk normalized,
+    or symmetric normalized.
+
+    Parameters
+    ----------
+    W : Param, array_like
+        Adjacency or connectivity matrix with shape ``(N, N)`` representing weighted edges
+        between N nodes.
+    normalize : {None, "rw", "sym"}, optional
+        Normalization mode for the Laplacian:
+
+        - ``None`` (default): Returns unnormalized Laplacian L = W - D
+        - ``"rw"``: Returns random walk normalized Laplacian L_rw = D^{-1}W - I
+        - ``"sym"``: Returns symmetric normalized Laplacian L_sym = D^{-1/2}W D^{-1/2} - I
+    eps : float, default=1e-12
+        Small constant added for numerical stability when computing D^{-1} or D^{-1/2}.
+
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        W: Array,
+        mask: Optional[Array] = None,
+        fit: bool = True,
+        normalize: Optional[Literal["rw", "sym"]] = None,
+        eps: float = 1e-12,
+    ):
+        super().__init__(W, fit=fit, precompute=self.normalize)
+        self.mask = mask
+        self.original_W = W
+        self.normalize = normalize
+        self.eps = eps
+        if mask is not None:
+            if mask.shape != W.shape:
+                raise ValueError(
+                    f'Mask shape {mask.shape} must match W shape {W.shape}.'
+                )
+
+    def normalize(self, weight):
+        weight = u.math.exp(u.get_magnitude(weight)) * self.original_W
+        if self.mask is not None:
+            weight = weight * self.mask
+        return laplacian_connectivity(weight, normalize=self.normalize, eps=self.eps)

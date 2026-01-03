@@ -397,10 +397,9 @@ class HORNSeqLayer(Module):
         Returns
         -------
         outputs : array-like or tuple
-            If ``record_state=False``: Position state sequence with shape
-            ``(T, batch?, n_hidden)``.
+            If ``record_state=False``: Position state sequence with shape ``(T, batch?, n_hidden)``.
             If ``record_state=True``: Tuple of ``(states, outputs)`` where ``states``
-            is a dict with keys ``'x'`` and ``'y'`` containing the full state sequences.
+                is a dict with keys ``'x'`` and ``'y'`` containing the full state sequences.
 
         Notes
         -----
