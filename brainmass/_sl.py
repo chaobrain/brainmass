@@ -163,4 +163,4 @@ class StuartLandauStep(XY_Oscillator):
         """
         a = self.a.value()
         w = self.w.value()
-        return ((a - x * x - y * y) * y - w * y + y_ext) / u.ms
+        return ((a - x * x - y * y) * y + w * x + y_ext) / u.ms
