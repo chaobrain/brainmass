@@ -86,7 +86,7 @@ def sigmoid(
         Firing rate in range (0, vmax).
     """
     return vmax * u.math.sigmoid(-r * (v0 - x))
-    return vmax / (1 + u.math.exp(r * (v0 - x)))
+    # return vmax / (1 + u.math.exp(r * (v0 - x)))
 
 
 def bounded_input(

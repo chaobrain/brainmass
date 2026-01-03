@@ -55,6 +55,7 @@ from ._jansen_rit2 import (
     JansenRit2Step,
     JansenRit2TR,
     JansenRit2Window,
+    LaplacianConnectivity,
 )
 from ._kuramoto import KuramotoNetwork
 from ._linear import ThresholdLinearStep
@@ -126,6 +127,7 @@ __all__ = [
     'JansenRit2Step',
     'JansenRit2TR',
     'JansenRit2Window',
+    'LaplacianConnectivity',
 
     # Forward models and lead field
     'BOLDSignal',

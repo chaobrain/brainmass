@@ -192,7 +192,7 @@ node_size = sc.shape[0]
 output_size = verb_meg.shape[0]
 batch_size = 250
 model_dt = 0.0001
-num_epoches = 200  # used 250 in paper using 2 for example
+num_epoches = 40  # used 250 in paper using 2 for example
 data_dt = 0.001
 base_batch_num = 20
 time_dim = verb_meg.shape[1]
@@ -215,11 +215,10 @@ def create_model(fit_hyper=True) -> JansenRit2Window:
     lm_noise = 0.1 * np.random.randn(output_size, node_size)
 
     def create_gaussian(m_, v_):
-        return GaussianReg(m_, v_, True) if fit_hyper else None
+        return GaussianReg(m_, v_, fit_hyper=True) if fit_hyper else None
 
     return JansenRit2Window(
         node_size=node_size,
-        tr=data_dt,
         sc=sc,
         dist=dist,
         # Trainable parameters with ReLU transform and Gaussian reg

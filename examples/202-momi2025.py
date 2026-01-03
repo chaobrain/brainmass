@@ -9,7 +9,6 @@ import pickle
 import time
 from collections import defaultdict
 
-import brainstate
 import braintools
 import brainunit as u
 import matplotlib.pyplot as plt
@@ -18,11 +17,12 @@ import nibabel
 import numpy as np
 import pandas as pd
 import requests
-from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 from scipy.signal import find_peaks
 from sklearn.metrics.pairwise import cosine_similarity
 
+import brainstate
 from brainmass import JansenRit2Window
+from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 
 
 def dataloader(emp, TR_per_window):
@@ -63,6 +63,7 @@ class ModelFitting:
         self.node_size = node_size
 
     def f_loss(self, inputs, targets):
+        self.model.param_precompute()
         eeg_output = self.model.update(inputs)
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
         loss = loss_main + self.model.reg_loss()
@@ -77,6 +78,7 @@ class ModelFitting:
 
     @brainstate.transform.jit(static_argnums=0)
     def f_predict(self, inputs):
+        self.model.param_precompute()
         return self.model.update(inputs, record_state=True)
 
     def train(
@@ -103,7 +105,7 @@ class ModelFitting:
             # LOOP 2/4: Number of Recordings in the Training Dataset
             external = np.zeros([TP_per_window, self.steps_per_TR, self.node_size])
             for TR_i in range(warmup_windows):
-                output = self.f_predict(external)
+                self.f_predict(external)
 
             loss_epoch = []
             eeg_epoch = []
@@ -155,7 +157,8 @@ class ModelFitting:
 
         # Update connectivity mask if provided
         if mask is not None:
-            self.model.mask = mask
+            self.model.set_mask(mask)
+            self.f_predict.clear_cache()
         if init_state:
             self.model.init_all_states()
 
@@ -811,6 +814,8 @@ def model_fitting():
     hidden_size = int(tr / step_size)
     TPperWindow = batch_size
 
+    brainstate.environ.set(dt=step_size)
+
     # Prepare model data structure
     # eeg_data: (time_points, output_size) - EEG data
     # dataloader output: (window_size, TR_per_window, output_size)
@@ -827,7 +832,6 @@ def model_fitting():
     # Create model instance with Param objects
     model = JansenRit2Window(
         node_size=node_size,
-        tr=tr,
         sc=sc,
         dist=dist,
         mask=np.ones((node_size, node_size)),
@@ -840,29 +844,28 @@ def model_fitting():
         vmax=Const(5),
         v0=Const(6),
         r=Const(0.56),
-        ki=Const(ki0),
         kE=Const(0.),
         kI=Const(0.),
         # Trainable parameters with GaussianReg (fit_hyper=True)
-        a=Param(100, t=ReluT(), reg=GaussianReg(100, 2, True)),
-        b=Param(50, t=ReluT(), reg=GaussianReg(50, 1, True)),
-        c1=Param(135, t=ReluT(), reg=GaussianReg(135, 1, True)),
-        c2=Param(135 * 0.8, t=ReluT(), reg=GaussianReg(135 * 0.8, 1, True)),
-        c3=Param(135 * 0.25, t=ReluT(), reg=GaussianReg(135 * 0.25, 1, True)),
-        c4=Param(135 * 0.25, t=ReluT(), reg=GaussianReg(135 * 0.25, 1, True)),
+        a=Param(100, t=ReluT(), reg=GaussianReg(100, 2, fit_hyper=True)),
+        b=Param(50, t=ReluT(), reg=GaussianReg(50, 1, fit_hyper=True)),
+        c1=Param(135, t=ReluT(), reg=GaussianReg(135, 1, fit_hyper=True)),
+        c2=Param(135 * 0.8, t=ReluT(), reg=GaussianReg(135 * 0.8, 1, fit_hyper=True)),
+        c3=Param(135 * 0.25, t=ReluT(), reg=GaussianReg(135 * 0.25, 1, fit_hyper=True)),
+        c4=Param(135 * 0.25, t=ReluT(), reg=GaussianReg(135 * 0.25, 1, fit_hyper=True)),
         # std_in: as_log=True -> ExpT
-        std_in=Param(1.1, t=ExpT(0.1), reg=GaussianReg(1.1, 0.1, True)),
-        y0=Param(-2, reg=GaussianReg(-2, 0.3, True)),
+        std_in=Param(1.1, t=ExpT(0.1), reg=GaussianReg(1.1, 0.1, fit_hyper=True)),
+        y0=Param(-2, reg=GaussianReg(-2, 0.3, fit_hyper=True)),
         mu=1.1,
-        k=Param(15, t=ReluT(5.0), reg=GaussianReg(15, 0.2, True)),
-        cy0=Param(1., reg=GaussianReg(1, 0.1, True)),
+        k=Param(15, t=ReluT(5.0), reg=GaussianReg(15, 0.2, fit_hyper=True)),
+        cy0=Param(1., reg=GaussianReg(1, 0.1, fit_hyper=True)),
         # lm with array-based regularization
         lm=Param(lm + lm_v * np.random.randn(*lm.shape)),
         w_bb=Param(np.full((node_size, node_size), 0.05)),
         w_ff=Param(np.full((node_size, node_size), 0.05)),
         w_ll=Param(np.full((node_size, node_size), 0.05)),
-        state_init=lambda s, **kwargs: np.random.uniform(-0.1, 0.1, s),
-        delay_init=lambda s, **kwargs: np.random.uniform(0.0, 0.1, s),
+        state_init=braintools.init.Uniform(-0.1, 0.1),
+        delay_init=braintools.init.Uniform(0.0, 0.1),
     )
 
     # Call model fit
@@ -872,6 +875,7 @@ def model_fitting():
     # u: (time_dim, hidden_size, node_size) - time dimension first
     u = np.zeros((time_dim, hidden_size, node_size))
     u[65:75] = 2000  # Apply stimulus at time steps 65-75
+    u = u * ki0
     F.train(inputs=u, target_eeg=data_mean, num_epochs=num_epochs, TP_per_window=TPperWindow, warmup_window=20)
 
     # Model Evaluation (with 20 window for warmup)
@@ -894,7 +898,7 @@ def model_fitting():
     # Need to transpose to (output_size, time) to match data format
     simulated_EEG_st = evoked.copy()
     simulated_EEG_st.data[:, time_start:time_end] = pred['eeg'].T
-    simulated_joint_st = simulated_EEG_st.plot_joint(ts_args=ts_args, times=times, show=True)
+    simulated_EEG_st.plot_joint(ts_args=ts_args, times=times, show=True)
 
     return F
 
