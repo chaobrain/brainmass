@@ -21,7 +21,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import brainstate
-from brainstate import nn
+from brainstate.nn import Param, Module, Dynamics
 from ._coupling import AdditiveCoupling
 from ._typing import Initializer, Parameter
 
@@ -36,7 +36,7 @@ def zeros(x):
     return 0.
 
 
-class HORNStep(nn.Dynamics):
+class HORNStep(Dynamics):
     r"""Harmonic oscillator recurrent networks (HORNs) with one-step dynamics update.
 
     This implementation models neural dynamics as a driven damped harmonic oscillator
@@ -164,10 +164,10 @@ class HORNStep(nn.Dynamics):
     ):
         super().__init__(in_size)
 
-        self.alpha = nn.Param.init(alpha, self.in_size)
-        self.omega = nn.Param.init(omega, self.in_size)
-        self.gamma = nn.Param.init(gamma, self.in_size)
-        self.v = nn.Param.init(v, self.in_size)
+        self.alpha = Param.init(alpha, self.in_size)
+        self.omega = Param.init(omega, self.in_size)
+        self.gamma = Param.init(gamma, self.in_size)
+        self.v = Param.init(v, self.in_size)
         self.h = h
         self.gain_rec = 1. / math.sqrt(self.in_size[0])
         self.state_init = state_init
@@ -240,7 +240,7 @@ class HORNStep(nn.Dynamics):
         return x_t
 
 
-class HORNSeqLayer(nn.Module):
+class HORNSeqLayer(Module):
     r"""Sequential layer wrapper for HORN dynamics with input and recurrent connections.
 
     This layer combines a ``HORNStep`` dynamics model with trainable input-to-hidden
@@ -373,7 +373,7 @@ class HORNSeqLayer(nn.Module):
             neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
             self.h2h = AdditiveCoupling(
                 self.horn.prefetch_delay('y', delay_time, neuron_idx, init=braintools.init.ZeroInit()),
-                nn.Param(braintools.init.param(self.rec_w_init, (n_hidden, n_hidden))),
+                Param(braintools.init.param(self.rec_w_init, (n_hidden, n_hidden))),
             )
         self.horn.recurrent_fn = self.h2h
 
@@ -409,6 +409,7 @@ class HORNSeqLayer(nn.Module):
         recurrent transformation ``h2h`` is applied to the current velocity state
         (and position if ``v != 0``) to compute recurrent feedback.
         """
+
         def step(inp):
             out = self.horn(inp)
             st = dict(x=self.horn.x.value, y=self.horn.y.value)
@@ -418,7 +419,7 @@ class HORNSeqLayer(nn.Module):
         return output
 
 
-class HORNSeqNetwork(nn.Module):
+class HORNSeqNetwork(Module):
     r"""Multi-layer HORN network for sequential processing tasks.
 
     This network stacks multiple ``HORNSeqLayer`` instances to create a deep
