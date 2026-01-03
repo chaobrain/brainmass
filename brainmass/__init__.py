@@ -23,7 +23,6 @@ from ._common import (
     sys2nd,
     sigmoid,
     bounded_input,
-    euler_step,
     process_sequence,
 )
 # Coupling mechanisms
@@ -49,7 +48,14 @@ from ._horn import (
     HORNSeqLayer,
     HORNSeqNetwork,
 )
-from ._jansen_rit import JansenRitStep
+from ._jansen_rit import (
+    JansenRitStep,
+)
+from ._jansen_rit2 import (
+    JansenRit2Step,
+    JansenRit2TR,
+    JansenRit2Window,
+)
 from ._kuramoto import KuramotoNetwork
 from ._linear import ThresholdLinearStep
 # Noise processes
@@ -86,7 +92,6 @@ __all__ = [
     'sys2nd',
     'sigmoid',
     'bounded_input',
-    'euler_step',
     'process_sequence',
 
     # Type aliases
@@ -116,6 +121,11 @@ __all__ = [
     'ThresholdLinearStep',
     'KuramotoNetwork',
     'StuartLandauStep',
+
+    # Jansen-Rit model version 2
+    'JansenRit2Step',
+    'JansenRit2TR',
+    'JansenRit2Window',
 
     # Forward models and lead field
     'BOLDSignal',

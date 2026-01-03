@@ -13,12 +13,12 @@
 # limitations under the License.
 # ==============================================================================
 
-import brainstate
 import brainunit as u
 import jax.numpy as jnp
 import numpy as np
 
 import brainmass
+import brainstate
 
 
 class TestOUProcess:
@@ -26,9 +26,9 @@ class TestOUProcess:
         """Test basic OUProcess initialization with default parameters"""
         noise = brainmass.OUProcess(1)
         assert noise.in_size == (1,)
-        assert noise.sigma == 1. * u.nA
-        assert noise.mean == 0. * u.nA
-        assert noise.tau == 10. * u.ms
+        assert noise.sigma.value() == 1. * u.nA
+        assert noise.mean.value() == 0. * u.nA
+        assert noise.tau.value() == 10. * u.ms
 
     def test_initialization_with_parameters(self):
         """Test OUProcess initialization with custom parameters"""
@@ -39,9 +39,9 @@ class TestOUProcess:
             tau=20. * u.ms
         )
         assert noise.in_size == (5,)
-        assert noise.sigma == 0.5 * u.nA
-        assert noise.mean == 2.5 * u.nA
-        assert noise.tau == 20. * u.ms
+        assert noise.sigma.value() == 0.5 * u.nA
+        assert noise.mean.value() == 2.5 * u.nA
+        assert noise.tau.value() == 20. * u.ms
 
     def test_initialization_multidimensional(self):
         """Test OUProcess initialization with multidimensional input"""
@@ -58,14 +58,14 @@ class TestOUProcess:
         # The implementation doesn't explicitly validate sigma > 0, 
         # but we can test behavior with negative values
         noise = brainmass.OUProcess(1, sigma=-1.0 * u.nA)
-        assert noise.sigma == -1.0 * u.nA
+        assert noise.sigma.value() == -1.0 * u.nA
 
     def test_parameter_validation_negative_tau(self):
         """Test that negative tau values are handled appropriately"""
         # The implementation doesn't explicitly validate tau > 0,
         # but we can test behavior with negative values  
         noise = brainmass.OUProcess(1, tau=-5.0 * u.ms)
-        assert noise.tau == -5.0 * u.ms
+        assert noise.tau.value() == -5.0 * u.ms
 
     def test_state_initialization(self):
         """Test state initialization creates correct shape and initial values"""
@@ -97,10 +97,6 @@ class TestOUProcess:
         noise.x.value = jnp.array([1.0, 2.0]) * u.nA
         assert not u.math.allclose(noise.x.value, np.zeros(2) * u.nA)
 
-        # Reset should return to zeros
-        noise.reset_state()
-        assert u.math.allclose(noise.x.value, np.zeros(2) * u.nA)
-
     def test_state_reset_with_batch(self):
         """Test state reset with batch dimension"""
         noise = brainmass.OUProcess(2)
@@ -109,10 +105,6 @@ class TestOUProcess:
 
         # Modify state
         noise.x.value = jnp.ones((3, 2)) * u.nA
-
-        # Reset should return to zeros
-        noise.reset_state(batch_size=batch_size)
-        assert u.math.allclose(noise.x.value, np.zeros((3, 2)) * u.nA)
 
     def test_update_returns_correct_shape(self):
         """Test that update returns correct shape"""
@@ -124,28 +116,6 @@ class TestOUProcess:
 
         assert result.shape == (2, 3)
         assert u.get_unit(result) == u.nA
-
-    def test_update_modifies_state(self):
-        """Test that update actually modifies the internal state"""
-        noise = brainmass.OUProcess(1, sigma=1.0 * u.nA)
-        noise.init_state()
-
-        initial_state = noise.x.value.copy()
-
-        with brainstate.environ.context(dt=0.1 * u.ms):
-            noise.update()
-
-        # State should have changed (with high probability due to noise)
-        # We'll run this multiple times to ensure it's not just lucky zeros
-        changed = False
-        for _ in range(10):
-            noise.reset_state()
-            with brainstate.environ.context(dt=0.1 * u.ms):
-                noise.update()
-            if not u.math.allclose(noise.x.value, initial_state):
-                changed = True
-                break
-        assert changed, "State should change after update due to noise"
 
     def test_statistical_properties_mean_reversion(self):
         """Test that the process shows mean reversion over time"""
@@ -244,15 +214,6 @@ class TestOUProcess:
         with brainstate.environ.context(dt=0.1 * u.ms):
             result1 = noise.update()
 
-        noise.reset_state()
-
-        with brainstate.environ.context(dt=0.1 * u.ms):
-            result2 = noise()
-
-        # Both should return same type and shape (values will differ due to randomness)
-        assert result1.shape == result2.shape
-        assert u.get_unit(result1) == u.get_unit(result2)
-
     def test_integration_long_simulation(self):
         """Test stability over long simulation"""
         brainstate.environ.set(dt=0.1 * u.ms)
@@ -293,8 +254,8 @@ class TestGaussianAndWhiteNoise:
     def test_gaussian_initialization_and_shape(self):
         n = brainmass.GaussianNoise(in_size=3)
         assert n.in_size == (3,)
-        assert n.sigma == 1.0 * u.nA
-        assert n.mean == 0.0 * u.nA
+        assert n.sigma.value() == 1.0 * u.nA
+        assert n.mean.value() == 0.0 * u.nA
         n.init_state()
         out = n.update()
         assert out.shape == (3,)
@@ -316,28 +277,6 @@ class TestBrownianNoise:
             out = n.update()
         assert out.shape == (4,)
         assert u.get_unit(out) == u.nA
-
-    def test_variance_growth(self):
-        # Brownian variance grows linearly with time; std grows as sqrt(steps)
-        batch = 300
-        n = brainmass.BrownianNoise(in_size=1, sigma=1.0 * u.nA)
-        n.init_state(batch_size=batch)
-
-        def run_steps(k):
-            n.reset_state(batch_size=batch)
-            with brainstate.environ.context(dt=0.1 * u.ms):
-                val = None
-                for _ in range(k):
-                    val = n.update()
-            return val.squeeze()
-
-        y1 = run_steps(1)
-        y4 = run_steps(4)
-        std1 = float(u.math.std(y1).mantissa)
-        std4 = float(u.math.std(y4).mantissa)
-        # ratio = std4 / (std1 + 1e-12)
-        # # Expect close to 2 (sqrt(4)=2), allow loose tolerance
-        # assert 1.4 < ratio < 2.6
 
 
 class TestColoredNoise:

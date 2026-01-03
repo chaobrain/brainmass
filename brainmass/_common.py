@@ -28,7 +28,6 @@ __all__ = [
     'sys2nd',
     'sigmoid',
     'bounded_input',
-    'euler_step',
     'process_sequence',
 ]
 
@@ -108,25 +107,6 @@ def bounded_input(
         Bounded input: bound * tanh(u / bound)
     """
     return bound * u.math.tanh(x / bound)
-
-
-def euler_step(
-    x: Array,
-    dx: Array,
-    dt: float
-) -> Array:
-    """
-    Euler integration step.
-
-    Args:
-        x: Current state value.
-        dx: Derivative of state.
-        dt: Time step.
-
-    Returns:
-        Updated state: x + dt * dx
-    """
-    return x + dt * dx
 
 
 def process_sequence(

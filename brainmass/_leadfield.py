@@ -5,8 +5,9 @@ Transforms neural mass model source activity to sensor-space EEG signals.
 """
 
 import brainunit as u
+import jax
+from brainstate.nn import Module, Param
 
-from brainstate import nn
 from ._typing import Array, Parameter
 
 __all__ = [
@@ -14,7 +15,7 @@ __all__ = [
 ]
 
 
-class LeadfieldReadout(nn.Module):
+class LeadfieldReadout(Module):
     """
     Leadfield matrix EEG readout.
 
@@ -22,6 +23,13 @@ class LeadfieldReadout(nn.Module):
     a leadfield matrix.
 
     EEG = cy0 * lm_normalized @ (E - I) - y0
+
+    Args:
+        lm: Leadfield matrix parameter (output_size, node_size).
+        y0: Output bias parameter.
+        cy0: Scaling coefficient parameter.
+        normalize: Whether to L2-normalize leadfield rows.
+        demean: Whether to remove mean across channels.
     """
 
     def __init__(
@@ -32,19 +40,10 @@ class LeadfieldReadout(nn.Module):
         normalize: bool = True,
         demean: bool = True,
     ):
-        """
-        Initialize leadfield readout.
-
-        Args:
-            lm: Leadfield matrix parameter (output_size, node_size).
-            y0: Output bias parameter.
-            cy0: Scaling coefficient parameter.
-            normalize: Whether to L2-normalize leadfield rows.
-            demean: Whether to remove mean across channels.
-        """
         super().__init__()
 
-        self.lm = nn.Param(lm, precompute=self.normalize_leadfield)
+        self.lm = Param.init(lm)
+        self.lm.precompute = self.normalize_leadfield
         self.y0 = y0
         self.cy0 = cy0
         self.normalize = normalize
@@ -76,5 +75,7 @@ class LeadfieldReadout(nn.Module):
         lm = self.lm.value()
         y0 = self.y0.value()
         cy0 = self.cy0.value()
-        eeg = cy0 * (lm @ x) - y0
-        return eeg
+        fn = lambda xx: cy0 * (lm @ xx) - y0
+        for _ in range(x.ndim - 1):
+            fn = jax.vmap(fn)
+        return fn(x)

@@ -10,11 +10,11 @@ import mne
 import numpy as np
 import pandas as pd
 import scipy.signal
-from braintools.param import Param, Const, ReluT, ExpT, GaussianReg
+from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 from scipy.io import loadmat
 from sklearn.metrics.pairwise import cosine_similarity
 
-from brainmass.jansen_rit import JansenRitWindow
+from brainmass import JansenRit2Window
 
 
 def dataloader(emp, TR_per_window):
@@ -28,48 +28,50 @@ def dataloader(emp, TR_per_window):
 
 
 class ModelFitting:
-    def __init__(self, model: JansenRitWindow, ts, n_epoches: int):
+    def __init__(
+        self,
+        model: JansenRit2Window,
+        ts: np.ndarray,
+        n_epoches: int,
+        node_size: int,
+    ):
         self.model = model
         self.n_epoches = n_epoches
+        self.node_size = node_size
         self.ts = ts
         self.optimizer = braintools.optim.Adam(lr=5e-2)
-        # self.optimizer = braintools.optim.Adam(lr=5e-3)
         self.weights = model.states(brainstate.ParamState)
         self.optimizer.register_trainable_weights(self.weights)
+        # define masks for getting lower triangle matrix indices
+        self.mask_e = np.tril_indices(ts.shape[-1], -1)
+        self.output_size = ts.shape[-1]
 
     def f_loss(self, inputs, targets):
         # Use the model.forward() function to update next state and get simulated EEG
         self.model.param_precompute()
-        model_state, (eeg_output, _) = self.model.update(inputs)
+        eeg_output = self.model.update(inputs)
 
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
-        loss_prior = []
-        for module in self.model.nodes(Param).values():
-            loss_prior.append(module.reg_loss())
-        loss = 10. * loss_main + sum(loss_prior)
+        loss = 10. * loss_main + self.model.reg_loss()
 
-        return loss, (model_state, eeg_output)
+        return loss, eeg_output
 
     @brainstate.transform.jit(static_argnums=0)
-    def f_train(self, model_state, inputs, targets):
+    def f_train(self, inputs, targets):
         f_grad = brainstate.transform.grad(self.f_loss, self.weights, has_aux=True, return_value=True)
-        grads, loss, (model_state, eeg_output) = f_grad(model_state, inputs, targets)
+        grads, loss, eeg_output = f_grad(inputs, targets)
         self.optimizer.step(grads)
-        return loss, eeg_output, model_state
+        return loss, eeg_output
 
     @brainstate.transform.jit(static_argnums=0)
-    def f_predict(self, model_state, inputs):
-        # Use the model.forward() function
-        model_param = self.model.define_params()
-        model_state, (eeg_output, state_output) = self.model(model_state, model_param, inputs)
-        return model_state, eeg_output, state_output
+    def f_predict(self, inputs):
+        self.model.param_precompute()
+        eeg_output, state_output = self.model(inputs, record_state=True)
+        return eeg_output, state_output
 
     def train(self, inputs):
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
         self.model.init_all_states()
-
-        # define masks for getting lower triangle matrix indices
-        mask_e = np.tril_indices(self.model.output_size, -1)
 
         # loss placeholder
         loss_his = []
@@ -87,8 +89,7 @@ class ModelFitting:
 
                 # Get the batch of empirical EEG signal.
                 ts_window = self.ts[i_win]
-
-                loss, eeg_output, model_state = self.f_train(model_state, external, ts_window)
+                loss, eeg_output = self.f_train(external, ts_window)
 
                 # Put the batch of the simulated EEG, E I M Ev Iv Mv in to placeholders
                 loss_np = np.asarray(loss)
@@ -105,7 +106,7 @@ class ModelFitting:
             print(
                 f'epoch: {i_epoch}, '
                 f'loss: {np.asarray(output_sim["loss"]).mean()}, '
-                f'FC cor: {np.corrcoef(fc_sim[mask_e], fc[mask_e])[0, 1]}, '
+                f'FC cor: {np.corrcoef(fc_sim[self.mask_e], fc[self.mask_e])[0, 1]}, '
                 f'cos_sim: {np.diag(cosine_similarity(ts_sim.T, ts_emp.T)).mean()}'
             )
 
@@ -116,10 +117,7 @@ class ModelFitting:
         transient_num = 10
 
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
-        model_state = self.model.define_states()
-
-        # define mask for getting lower triangle matrix
-        mask_e = np.tril_indices(self.model.output_size, -1)
+        self.model.init_all_states()
 
         # define num_windows
         num_windows = self.ts.shape[0]
@@ -130,14 +128,14 @@ class ModelFitting:
 
         # u_hat: (total_TRs, steps_per_TR, node_size) - external input
         total_TRs = base_window_num * TRs_per_window + self.ts.shape[0] * self.ts.shape[1]
-        u_hat = np.zeros((total_TRs, hidden_size, self.model.node_size))
+        u_hat = np.zeros((total_TRs, hidden_size, self.node_size))
         # u: (TRs, steps_per_TR, node_size) - from caller
         u_hat[base_window_num * TRs_per_window:] = uu
 
         # Perform the testing in batches
         for TR_i in range(num_windows + base_window_num):
             external = u_hat[TR_i * TRs_per_window:(TR_i + 1) * TRs_per_window]
-            model_state, eeg_output, state_output = self.f_predict(model_state, external)
+            eeg_output, state_output = self.f_predict(external)
 
             if TR_i > base_window_num - 1:
                 # Map nmm output keys to original naming convention
@@ -145,9 +143,6 @@ class ModelFitting:
                 output_sim['P_test'].append(state_output['P'])
                 output_sim['E_test'].append(state_output['E'])
                 output_sim['I_test'].append(state_output['I'])
-                output_sim['Pv_test'].append(state_output['Pv'])
-                output_sim['Ev_test'].append(state_output['Ev'])
-                output_sim['Iv_test'].append(state_output['Iv'])
 
         # ts_emp: (total_TRs, output_size)
         ts_emp = self.ts.reshape(-1, self.ts.shape[-1])
@@ -158,7 +153,7 @@ class ModelFitting:
         fc_sim = np.corrcoef(ts_sim[transient_num:, :], rowvar=False)
 
         print(
-            f'FC: {np.corrcoef(fc_sim[mask_e], fc[mask_e])[0, 1]}, '
+            f'FC: {np.corrcoef(fc_sim[self.mask_e], fc[self.mask_e])[0, 1]}, '
             f'cos_sim: {np.diag(cosine_similarity(ts_sim.T, ts_emp.T)).mean()}',
         )
         # Return all outputs, concatenated along time axis
@@ -199,10 +194,10 @@ batch_size = 250
 model_dt = 0.0001
 num_epoches = 200  # used 250 in paper using 2 for example
 data_dt = 0.001
-state_size = 6
 base_batch_num = 20
 time_dim = verb_meg.shape[1]
 hidden_size = int(data_dt / model_dt)
+brainstate.environ.set(dt=model_dt)
 
 # Format input data
 data_verb = dataloader(verb_meg.T, batch_size)
@@ -214,7 +209,7 @@ ki0 = np.zeros(node_size)
 ki0[[2, 183, 5]] = 1
 
 
-def create_model(fit_hyper=True) -> JansenRitWindow:
+def create_model(fit_hyper=True) -> JansenRit2Window:
     # initiate leadfield matrices
     lm_base = 0.01 * np.random.randn(output_size, node_size)
     lm_noise = 0.1 * np.random.randn(output_size, node_size)
@@ -222,7 +217,11 @@ def create_model(fit_hyper=True) -> JansenRitWindow:
     def create_gaussian(m_, v_):
         return GaussianReg(m_, v_, True) if fit_hyper else None
 
-    params = dict(
+    return JansenRit2Window(
+        node_size=node_size,
+        tr=data_dt,
+        sc=sc,
+        dist=dist,
         # Trainable parameters with ReLU transform and Gaussian reg
         A=Param(3.25, t=ReluT(), reg=create_gaussian(3.25, 0.1)),
         a=Param(101, t=ReluT(1.), reg=create_gaussian(101, 1.0)),
@@ -244,29 +243,18 @@ def create_model(fit_hyper=True) -> JansenRitWindow:
         # Trainable with IdentityTransform
         y0=Param(-0.5, reg=create_gaussian(-0.5, 0.05)),
         mu=2.5,
-        k=Param(5.5, t=ReluT(0.5), reg=create_gaussian(5.5, 0.2)),
         # Fixed parameters
         kE=Const(0),
         kI=Const(0),
         cy0=Const(5),
+        k=Param(5.5, t=ReluT(0.5), reg=create_gaussian(5.5, 0.2)),
         # Array parameters
-        ki=Const(ki0),
         lm=Param(lm + lm_base + lm_noise),
         w_bb=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
         w_ff=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
         w_ll=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
-        state_init=lambda s, **kwargs: brainstate.random.uniform(-0.01, 0.01, s),
-        delay_init=lambda s, **kwargs: brainstate.random.uniform(-0.01, 0.01, s),
-    )
-
-    return JansenRitWindow(
-        node_size=node_size,
-        output_size=output_size,
-        tr=data_dt,
-        step_size=model_dt,
-        sc=sc,
-        dist=dist,
-        **params
+        state_init=braintools.init.Uniform(-0.01, 0.01),
+        delay_init=braintools.init.Uniform(-0.01, 0.01),
     )
 
 
@@ -279,16 +267,17 @@ verb_model = create_model(fit_hyper=True)
 stim_input = np.zeros((time_dim, hidden_size, node_size))
 # Apply stimulus at time steps 100-140
 stim_input[100:140] = 5000
+stim_input = stim_input * ki0
 
 # Fit models
-verb_F = ModelFitting(verb_model, data_verb, num_epoches)
+verb_F = ModelFitting(verb_model, data_verb, num_epoches, node_size)
 verb_F.train(inputs=stim_input)
 verb_outs = verb_F.test(base_batch_num, stim_input)
 print("Finished fitting model to verb trials")
 
 # repeat for noise
 noise_model = create_model(fit_hyper=True)
-noise_F = ModelFitting(noise_model, data_noise, num_epoches)
+noise_F = ModelFitting(noise_model, data_noise, num_epoches, node_size)
 noise_F.train(inputs=stim_input)
 noise_outs = noise_F.test(base_batch_num, stim_input)
 print("Finished fitting model to noise trials")
@@ -331,9 +320,7 @@ sim_1500_verb[:, :verb_meg.shape[1]] = verb_meg * 1.0e13
 node_size = sc.shape[0]
 output_size = sim_1500_verb.shape[0]
 batch_size = 250
-model_dt = 0.0001
 data_dt = 0.001
-state_size = 6
 base_batch_num = 20
 time_dim = sim_1500_verb.shape[1]
 hidden_size = int(data_dt / model_dt)
@@ -356,7 +343,6 @@ output_size = sim_1500_noise.shape[0]
 batch_size = 250
 model_dt = 0.0001
 data_dt = 0.001
-state_size = 6
 base_batch_num = 20
 time_dim = sim_1500_noise.shape[1]
 hidden_size = int(data_dt / model_dt)

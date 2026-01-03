@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Callable
+from typing import Callable, Optional
 
 import braintools
 import brainunit as u
@@ -22,11 +22,14 @@ import jax.nn
 import brainstate
 from brainstate.nn import exp_euler_step, Param
 from ._noise import Noise
-from ._typing import Parameter
+from ._typing import Parameter, Initializer
 
 __all__ = [
     'JansenRitStep',
 ]
+
+
+Array = brainstate.typing.ArrayLike
 
 
 class Identity:
@@ -212,6 +215,7 @@ class JansenRitStep(brainstate.nn.Dynamics):
     ):
         super().__init__(in_size)
 
+        # parameters
         self.Ae = Param.init(Ae, self.varshape)
         self.Ai = Param.init(Ai, self.varshape)
         self.be = Param.init(be, self.varshape)
@@ -225,7 +229,7 @@ class JansenRitStep(brainstate.nn.Dynamics):
         self.r = Param.init(r, self.varshape)
         self.s_max = Param.init(s_max, self.varshape)
 
-        assert callable(fr_scale), 'fr_scale must be a callable function'
+        # initialization
         assert callable(M_init), 'M_init must be a callable function'
         assert callable(E_init), 'E_init must be a callable function'
         assert callable(I_init), 'I_init must be a callable function'
@@ -238,10 +242,14 @@ class JansenRitStep(brainstate.nn.Dynamics):
         self.Mv_init = Mv_init
         self.Ev_init = Ev_init
         self.Iv_init = Iv_init
-        self.fr_scale = fr_scale
+
+        # noise
         self.noise_E = noise_E
         self.noise_I = noise_I
         self.noise_M = noise_M
+
+        assert callable(fr_scale), 'fr_scale must be a callable function'
+        self.fr_scale = fr_scale
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
@@ -330,3 +338,4 @@ class JansenRitStep(brainstate.nn.Dynamics):
     def eeg(self):
         # EEG-like proxy: difference between excitatory and inhibitory PSPs at pyramidal
         return self.E.value - self.I.value
+

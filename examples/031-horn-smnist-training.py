@@ -15,6 +15,7 @@
 
 import argparse
 
+import brainunit as u
 import braintools
 import jax.numpy as jnp
 import numpy as np
@@ -40,7 +41,7 @@ parser.add_argument('--v', type=float, default=0., help='feedback coefficient v'
 
 args = parser.parse_args()
 
-brainstate.environ.set(dt=args.h)
+brainstate.environ.set(dt=1. * u.ms)
 
 # sMNIST as 1-dim time series
 dim_input = 1
@@ -81,6 +82,7 @@ model = HORNSeqNetwork(
     omega=args.omega,
     gamma=args.gamma,
     v=args.v,
+    delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms)
 )
 weights = model.states(brainstate.ParamState)
 
@@ -91,10 +93,10 @@ optimizer.register_trainable_weights(weights)
 
 def batch_run(xs):
     batch_size = xs.shape[0]
-    vmap_module = brainstate.nn.Vmap2Module(model, init_map_size=batch_size)
-    vmap_module.init_all_states()
-    vmap_module.param_precompute()
-    out = vmap_module(xs)
+    mapmodule = brainstate.nn.ModuleMapper(model, init_map_size=batch_size)
+    mapmodule.init_all_states()
+    mapmodule.param_precompute()
+    out = mapmodule(xs)
     return out
 
 

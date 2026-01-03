@@ -13,27 +13,19 @@
 # limitations under the License.
 # ==============================================================================
 
+import brainstate
 import braintools
 import brainunit as u
 import matplotlib.pyplot as plt
 import numpy as np
+from brainstate import DelayState
 from sklearn.decomposition import PCA
 
-import brainstate
 import cogtask
 from brainmass import HORNSeqNetwork
-from brainstate import DelayState
 
 brainstate.environ.set(dt=10. * u.ms)
 
-task = cogtask.DelayMatchSample(
-    t_fixation=10.0 * u.ms,
-    t_sample=200.0 * u.ms,
-    t_delay=1000.0 * u.ms,
-    t_test=200.0 * u.ms,
-    t_response=50.0 * u.ms,
-    noise_sigma=1.0 * u.ms ** 0.5
-)
 task = cogtask.DelayComparison()
 
 batch_size = 16
@@ -52,6 +44,7 @@ model = HORNSeqNetwork(
     omega=omega,
     gamma=gamma,
     v=v,
+    # delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms),
 )
 
 # Adam optimizer
@@ -61,7 +54,11 @@ opt.register_trainable_weights(trainable_weights)
 
 
 def f_loss(xs, ys):
-    vmap_module = brainstate.nn.Vmap2Module(model, xs.shape[0], init_state_axes={1: DelayState})
+    vmap_module = brainstate.nn.ModuleMapper(
+        model,
+        init_map_size=xs.shape[0],
+        init_state_axes={1: DelayState},
+    )
     vmap_module.init_all_states()
     predictions = vmap_module(xs)
     predictions = u.math.flatten(predictions, end_axis=-2)
@@ -81,9 +78,9 @@ def train(xs, ys):
 
 @brainstate.transform.jit
 def predict(xs):
-    vmap_module = brainstate.nn.Vmap2Module(model, xs.shape[0], init_state_axes={1: DelayState})
-    vmap_module.init_all_states()
-    predictions = vmap_module.vmap('predict')(xs)
+    mapmodule = brainstate.nn.ModuleMapper(model, xs.shape[0], init_state_axes={1: DelayState})
+    mapmodule.init_all_states()
+    predictions = mapmodule.map('hidden_activation')(xs)
     return predictions
 
 

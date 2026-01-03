@@ -29,7 +29,7 @@ class ModelFitting:
         Initialize model fitting.
 
         Args:
-            model: JansenRitWindow instance.
+            model: JansenRit2Window instance.
             ts: (num_windows, batch_size, output_size) empirical EEG data.
             num_epoches: Number of training epochs.
         """

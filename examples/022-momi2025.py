@@ -18,23 +18,23 @@ import nibabel
 import numpy as np
 import pandas as pd
 import requests
-from braintools.param import Param, Const, ReluT, ExpT, GaussianReg
+from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 from scipy.signal import find_peaks
 from sklearn.metrics.pairwise import cosine_similarity
 
-from brainmass.jansen_rit import JansenRitWindow
+from brainmass import JansenRit2Window
 
 
-def dataloader(emp, TRperwindow):
+def dataloader(emp, TR_per_window):
     assert len(emp.shape) == 2
     # emp: (time_points, node_size)
     length_ts = emp.shape[0]
     node_size = emp.shape[1]
-    window_size = int(length_ts / TRperwindow)
+    window_size = int(length_ts / TR_per_window)
     # output: (window_size, TR_per_window, node_size)
-    data_out = np.zeros((window_size, TRperwindow, node_size))
+    data_out = np.zeros((window_size, TR_per_window, node_size))
     for i_win in range(window_size):
-        data_out[i_win] = emp[i_win * TRperwindow:(i_win + 1) * TRperwindow]
+        data_out[i_win] = emp[i_win * TR_per_window:(i_win + 1) * TR_per_window]
     return data_out
 
 
@@ -48,42 +48,38 @@ class ModelFitting:
     is associated with an empirical recording, must use a different fitting class.
     """
 
-    def __init__(self, model: JansenRitWindow):
+    def __init__(
+        self,
+        model: JansenRit2Window,
+        steps_per_TR: int,
+        node_size: int,
+    ):
         self.model = model
-        # Use a single optimizer with model.parameters()
         self.optimizer = braintools.optim.Adam(lr=0.05)
         self.weights = model.states(brainstate.ParamState)
         self.optimizer.register_trainable_weights(self.weights)
 
-        # define mask for getting lower triangle matrix
-        self.mask = np.tril_indices(self.model.output_size, -1)
+        self.steps_per_TR = steps_per_TR
+        self.node_size = node_size
 
-    def f_loss(self, model_state, inputs, targets):
-        params = self.model.define_params()
-        model_state, (eeg_output, _) = self.model.update(model_state, params, inputs)
+    def f_loss(self, inputs, targets):
+        eeg_output = self.model.update(inputs)
 
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
-        loss_prior = []
-        for module in self.model.nodes(Param).values():
-            loss_prior.append(module.reg_loss())
-        loss = loss_main + sum(loss_prior)
+        loss = loss_main + self.model.reg_loss()
 
-        return loss, (model_state, eeg_output, loss_main)
+        return loss, (eeg_output, loss_main)
 
     @brainstate.transform.jit(static_argnums=0)
-    def f_train(self, model_state, inputs, targets):
-        f_grad = brainstate.transform.grad(
-            self.f_loss, self.weights, has_aux=True, return_value=True, check_states=False
-        )
-        grads, loss, (model_state, eeg_output, loss_main) = f_grad(model_state, inputs, targets)
+    def f_train(self, inputs, targets):
+        f_grad = brainstate.transform.grad(self.f_loss, self.weights, has_aux=True, return_value=True)
+        grads, loss, (eeg_output, loss_main) = f_grad(inputs, targets)
         self.optimizer.step(grads)
-        return loss, loss_main, model_state, eeg_output
+        return loss, loss_main, eeg_output
 
     @brainstate.transform.jit(static_argnums=0)
-    def f_predict(self, model_state, inputs):
-        params = self.model.define_params()
-        model_state, output = self.model.update(model_state, params, inputs)
-        return model_state, output
+    def f_predict(self, inputs):
+        return self.model.update(inputs, record_state=True)
 
     def train(
         self,
@@ -93,8 +89,10 @@ class ModelFitting:
         TP_per_window: int,
         warmup_window: int = 0,
     ):
+        mask = np.tril_indices(target_eeg.shape[-1], -1)
+
         # initial state using nmm API - ModelData contains dynamics_state and delay_state
-        model_state = self.model.define_states()
+        self.model.init_all_states()
 
         # Get TRs_per_window from model config
         TRs_per_window = TP_per_window
@@ -106,9 +104,9 @@ class ModelFitting:
             warmup_windows = 0 if i_epoch == 0 else warmup_window
 
             # LOOP 2/4: Number of Recordings in the Training Dataset
-            external = np.zeros([TRs_per_window, self.model.steps_per_TR, self.model.node_size])
+            external = np.zeros([TRs_per_window, self.steps_per_TR, self.node_size])
             for TR_i in range(warmup_windows):
-                model_state, output = self.f_predict(model_state, external)
+                output = self.f_predict(external)
 
             loss_epoch = []
             eeg_epoch = []
@@ -124,7 +122,7 @@ class ModelFitting:
 
                 # LOOP 4/4: The loop within the forward model (numerical solver),
                 # which is number of time points per windowed segment
-                loss, loss_main, model_state, eeg_output = self.f_train(model_state, external, ts_window)
+                loss, loss_main, eeg_output = self.f_train(external, ts_window)
 
                 # TRAINING_STATS: Adding Loss for every training window (corresponding to one backpropagation)
                 loss_np = np.asarray(loss_main)
@@ -142,7 +140,7 @@ class ModelFitting:
             print(
                 f'Epoch: {i_epoch}, '
                 f'loss: {np.mean(loss_epoch)}, '
-                f'Pseudo FC_cor: {np.corrcoef(fc_sim[self.mask], fc[self.mask])[0, 1]}, '
+                f'Pseudo FC_cor: {np.corrcoef(fc_sim[mask], fc[mask])[0, 1]}, '
                 f'cos_sim: {np.diag(cosine_similarity(ts_sim.T, ts_emp.T)).mean()}'
             )
         return np.asarray(loss_his)
@@ -153,20 +151,22 @@ class ModelFitting:
         target_eeg,  # (window_size, TR_per_window, output_size) - empirical data
         TR_per_window: int,
         base_window_num: int = 0,
-        model_state=None,
+        init_state: bool = True,
         mask=None  # (node_size, node_size) - connection mask
     ):
+        fc_mask = np.tril_indices(target_eeg.shape[-1], -1)
+
         # Update connectivity mask if provided
         if mask is not None:
             self.model.mask = mask
-
-        model_state = self.model.define_states() if model_state is None else model_state
+        if init_state:
+            self.model.init_all_states()
 
         # target_eeg: (window_size, TR_per_window, node_size) - time dimension first
         num_windows = target_eeg.shape[0]
         # u_hat: (total_time, steps_per_TR, node_size) - time dimension first
         total_time = base_window_num * TR_per_window + num_windows * TR_per_window
-        u_hat = np.zeros((total_time, self.model.steps_per_TR, self.model.node_size))
+        u_hat = np.zeros((total_time, self.steps_per_TR, self.node_size))
         u_hat[base_window_num * TR_per_window:] = u
 
         # LOOP 1/2: The number of windows in a recording
@@ -179,7 +179,7 @@ class ModelFitting:
 
             # LOOP 2/2: The loop within the forward model (numerical solver),
             # which is number of time points per windowed segment
-            model_state, (eeg_output, state_hist) = self.f_predict(model_state, external)
+            eeg_output, state_hist = self.f_predict(external)
             eeg_epoch.append(eeg_output)
             for k, v in state_hist.items():
                 if v is not None:
@@ -198,7 +198,7 @@ class ModelFitting:
         ts_emp = target_eeg.reshape(-1, target_eeg.shape[-1])
         fc = np.corrcoef(ts_emp.T)
         print(
-            'Pseudo FC_cor: ', np.corrcoef(fc_sim[self.mask], fc[self.mask])[0, 1],
+            'Pseudo FC_cor: ', np.corrcoef(fc_sim[fc_mask], fc[fc_mask])[0, 1],
             'cos_sim: ', np.diag(cosine_similarity(ts_sim.T, ts_emp.T)).mean()
         )
         return state_history
@@ -828,11 +828,9 @@ def model_fitting():
     print('lm: ', np.mean(lm), np.std(lm))
 
     # Create model instance with Param objects
-    model = JansenRitWindow(
+    model = JansenRit2Window(
         node_size=node_size,
-        output_size=output_size,
         tr=tr,
-        step_size=step_size,
         sc=sc,
         dist=dist,
         mask=np.ones((node_size, node_size)),
@@ -871,7 +869,7 @@ def model_fitting():
     )
 
     # Call model fit
-    F = ModelFitting(model)
+    F = ModelFitting(model, steps_per_TR=int(tr / step_size), node_size=node_size)
 
     # Model Training
     # u: (time_dim, hidden_size, node_size) - time dimension first
