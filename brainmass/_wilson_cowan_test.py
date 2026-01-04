@@ -507,3 +507,404 @@ class TestWilsonCowanIntegration:
         # Activity should show variation due to stimulus
         activity_var = u.math.var(results).mantissa if hasattr(u.math.var(results), 'mantissa') else u.math.var(results)
         assert activity_var > 1e-12, "Model should respond to varying stimulus"
+
+
+class TestWilsonCowanNoSaturation:
+    def test_initialization_basic(self):
+        """Test basic WilsonCowanStepNoSaturation initialization with default parameters"""
+        model = brainmass.WilsonCowanStepNoSaturation(1)
+        assert model.in_size == (1,)
+        assert model.tau_E == 1. * u.ms
+        assert model.tau_I == 1. * u.ms
+        assert model.a_E == 1.2
+        assert model.a_I == 1.0
+        assert model.theta_E == 2.8
+        assert model.theta_I == 4.0
+        assert model.wEE == 12.
+        assert model.wIE == 4.
+        assert model.wEI == 13.
+        assert model.wII == 11.
+        # Verify r parameter does not exist
+        assert not hasattr(model, 'r')
+        assert model.noise_E is None
+        assert model.noise_I is None
+
+    def test_initialization_with_custom_parameters(self):
+        """Test WilsonCowanStepNoSaturation initialization with custom parameters"""
+        model = brainmass.WilsonCowanStepNoSaturation(
+            in_size=5,
+            tau_E=2.0 * u.ms,
+            tau_I=1.5 * u.ms,
+            a_E=1.5,
+            a_I=1.1,
+            theta_E=3.0,
+            theta_I=4.5,
+            wEE=10.,
+            wIE=3.5,
+            wEI=12.,
+            wII=10.5
+        )
+        assert model.in_size == (5,)
+        assert model.tau_E == 2.0 * u.ms
+        assert model.tau_I == 1.5 * u.ms
+        assert model.a_E == 1.5
+        assert model.a_I == 1.1
+        assert model.theta_E == 3.0
+        assert model.theta_I == 4.5
+        assert model.wEE == 10.
+        assert model.wIE == 3.5
+        assert model.wEI == 12.
+        assert model.wII == 10.5
+
+    def test_initialization_multidimensional(self):
+        """Test WilsonCowanStepNoSaturation initialization with multidimensional input"""
+        model = brainmass.WilsonCowanStepNoSaturation((3, 4))
+        assert model.in_size == (3, 4)
+
+    def test_state_initialization(self):
+        """Test state initialization for WilsonCowanStepNoSaturation"""
+        model = brainmass.WilsonCowanStepNoSaturation(5)
+        model.init_state()
+        assert model.rE.value.shape == (5,)
+        assert model.rI.value.shape == (5,)
+        assert jnp.all(model.rE.value == 0.)
+        assert jnp.all(model.rI.value == 0.)
+
+    def test_state_initialization_with_batch(self):
+        """Test state initialization with batch dimension"""
+        model = brainmass.WilsonCowanStepNoSaturation(3)
+        model.init_state(batch_size=10)
+        assert model.rE.value.shape == (10, 3)
+        assert model.rI.value.shape == (10, 3)
+
+    def test_sigmoid_function_properties(self):
+        """Test sigmoid transfer function properties"""
+        model = brainmass.WilsonCowanStepNoSaturation(1)
+        x = jnp.linspace(-10, 10, 100)
+        a, theta = 1.2, 2.8
+        y = model.F(x, a, theta)
+        # Check output is bounded
+        assert jnp.all(y >= -0.1)
+        assert jnp.all(y <= 1.1)
+        # Check monotonicity (should be increasing)
+        assert jnp.all(jnp.diff(y) >= 0)
+
+    def test_drE_differential_equation(self):
+        """Test excitatory population differential equation"""
+        model = brainmass.WilsonCowanStepNoSaturation(1)
+        rE = jnp.array([0.5])
+        rI = jnp.array([0.3])
+        ext = 0.1
+        drE_dt = model.drE(rE, rI, ext)
+        # Check output has correct units (1/time)
+        assert drE_dt.shape == (1,)
+        assert jnp.isfinite(drE_dt).all()
+
+    def test_drI_differential_equation(self):
+        """Test inhibitory population differential equation"""
+        model = brainmass.WilsonCowanStepNoSaturation(1)
+        rE = jnp.array([0.5])
+        rI = jnp.array([0.3])
+        ext = 0.1
+        drI_dt = model.drI(rI, rE, ext)
+        assert drI_dt.shape == (1,)
+        assert jnp.isfinite(drI_dt).all()
+
+    def test_update_returns_correct_shape(self):
+        """Test that update returns correct shape"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepNoSaturation(5)
+        model.init_state()
+        with brainstate.environ.context(i=0, t=0. * u.ms):
+            output = model.update(rE_inp=0.1)
+        assert output.shape == (5,)
+
+    def test_update_modifies_state(self):
+        """Test that update modifies internal state"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepNoSaturation(1)
+        model.init_state()
+        initial_rE = model.rE.value.copy()
+        with brainstate.environ.context(i=0, t=0. * u.ms):
+            model.update(rE_inp=0.5)
+        # State should have changed
+        assert not jnp.allclose(model.rE.value, initial_rE)
+
+    def test_stability_long_simulation(self):
+        """Test stability over long simulation (10000 steps)"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepNoSaturation(1)
+        model.init_state()
+        for i in range(10000):
+            with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
+                output = model.update(rE_inp=0.1)
+            # Check for explosions or NaN
+            assert jnp.isfinite(output).all()
+            assert jnp.all(output < 100.)  # Reasonable bound
+
+
+class TestWilsonCowanSymmetric:
+    def test_initialization_basic(self):
+        """Test basic WilsonCowanStepSymmetric initialization with default parameters"""
+        model = brainmass.WilsonCowanStepSymmetric(1)
+        assert model.in_size == (1,)
+        # Symmetric parameters
+        assert model.tau == 1. * u.ms
+        assert model.a == 1.1
+        assert model.theta == 3.4
+        # Connection weights
+        assert model.wEE == 12.
+        assert model.wIE == 4.
+        assert model.wEI == 13.
+        assert model.wII == 11.
+        assert model.r == 1.
+        assert model.noise_E is None
+        assert model.noise_I is None
+
+    def test_initialization_with_custom_parameters(self):
+        """Test WilsonCowanStepSymmetric initialization with custom parameters"""
+        model = brainmass.WilsonCowanStepSymmetric(
+            in_size=5,
+            tau=2.0 * u.ms,
+            a=1.5,
+            theta=3.0,
+            wEE=10.,
+            wIE=3.5,
+            wEI=12.,
+            wII=10.5,
+            r=0.8
+        )
+        assert model.in_size == (5,)
+        assert model.tau == 2.0 * u.ms
+        assert model.a == 1.5
+        assert model.theta == 3.0
+        assert model.wEE == 10.
+        assert model.wIE == 3.5
+        assert model.wEI == 12.
+        assert model.wII == 10.5
+        assert model.r == 0.8
+
+    def test_initialization_multidimensional(self):
+        """Test WilsonCowanStepSymmetric initialization with multidimensional input"""
+        model = brainmass.WilsonCowanStepSymmetric((3, 4))
+        assert model.in_size == (3, 4)
+
+    def test_state_initialization(self):
+        """Test state initialization"""
+        model = brainmass.WilsonCowanStepSymmetric(5)
+        model.init_state()
+        assert model.rE.value.shape == (5,)
+        assert model.rI.value.shape == (5,)
+        assert jnp.all(model.rE.value == 0.)
+        assert jnp.all(model.rI.value == 0.)
+
+    def test_symmetric_parameters(self):
+        """Test that E and I use the same tau, a, theta"""
+        model = brainmass.WilsonCowanStepSymmetric(1, tau=2.0*u.ms, a=1.5, theta=3.0)
+        # Verify there's only one set of parameters
+        assert hasattr(model, 'tau')
+        assert hasattr(model, 'a')
+        assert hasattr(model, 'theta')
+        assert not hasattr(model, 'tau_E')
+        assert not hasattr(model, 'tau_I')
+        assert not hasattr(model, 'a_E')
+        assert not hasattr(model, 'a_I')
+
+    def test_update_returns_correct_shape(self):
+        """Test that update returns correct shape"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepSymmetric(5)
+        model.init_state()
+        with brainstate.environ.context(i=0, t=0. * u.ms):
+            output = model.update(rE_inp=0.1)
+        assert output.shape == (5,)
+
+    def test_stability_long_simulation(self):
+        """Test stability over long simulation"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepSymmetric(1)
+        model.init_state()
+        for i in range(10000):
+            with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
+                output = model.update(rE_inp=0.1)
+            assert jnp.isfinite(output).all()
+            assert jnp.all(output < 100.)
+
+
+class TestWilsonCowanSimplified:
+    def test_initialization_basic(self):
+        """Test basic WilsonCowanStepSimplified initialization with default parameters"""
+        model = brainmass.WilsonCowanStepSimplified(1)
+        assert model.in_size == (1,)
+        assert model.tau_E == 1. * u.ms
+        assert model.tau_I == 1. * u.ms
+        assert model.a_E == 1.2
+        assert model.a_I == 1.0
+        assert model.theta_E == 2.8
+        assert model.theta_I == 4.0
+        # Simplified connectivity
+        assert model.w_exc == 8.
+        assert model.w_inh == 12.
+        assert model.r == 1.
+        # Verify individual weights don't exist
+        assert not hasattr(model, 'wEE')
+        assert not hasattr(model, 'wIE')
+        assert not hasattr(model, 'wEI')
+        assert not hasattr(model, 'wII')
+
+    def test_initialization_with_custom_parameters(self):
+        """Test WilsonCowanStepSimplified initialization with custom parameters"""
+        model = brainmass.WilsonCowanStepSimplified(
+            in_size=5,
+            tau_E=2.0 * u.ms,
+            tau_I=1.5 * u.ms,
+            a_E=1.5,
+            a_I=1.1,
+            theta_E=3.0,
+            theta_I=4.5,
+            w_exc=10.,
+            w_inh=15.,
+            r=0.8
+        )
+        assert model.in_size == (5,)
+        assert model.tau_E == 2.0 * u.ms
+        assert model.tau_I == 1.5 * u.ms
+        assert model.a_E == 1.5
+        assert model.a_I == 1.1
+        assert model.theta_E == 3.0
+        assert model.theta_I == 4.5
+        assert model.w_exc == 10.
+        assert model.w_inh == 15.
+        assert model.r == 0.8
+
+    def test_simplified_connectivity(self):
+        """Test that w_exc and w_inh are correctly applied"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepSimplified(1, w_exc=5., w_inh=10.)
+        model.init_state()
+        # Both drE and drI should use the same w_exc and w_inh
+        rE = jnp.array([0.5])
+        rI = jnp.array([0.3])
+        ext = 0.1
+        drE_dt = model.drE(rE, rI, ext)
+        drI_dt = model.drI(rI, rE, ext)
+        assert jnp.isfinite(drE_dt).all()
+        assert jnp.isfinite(drI_dt).all()
+
+    def test_state_initialization(self):
+        """Test state initialization"""
+        model = brainmass.WilsonCowanStepSimplified(5)
+        model.init_state()
+        assert model.rE.value.shape == (5,)
+        assert model.rI.value.shape == (5,)
+
+    def test_update_returns_correct_shape(self):
+        """Test that update returns correct shape"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepSimplified(5)
+        model.init_state()
+        with brainstate.environ.context(i=0, t=0. * u.ms):
+            output = model.update(rE_inp=0.1)
+        assert output.shape == (5,)
+
+    def test_stability_long_simulation(self):
+        """Test stability over long simulation"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepSimplified(1)
+        model.init_state()
+        for i in range(10000):
+            with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
+                output = model.update(rE_inp=0.1)
+            assert jnp.isfinite(output).all()
+            assert jnp.all(output < 100.)
+
+
+class TestWilsonCowanLinear:
+    def test_initialization_basic(self):
+        """Test basic WilsonCowanStepLinear initialization with default parameters"""
+        model = brainmass.WilsonCowanStepLinear(1)
+        assert model.in_size == (1,)
+        assert model.tau_E == 1. * u.ms
+        assert model.tau_I == 1. * u.ms
+        # Linear model has scaled down weights
+        assert model.wEE == 0.8
+        assert model.wIE == 0.3
+        assert model.wEI == 1.0
+        assert model.wII == 0.85
+        assert model.r == 1.
+        # Verify sigmoid parameters don't exist
+        assert not hasattr(model, 'a_E')
+        assert not hasattr(model, 'a_I')
+        assert not hasattr(model, 'theta_E')
+        assert not hasattr(model, 'theta_I')
+
+    def test_initialization_with_custom_parameters(self):
+        """Test WilsonCowanStepLinear initialization with custom parameters"""
+        model = brainmass.WilsonCowanStepLinear(
+            in_size=5,
+            tau_E=2.0 * u.ms,
+            tau_I=1.5 * u.ms,
+            wEE=1.0,
+            wIE=0.5,
+            wEI=1.2,
+            wII=1.0,
+            r=0.8
+        )
+        assert model.in_size == (5,)
+        assert model.tau_E == 2.0 * u.ms
+        assert model.tau_I == 1.5 * u.ms
+        assert model.wEE == 1.0
+        assert model.wIE == 0.5
+        assert model.wEI == 1.2
+        assert model.wII == 1.0
+        assert model.r == 0.8
+
+    def test_relu_behavior(self):
+        """Test ReLU transfer function behavior"""
+        model = brainmass.WilsonCowanStepLinear(1)
+        model.init_state()
+        rE = jnp.array([0.5])
+        rI = jnp.array([0.3])
+
+        # Test with negative input (should be clipped to 0)
+        ext_negative = -10.0
+        drE_dt = model.drE(rE, rI, ext_negative)
+        # With ReLU, negative inputs should result in decay only
+        assert jnp.isfinite(drE_dt).all()
+
+        # Test with positive input
+        ext_positive = 10.0
+        drE_dt_pos = model.drE(rE, rI, ext_positive)
+        assert jnp.isfinite(drE_dt_pos).all()
+
+    def test_no_sigmoid_function(self):
+        """Test that F sigmoid function doesn't exist"""
+        model = brainmass.WilsonCowanStepLinear(1)
+        assert not hasattr(model, 'F')
+
+    def test_state_initialization(self):
+        """Test state initialization"""
+        model = brainmass.WilsonCowanStepLinear(5)
+        model.init_state()
+        assert model.rE.value.shape == (5,)
+        assert model.rI.value.shape == (5,)
+
+    def test_update_returns_correct_shape(self):
+        """Test that update returns correct shape"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepLinear(5)
+        model.init_state()
+        with brainstate.environ.context(i=0, t=0. * u.ms):
+            output = model.update(rE_inp=0.1)
+        assert output.shape == (5,)
+
+    def test_stability_long_simulation(self):
+        """Test stability over long simulation"""
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.WilsonCowanStepLinear(1)
+        model.init_state()
+        for i in range(10000):
+            with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
+                output = model.update(rE_inp=0.1)
+            assert jnp.isfinite(output).all()
+            assert jnp.all(output < 100.)

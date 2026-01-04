@@ -213,18 +213,23 @@ class WongWangStep(brainstate.nn.Dynamics):
         """
         J_A_ext = self.J_A_ext.value()
         mu_0 = self.mu_0.value()
+        J_N11 = self.J_N11.value()
+        J_N22 = self.J_N22.value()
+        J_N12 = self.J_N12.value()
+        J_N21 = self.J_N21.value()
+        I_0 = self.I_0.value()
 
         # External stimulus inputs
         I_stim_1 = J_A_ext * mu_0 * (1 + coherence)
         I_stim_2 = J_A_ext * mu_0 * (1 - coherence)
 
         # Recurrent inputs
-        I_rec_1 = self.J_N11 * self.S1.value - self.J_N12 * self.S2.value
-        I_rec_2 = self.J_N22 * self.S2.value - self.J_N21 * self.S1.value
+        I_rec_1 = J_N11 * self.S1.value - J_N12 * self.S2.value
+        I_rec_2 = J_N22 * self.S2.value - J_N21 * self.S1.value
 
         # Total inputs (including background current I_0)
-        I1 = I_rec_1 + I_stim_1 + self.I_0 + noise_1_val
-        I2 = I_rec_2 + I_stim_2 + self.I_0 + noise_2_val
+        I1 = I_rec_1 + I_stim_1 + I_0 + noise_1_val
+        I2 = I_rec_2 + I_stim_2 + I_0 + noise_2_val
 
         return I1, I2
 

@@ -80,7 +80,13 @@ from ._utils import (
     process_sequence,
 )
 from ._vdp import VanDerPolStep
-from ._wilson_cowan import WilsonCowanStep
+from ._wilson_cowan import (
+    WilsonCowanStep,
+    WilsonCowanStepNoSaturation,
+    WilsonCowanStepSymmetric,
+    WilsonCowanStepSimplified,
+    WilsonCowanStepLinear,
+)
 from ._wong_wang import WongWangStep
 from ._xy_model import (
     XY_Oscillator,
@@ -119,6 +125,10 @@ __all__ = [
     'HopfStep',
     'JansenRitStep',
     'WilsonCowanStep',
+    'WilsonCowanStepNoSaturation',
+    'WilsonCowanStepSymmetric',
+    'WilsonCowanStepSimplified',
+    'WilsonCowanStepLinear',
     'WongWangStep',
     'VanDerPolStep',
     'QIFStep',
