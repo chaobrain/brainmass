@@ -64,8 +64,8 @@ stimulus[500:] = 0  # not stimulus for last 500 time steps
 
 # run model dynamics
 model.init_all_states()
-model.param_precompute()
-x_t = model.update(stimulus)
+with model.param_precompute():
+    x_t = model.update(stimulus)
 
 fig, gs = braintools.visualize.get_figure(1, 2, 4., 5.)
 # plot weight matrix

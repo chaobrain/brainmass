@@ -95,8 +95,8 @@ def batch_run(xs):
     batch_size = xs.shape[0]
     mapmodule = brainstate.nn.ModuleMapper(model, init_map_size=batch_size)
     mapmodule.init_all_states()
-    mapmodule.param_precompute()
-    out = mapmodule(xs)
+    with mapmodule.param_precompute():
+        out = mapmodule(xs)
     return out
 
 

@@ -834,11 +834,12 @@ def model_fitting():
         node_size=node_size,
         sc=sc,
         dist=dist,
+        mu=1.1,
         mask=np.ones((node_size, node_size)),
         # Fixed parameters
         A=Const(3.25),
         B=Const(22),
-        g=Const(200),
+        g_l=Const(200),
         g_f=Const(10),
         g_b=Const(10),
         vmax=Const(5),
@@ -847,6 +848,7 @@ def model_fitting():
         kE=Const(0.),
         kI=Const(0.),
         # Trainable parameters with GaussianReg (fit_hyper=True)
+        k=Param(15, t=ReluT(5.0), reg=GaussianReg(15, 0.2, fit_hyper=True)),
         a=Param(100, t=ReluT(), reg=GaussianReg(100, 2, fit_hyper=True)),
         b=Param(50, t=ReluT(), reg=GaussianReg(50, 1, fit_hyper=True)),
         c1=Param(135, t=ReluT(), reg=GaussianReg(135, 1, fit_hyper=True)),
@@ -856,14 +858,13 @@ def model_fitting():
         # std_in: as_log=True -> ExpT
         std_in=Param(1.1, t=ExpT(0.1), reg=GaussianReg(1.1, 0.1, fit_hyper=True)),
         y0=Param(-2, reg=GaussianReg(-2, 0.3, fit_hyper=True)),
-        mu=1.1,
-        k=Param(15, t=ReluT(5.0), reg=GaussianReg(15, 0.2, fit_hyper=True)),
         cy0=Param(1., reg=GaussianReg(1, 0.1, fit_hyper=True)),
         # lm with array-based regularization
         lm=Param(lm + lm_v * np.random.randn(*lm.shape)),
         w_bb=Param(np.full((node_size, node_size), 0.05)),
         w_ff=Param(np.full((node_size, node_size), 0.05)),
         w_ll=Param(np.full((node_size, node_size), 0.05)),
+        # initializers
         state_init=braintools.init.Uniform(-0.1, 0.1),
         delay_init=braintools.init.Uniform(0.0, 0.1),
     )

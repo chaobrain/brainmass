@@ -28,7 +28,7 @@ import brainstate
 import cogtask
 from brainmass import Parameter, Initializer, HORNStep, AdditiveCoupling, LaplacianConnParam
 from brainstate import DelayState
-from get_io_regions import get_io_region_indices, IOIndexConfig
+from get_AAL2_io_regions import get_io_region_indices, IOIndexConfig
 
 
 class HORNSeqLayer(brainstate.nn.Module):

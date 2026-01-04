@@ -2,7 +2,6 @@ import os
 import pickle
 from collections import defaultdict
 
-import brainstate
 import braintools
 import brainunit as u
 import matplotlib.pyplot as plt
@@ -10,11 +9,12 @@ import mne
 import numpy as np
 import pandas as pd
 import scipy.signal
-from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 from scipy.io import loadmat
 from sklearn.metrics.pairwise import cosine_similarity
 
+import brainstate
 from brainmass import JansenRit2Window
+from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 
 
 def dataloader(emp, TR_per_window):
@@ -48,9 +48,8 @@ class ModelFitting:
 
     def f_loss(self, inputs, targets):
         # Use the model.forward() function to update next state and get simulated EEG
-        self.model.param_precompute()
-        eeg_output = self.model.update(inputs)
-
+        with self.model.param_precompute():
+            eeg_output = self.model.update(inputs)
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
         loss = 10. * loss_main + self.model.reg_loss()
 
@@ -58,15 +57,16 @@ class ModelFitting:
 
     @brainstate.transform.jit(static_argnums=0)
     def f_train(self, inputs, targets):
-        f_grad = brainstate.transform.grad(self.f_loss, self.weights, has_aux=True, return_value=True)
+        f_grad = brainstate.transform.grad(self.f_loss, self.weights, has_aux=True, return_value=True,
+                                           check_states=False)
         grads, loss, eeg_output = f_grad(inputs, targets)
         self.optimizer.step(grads)
         return loss, eeg_output
 
     @brainstate.transform.jit(static_argnums=0)
     def f_predict(self, inputs):
-        self.model.param_precompute()
-        eeg_output, state_output = self.model(inputs, record_state=True)
+        with self.model.param_precompute():
+            eeg_output, state_output = self.model(inputs, record_state=True)
         return eeg_output, state_output
 
     def train(self, inputs):
@@ -220,13 +220,54 @@ def create_model(fit_hyper=True) -> JansenRit2Window:
     return JansenRit2Window(
         node_size=node_size,
         sc=sc,
+        mu=2.5,
+        dist=dist,
+        # Trainable parameters with ReLU transform and Gaussian reg
+        A=Const(3.25, t=ReluT(), reg=create_gaussian(3.25, 0.1)),
+        a=Const(101, t=ReluT(1.), reg=create_gaussian(101, 1.0)),
+        B=Const(22, t=ReluT(), reg=create_gaussian(22, 0.5)),
+        b=Const(51, t=ReluT(1.), reg=create_gaussian(51, 1.0)),
+        g_l=Const(400, t=ReluT(0.01), reg=create_gaussian(400, 1.0)),
+        g_f=Const(10, t=ReluT(0.01), reg=create_gaussian(10, 1.0)),
+        g_b=Const(10, t=ReluT(0.01), reg=create_gaussian(10, 1.0)),
+        c1=Const(135, t=ReluT(0.01), reg=create_gaussian(135, 1.0)),
+        c2=Const(135 * 0.8, t=ReluT(0.01), reg=create_gaussian(135 * 0.8, 1.0)),
+        c3=Const(135 * 0.25, t=ReluT(0.01), reg=create_gaussian(135 * 0.25, 1.0)),
+        c4=Const(135 * 0.25, t=ReluT(0.01), reg=create_gaussian(135 * 0.25, 1.0)),
+        # std_in uses ExpT (no reg in original code)
+        std_in=Param(6.0, t=ExpT(5.0)),
+        # Fixed parameters
+        vmax=Const(5),
+        v0=Const(6),
+        r=Const(0.56),
+        # Trainable with IdentityTransform
+        y0=Param(-0.5, reg=create_gaussian(-0.5, 0.05)),
+        # Fixed parameters
+        kE=Const(0),
+        kI=Const(0),
+        cy0=Const(5),
+        k=Param(5.5, t=ReluT(0.5), reg=create_gaussian(5.5, 0.2)),
+        # Array parameters
+        lm=Param(lm + lm_base + lm_noise),
+        w_bb=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
+        w_ff=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
+        w_ll=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
+        # initialization
+        state_init=braintools.init.Uniform(-0.01, 0.01),
+        delay_init=braintools.init.Uniform(-0.01, 0.01),
+    )
+
+    return JansenRit2Window(
+        node_size=node_size,
+        sc=sc,
+        mu=2.5,
         dist=dist,
         # Trainable parameters with ReLU transform and Gaussian reg
         A=Param(3.25, t=ReluT(), reg=create_gaussian(3.25, 0.1)),
         a=Param(101, t=ReluT(1.), reg=create_gaussian(101, 1.0)),
         B=Param(22, t=ReluT(), reg=create_gaussian(22, 0.5)),
         b=Param(51, t=ReluT(1.), reg=create_gaussian(51, 1.0)),
-        g=Param(400, t=ReluT(0.01), reg=create_gaussian(400, 1.0)),
+        g_l=Param(400, t=ReluT(0.01), reg=create_gaussian(400, 1.0)),
         g_f=Param(10, t=ReluT(0.01), reg=create_gaussian(10, 1.0)),
         g_b=Param(10, t=ReluT(0.01), reg=create_gaussian(10, 1.0)),
         c1=Param(135, t=ReluT(0.01), reg=create_gaussian(135, 1.0)),
@@ -241,7 +282,6 @@ def create_model(fit_hyper=True) -> JansenRit2Window:
         r=Const(0.56),
         # Trainable with IdentityTransform
         y0=Param(-0.5, reg=create_gaussian(-0.5, 0.05)),
-        mu=2.5,
         # Fixed parameters
         kE=Const(0),
         kI=Const(0),
@@ -252,9 +292,17 @@ def create_model(fit_hyper=True) -> JansenRit2Window:
         w_bb=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
         w_ff=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
         w_ll=Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype())),
+        # initialization
         state_init=braintools.init.Uniform(-0.01, 0.01),
         delay_init=braintools.init.Uniform(-0.01, 0.01),
     )
+
+
+def print_param(model: JansenRit2Window):
+    print("Current model parameters:")
+    for name, param in model.named_param_modules():
+        if param.fit:
+            print(f"{name}: {param.value()}")
 
 
 # Fit two models:
@@ -273,6 +321,7 @@ verb_F = ModelFitting(verb_model, data_verb, num_epoches, node_size)
 verb_F.train(inputs=stim_input)
 verb_outs = verb_F.test(base_batch_num, stim_input)
 print("Finished fitting model to verb trials")
+print_param(verb_model)
 
 # repeat for noise
 noise_model = create_model(fit_hyper=True)
@@ -280,6 +329,7 @@ noise_F = ModelFitting(noise_model, data_noise, num_epoches, node_size)
 noise_F.train(inputs=stim_input)
 noise_outs = noise_F.test(base_batch_num, stim_input)
 print("Finished fitting model to noise trials")
+# print_param(noise_model)
 
 # 7. Let's Compare Simulated & Empirical MEG Activity
 # we will use the simulations from the fully trained model in the downloaded directory

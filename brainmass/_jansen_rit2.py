@@ -25,10 +25,10 @@ import brainstate
 import brainstate.environ
 from brainstate import HiddenState
 from brainstate.nn import Dynamics, Delay, Param, Module, init_maybe_prefetch
-from ._utils import sys2nd, sigmoid, bounded_input
 from ._leadfield import LeadfieldReadout
 from ._noise import Noise, GaussianNoise
 from ._typing import Parameter, Initializer
+from ._utils import sys2nd, sigmoid, bounded_input
 
 __all__ = [
     "JansenRit2Step",
@@ -513,11 +513,7 @@ class JansenRit2TR(Dynamics):
         activity = self.step.E.value - self.step.I.value
 
         if record_state:
-            state = dict(
-                P=self.step.P.value,
-                E=self.step.E.value,
-                I=self.step.I.value,
-            )
+            state = dict(P=self.step.P.value, E=self.step.E.value, I=self.step.I.value)
             return activity, state
 
         return activity
@@ -542,7 +538,7 @@ class JansenRit2Window(Module):
         a: Parameter,
         B: Parameter,
         b: Parameter,
-        g: Parameter,
+        g_l: Parameter,
         g_f: Parameter,
         g_b: Parameter,
         c1: Parameter,
@@ -596,7 +592,7 @@ class JansenRit2Window(Module):
             w_ll=w_ll,
             w_ff=w_ff,
             w_bb=w_bb,
-            g_l=g,
+            g_l=g_l,
             g_f=g_f,
             g_b=g_b,
 
