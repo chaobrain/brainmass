@@ -99,16 +99,8 @@ class HORNSeqLayer(brainstate.nn.Module):
 
 
 def try_train_with_visual_input_and_motor_output():
-    cfg = IOIndexConfig(
-        visual="core+extended",
-        motor="core+extended",
-        hemisphere="both",
-    )
-    # cfg = IOIndexConfig(
-    #     visual="core",
-    #     motor="core",
-    #     hemisphere="both",
-    # )
+    cfg = IOIndexConfig(visual="core+extended", motor="core+extended", hemisphere="both")
+    # cfg = IOIndexConfig(visual="core", motor="core", hemisphere="both")
     io_info = get_io_region_indices(cfg)
     print('Input regions: ', io_info['input_names'])
     print('Output regions: ', io_info['output_names'])
@@ -157,7 +149,8 @@ def try_train_with_visual_input_and_motor_output():
             behavior='vmap',
         )
         vmap_module.init_all_states()
-        predictions = vmap_module(xs)
+        with vmap_module.param_precompute():
+            predictions = vmap_module(xs)
         predictions = u.math.flatten(predictions, end_axis=-2)
         ys = ys[:, -1]  # last time step labels
         loss_ = braintools.metric.softmax_cross_entropy_with_integer_labels(predictions, ys).mean()

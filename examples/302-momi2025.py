@@ -58,13 +58,12 @@ class ModelFitting:
         self.optimizer = braintools.optim.Adam(lr=0.05)
         self.weights = model.states(brainstate.ParamState)
         self.optimizer.register_trainable_weights(self.weights)
-
         self.steps_per_TR = steps_per_TR
         self.node_size = node_size
 
     def f_loss(self, inputs, targets):
-        self.model.param_precompute()
-        eeg_output = self.model.update(inputs)
+        with self.model.param_precompute():
+            eeg_output = self.model.update(inputs)
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
         loss = loss_main + self.model.reg_loss()
         return loss, (eeg_output, loss_main)
@@ -78,8 +77,8 @@ class ModelFitting:
 
     @brainstate.transform.jit(static_argnums=0)
     def f_predict(self, inputs):
-        self.model.param_precompute()
-        return self.model.update(inputs, record_state=True)
+        with self.model.param_precompute():
+            return self.model.update(inputs, record_state=True)
 
     def train(
         self,

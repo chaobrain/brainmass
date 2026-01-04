@@ -17,14 +17,14 @@ import scipy.io
 from sklearn.metrics.pairwise import cosine_similarity
 
 import braintools
-from brainmass import JansenRitModel
+from brainmass import JansenRit2Window
 from brainstate.nn import Param, Const, ReluT, GaussianReg
 
 
 class ModelFitting:
     """Model fitting class for training and testing."""
 
-    def __init__(self, model: JansenRitModel, ts, num_epoches):
+    def __init__(self, model: JansenRit2Window, ts, num_epoches):
         """
         Initialize model fitting.
 
@@ -254,7 +254,7 @@ def main(subject_idx=0, visualize=True, output_dir='./results'):
     out1 = np.ones(output_size)
 
     # Create model instance with Param objects - use SingleGainJRTRModel for single-pathway
-    model = JansenRitModel(
+    model = JansenRit2Window(
         node_size=node_size,
         output_size=output_size,
         TRs_per_window=batch_size,
@@ -288,8 +288,6 @@ def main(subject_idx=0, visualize=True, output_dir='./results'):
         state_init=lambda s, **kwargs: jnp.asarray(np.random.uniform(0.5, 2., s), dtype=brainstate.environ.dftype()),
         delay_init=lambda s, **kwargs: jnp.asarray(np.random.uniform(0.5, 2., s), dtype=brainstate.environ.dftype()),
     )
-
-    print("   Model initialized successfully")
 
     # =============================================================================
     # 5. TRAIN MODEL
@@ -399,32 +397,29 @@ def main(subject_idx=0, visualize=True, output_dir='./results'):
         plt.show()
 
         # MNE Visualization
-        try:
-            import mne
-            print("   - MNE topographic plots...")
+        import mne
+        print("   - MNE topographic plots...")
 
-            epochs = mne.read_epochs(files_dir + '/all_avg.mat_avg_high_epoched', verbose=False)
-            evoked = epochs.average()
+        epochs = mne.read_epochs(files_dir + '/all_avg.mat_avg_high_epoched', verbose=False)
+        evoked = epochs.average()
 
-            empirical_data = epochs.average()
-            empirical_data.data = epochs._data[subject_idx, :, :]
+        empirical_data = epochs.average()
+        empirical_data.data = epochs._data[subject_idx, :, :]
 
-            simulated_data = epochs.average()
-            simulated_data.data[:, 900:1300] = eeg_test.T
+        simulated_data = epochs.average()
+        simulated_data.data[:, 900:1300] = eeg_test.T
 
-            ts_args = dict(xlim=[-0.025, 0.3])
-            ch, peak_locs1 = evoked.get_peak(ch_type='eeg', tmin=-0.05, tmax=0.04)
-            ch, peak_locs2 = evoked.get_peak(ch_type='eeg', tmin=0.02, tmax=0.1)
-            ch, peak_locs4 = evoked.get_peak(ch_type='eeg', tmin=0.12, tmax=0.15)
-            ch, peak_locs5 = evoked.get_peak(ch_type='eeg', tmin=0.15, tmax=0.20)
-            times = [peak_locs1, peak_locs2, peak_locs4, peak_locs5]
+        ts_args = dict(xlim=[-0.025, 0.3])
+        ch, peak_locs1 = evoked.get_peak(ch_type='eeg', tmin=-0.05, tmax=0.04)
+        ch, peak_locs2 = evoked.get_peak(ch_type='eeg', tmin=0.02, tmax=0.1)
+        ch, peak_locs4 = evoked.get_peak(ch_type='eeg', tmin=0.12, tmax=0.15)
+        ch, peak_locs5 = evoked.get_peak(ch_type='eeg', tmin=0.15, tmax=0.20)
+        times = [peak_locs1, peak_locs2, peak_locs4, peak_locs5]
 
-            empirical_data.plot_joint(ts_args=ts_args, times=times,
-                                      title=f'Empirical TEPs (Subject {subject_idx})', show=False)
-            simulated_data.plot_joint(ts_args=ts_args, times=times,
-                                      title=f'Simulated TEPs (Subject {subject_idx})')
-        except Exception as e:
-            print(f"   MNE visualization skipped: {e}")
+        empirical_data.plot_joint(ts_args=ts_args, times=times,
+                                  title=f'Empirical TEPs (Subject {subject_idx})', show=False)
+        simulated_data.plot_joint(ts_args=ts_args, times=times,
+                                  title=f'Simulated TEPs (Subject {subject_idx})')
 
         print("   Visualizations complete!")
 

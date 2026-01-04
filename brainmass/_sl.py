@@ -142,7 +142,8 @@ class StuartLandauStep(XY_Oscillator):
         """
         a = self.a.value()
         w = self.w.value()
-        return ((a - x * x - y * y) * x - w * y + x_ext) / u.ms
+        r2 = x * x + y * y
+        return ((a - r2) * x - w * y + x_ext) / u.ms
 
     def dy(self, y, x, y_ext):
         """Right-hand side for the ``y`` component.
@@ -163,4 +164,5 @@ class StuartLandauStep(XY_Oscillator):
         """
         a = self.a.value()
         w = self.w.value()
-        return ((a - x * x - y * y) * y + w * x + y_ext) / u.ms
+        r2 = x * x + y * y
+        return ((a - r2) * y + w * x + y_ext) / u.ms
