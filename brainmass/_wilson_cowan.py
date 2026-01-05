@@ -15,12 +15,13 @@
 
 from typing import Callable
 
+import brainstate
 import braintools
 import brainunit as u
+import jax.nn
 import jax.numpy as jnp
-
-import brainstate
 from brainstate.nn import Param
+
 from ._noise import Noise
 from ._typing import Parameter
 
@@ -208,7 +209,8 @@ class WilsonCowanStep(brainstate.nn.Dynamics):
             Output in approximately ``[0, 1]`` (subject to numerical precision),
             with the same shape as ``x``.
         """
-        return 1 / (1 + jnp.exp(-a * (x - theta))) - 1 / (1 + jnp.exp(a * theta))
+        # 1 / (1 + jnp.exp(-a * (x - theta))) - 1 / (1 + jnp.exp(a * theta))
+        return jax.nn.sigmoid(a * (x - theta)) - jax.nn.sigmoid(-a * theta)
 
     def drE(self, rE, rI, ext):
         """Right-hand side for the excitatory population.
