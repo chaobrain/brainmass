@@ -32,7 +32,7 @@ __all__ = [
 class VanDerPolStep(XY_Oscillator):
     r"""Van der Pol oscillator (two-dimensional form).
 
-     In the study of dynamical systems, the van der Pol oscillator
+    In the study of dynamical systems, the van der Pol oscillator
     (named for Dutch physicist Balthasar van der Pol) is a non-conservative,
     oscillating system with non-linear damping. It evolves in time according
     to the second-order differential equation
