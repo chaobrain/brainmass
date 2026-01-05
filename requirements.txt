@@ -1,6 +1,5 @@
 numpy
 jax
 brainunit
-brainscale
 braintools
-brainstate>=0.1.8
+brainstate>=0.2.9
