@@ -64,7 +64,7 @@ from ._noise import (
     BlueNoise,
     VioletNoise,
 )
-from ._qif import QIFStep
+from ._qif import MontbrioPazoRoxinStep
 from ._sl import StuartLandauStep
 # Type aliases
 from ._typing import (
@@ -131,7 +131,7 @@ __all__ = [
     'WilsonCowanStepLinear',
     'WongWangStep',
     'VanDerPolStep',
-    'QIFStep',
+    'MontbrioPazoRoxinStep',
     'ThresholdLinearStep',
     'KuramotoNetwork',
     'StuartLandauStep',

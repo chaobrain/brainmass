@@ -25,12 +25,12 @@ from ._noise import Noise
 from ._typing import Parameter
 
 __all__ = [
-    'QIFStep',
+    'MontbrioPazoRoxinStep',
 ]
 
 
-class QIFStep(brainstate.nn.Dynamics):
-    r"""Quadratic integrate-and-fire mean-field model (Montbrió–Pazó–Roxin).
+class MontbrioPazoRoxinStep(brainstate.nn.Dynamics):
+    r"""Montbrio-Pazo-Roxin infinite theta neuron population model.
 
     Implements the exact mean-field reduction of a population of all-to-all
     coupled QIF neurons with a Lorentzian distribution of background
