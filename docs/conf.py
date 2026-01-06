@@ -45,6 +45,9 @@ import shutil
 shutil.copytree('../examples', './examples', dirs_exist_ok=True)
 shutil.copy('../changelog.md', './changelog.md')
 
+from highlight_test_lexer import fix_ipython2_lexer_in_notebooks
+fix_ipython2_lexer_in_notebooks(os.path.dirname(os.path.abspath(__file__)))
+
 
 # -- General configuration ---------------------------------------------------
 
