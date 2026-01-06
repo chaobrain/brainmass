@@ -230,3 +230,4 @@ cython_debug/
 /dev/
 /docs/changelog.md
 /examples/data/
+/docs/api/generated/
