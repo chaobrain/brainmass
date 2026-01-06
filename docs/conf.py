@@ -30,6 +30,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath('../'))
+sys.path.insert(0, os.path.abspath('.'))
 
 # -- Project information -----------------------------------------------------
 
@@ -86,6 +87,18 @@ source_suffix = ['.rst', '.ipynb', '.md']
 
 # source_suffix = '.rst'
 autosummary_generate = True
+autosummary_generate_overwrite = False
+
+# Autodoc settings for better API documentation
+autodoc_typehints = 'description'
+autodoc_member_order = 'bysource'
+autodoc_default_options = {
+    'members': True,
+    'member-order': 'bysource',
+    'special-members': '__init__',
+    'undoc-members': True,
+    'exclude-members': '__weakref__, default_rng',
+}
 
 # The master toctree document.
 master_doc = 'index'

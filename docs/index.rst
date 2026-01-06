@@ -2,49 +2,76 @@
 ============================
 
 `brainmass <https://github.com/chaobrain/brainmass>`_ implements neural mass models with `brainstate <https://github.com/chaobrain/brainstate>`_,
-enabling whole-brain brain modeling with differentiable programming.
-
-
+enabling whole-brain modeling with differentiable programming and JAX.
 
 
 ----
 
 Features
-^^^^^^^^^
+^^^^^^^^
 
-.. grid::
+.. grid:: 2
+   :gutter: 3
 
+   .. grid-item-card:: Comprehensive Model Library
+      :class-card: sd-border-0
+      :shadow: md
 
-   .. grid-item::
-      :columns: 12 12 12 6
+      13+ neural mass models from phenomenological oscillators to physiological population models,
+      covering EEG, MEG, and fMRI applications
 
-      .. card:: Intuitive Programming
-         :class-card: sd-border-0
-         :shadow: none
-         :class-title: sd-fs-6
+   .. grid-item-card:: Differentiable Optimization
+      :class-card: sd-border-0
+      :shadow: md
 
-         .. div:: sd-font-normal
+      Fit model parameters to empirical data using gradient-based (JAX) or gradient-free (Nevergrad) optimization
 
-            ``brainmass`` provides simple interface to build complex neural mass models.
+   .. grid-item-card:: Forward Modeling
+      :class-card: sd-border-0
+      :shadow: md
 
+      Built-in BOLD hemodynamics and EEG/MEG lead-field models for linking neural activity to neuroimaging signals
 
+   .. grid-item-card:: Unit-Safe Computing
+      :class-card: sd-border-0
+      :shadow: md
 
-   .. grid-item::
-      :columns: 12 12 12 6
-
-      .. card:: Differentiable Optimization
-         :class-card: sd-border-0
-         :shadow: none
-         :class-title: sd-fs-6
-
-         .. div:: sd-font-normal
-
-            ``brainmass`` supports differentiable optimizations to fit model parameters to empirical data.
-
+      Automatic dimensional analysis with ``brainunit`` prevents unit errors in scientific computing
 
 
 ----
 
+Quick Start
+^^^^^^^^^^^
+
+.. code-block:: python
+
+   import brainmass
+   import brainunit as u
+   import brainstate
+   import jax.numpy as jnp
+
+   # Create a network of oscillators
+   nodes = brainmass.HopfOscillator(in_size=90, omega=10*u.Hz)
+   nodes.init_all_states()
+
+   # Add coupling
+   coupling = brainmass.DiffusiveCoupling(conn=connectivity_matrix, k=0.2)
+
+   # Simulate
+   def step(i):
+       x = nodes.x.value
+       coupled = coupling(x, x)
+       output = nodes.update()
+       nodes.x.value += coupled
+       return output
+
+   activity = brainstate.transform.for_loop(step, jnp.arange(1000))
+
+See :doc:`tutorials/quickstart` for more details.
+
+
+----
 
 Installation
 ^^^^^^^^^^^^
@@ -57,11 +84,15 @@ Installation
 
           pip install -U brainmass[cpu]
 
-    .. tab-item:: GPU
+    .. tab-item:: GPU (CUDA 12)
 
        .. code-block:: bash
 
           pip install -U brainmass[cuda12]
+
+    .. tab-item:: GPU (CUDA 13)
+
+       .. code-block:: bash
 
           pip install -U brainmass[cuda13]
 
@@ -71,37 +102,119 @@ Installation
 
           pip install -U brainmass[tpu]
 
+See :doc:`tutorials/installation` for detailed instructions.
+
+
 ----
 
+Where to Start
+^^^^^^^^^^^^^^
 
-See also the ecosystem
-^^^^^^^^^^^^^^^^^^^^^^
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card:: New to brainmass?
+      :link: tutorials/quickstart
+      :link-type: doc
+
+      Start with the **Quickstart Tutorial** for a 5-minute introduction
+
+   .. grid-item-card:: Looking for examples?
+      :link: examples/index
+      :link-type: doc
+
+      Browse the **Examples Gallery** for practical applications
+
+   .. grid-item-card:: Need specific functionality?
+      :link: api/index
+      :link-type: doc
+
+      Check the **API Reference** for detailed documentation
+
+   .. grid-item-card:: Want to contribute?
+      :link: developer/index
+      :link-type: doc
+
+      Read the **Developer Guide** to get started
 
 
-``brainmass`` is one part of our `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_.
+----
+
+Documentation Structure
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card:: Tutorials
+      :link: tutorials/index
+      :link-type: doc
+
+      Step-by-step guides for common tasks
+
+   .. grid-item-card:: Examples
+      :link: examples/index
+      :link-type: doc
+
+      Jupyter notebooks with practical applications
+
+   .. grid-item-card:: API Reference
+      :link: api/index
+      :link-type: doc
+
+      Complete API documentation
+
+   .. grid-item-card:: Developer Guide
+      :link: developer/index
+      :link-type: doc
+
+      Contributing and extending brainmass
+
+
+----
+
+BrainX Ecosystem
+^^^^^^^^^^^^^^^^
+
+``brainmass`` is part of the `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_:
+
+- **brainstate**: State management for dynamical systems
+- **brainunit**: Unit-aware array operations
+- **braintools**: Utilities and transforms
+- **brainmass**: Neural mass models (this package)
+
+
+----
+
+Citation
+^^^^^^^^
+
+If you use ``brainmass`` in your research, please cite:
+
+.. code-block:: bibtex
+
+   @software{brainmass2024,
+     author = {{BrainX Ecosystem}},
+     title = {brainmass: Neural Mass Models for Whole-Brain Modeling},
+     year = {2024},
+     url = {https://github.com/chaobrain/brainmass}
+   }
 
 
 
 .. toctree::
-   :hidden:
    :maxdepth: 2
-   :caption: Examples
+   :caption: Tutorials and Guides
 
-   examples/00-hopf-osillator.ipynb
-   examples/01-wilsonwowan-osillator.ipynb
-   examples/02-fhn-osillator.ipynb
-   examples/03-jansenrit_single_node_simulation.ipynb
-   examples/10-parameter-exploration.ipynb
-   examples/11-nevergrad-optimization.ipynb
-   examples/12-scipy-optimization.ipynb
-   examples/Modeling_resting_state_MEG_data.ipynb
-
+   tutorials/index
+   examples/index
+   developer/index
 
 .. toctree::
-   :hidden:
-   :maxdepth: 2
-   :caption: API Reference
+   :maxdepth: 1
+   :caption: Additional Resources
 
-   changelog.md
-   api.rst
+   faq
+   api/index
+   changelog
 
