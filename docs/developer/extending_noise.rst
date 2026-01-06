@@ -17,12 +17,12 @@ Stateless Noise
    import brainstate
 
    class MyStatelessNoise(brainstate.nn.Dynamics):
-       \"\"\"Custom stateless noise (i.i.d. samples).
+       """Custom stateless noise (i.i.d. samples).
 
        Args:
            in_size: Shape of noise output
            sigma: Noise amplitude
-       \"\"\"
+       """
 
        def __init__(self, in_size, sigma=1.0):
            super().__init__()
@@ -34,7 +34,7 @@ Stateless Noise
            pass
 
        def update(self):
-           \"\"\"Generate noise sample.\"\"\"
+           """Generate noise sample."""
            key = jax.random.PRNGKey(0)  # Use proper key management
            noise = jax.random.normal(key, self.in_size) * self.sigma
            return noise
@@ -46,13 +46,13 @@ Stateful Noise
 .. code-block:: python
 
    class MyStatefulNoise(brainstate.nn.Dynamics):
-       \"\"\"Custom stateful noise process.
+       """Custom stateful noise process.
 
        Args:
            in_size: Shape of noise output
            sigma: Noise amplitude
            tau: Correlation time
-       \"\"\"
+       """
 
        def __init__(self, in_size, sigma=1.0, tau=10.0):
            super().__init__()
@@ -91,12 +91,12 @@ Example: Exponential Noise
    import brainstate
 
    class ExponentialNoise(brainstate.nn.Dynamics):
-       \"\"\"Exponentially distributed noise.
+       """Exponentially distributed noise.
 
        Args:
            in_size: Output shape
            rate: Rate parameter (lambda)
-       \"\"\"
+       """
 
        def __init__(self, in_size, rate=1.0):
            super().__init__()

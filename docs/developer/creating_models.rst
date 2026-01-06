@@ -14,13 +14,13 @@ Model Template
    import jax.numpy as jnp
 
    class MyCustomModel(brainstate.nn.Dynamics):
-       \"\"\"Custom neural mass model.
+       """Custom neural mass model.
 
        Args:
            in_size: Number of regions/nodes
            tau: Time constant (ms)
            other_param: Description
-       \"\"\"
+       """
 
        def __init__(self, in_size, tau=10.*u.ms, other_param=1.0):
            super().__init__()
@@ -37,19 +37,19 @@ Model Template
            )
 
        def init_state(self, batch_size=None):
-           \"\"\"Initialize state variables.\"\"\"
+           """Initialize state variables."""
            shape = (batch_size, *self.in_size) if batch_size else self.in_size
            self.x.value = jnp.zeros(shape)
 
        def update(self, external_input=0.):
-           \"\"\"Update dynamics by one time step.
+           """Update dynamics by one time step.
 
            Args:
                external_input: External driving input
 
            Returns:
                Observable output
-           \"\"\"
+           """
            # Get current state
            x = self.x.value
 
@@ -74,7 +74,7 @@ Example: Custom Oscillator
    import jax.numpy as jnp
 
    class DampedOscillator(brainstate.nn.Dynamics):
-       \"\"\"Damped harmonic oscillator.
+       """Damped harmonic oscillator.
 
        Equations:
            dx/dt = v
@@ -84,7 +84,7 @@ Example: Custom Oscillator
            in_size: Number of oscillators
            omega: Natural frequency (Hz)
            zeta: Damping ratio (dimensionless)
-       \"\"\"
+       """
 
        def __init__(self, in_size, omega=10*u.Hz, zeta=0.1):
            super().__init__()
@@ -208,7 +208,7 @@ Add comprehensive docstrings:
 .. code-block:: python
 
    class MyModel(brainstate.nn.Dynamics):
-       \"\"\"One-line description.
+       """One-line description.
 
        Detailed explanation of the model, including:
        - Mathematical equations
@@ -234,7 +234,7 @@ Add comprehensive docstrings:
 
        References:
            Author et al. (2020). Paper title. Journal.
-       \"\"\"
+       """
 
 
 Contributing Your Model

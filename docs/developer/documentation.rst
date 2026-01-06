@@ -58,7 +58,7 @@ Use Google-style docstrings:
 .. code-block:: python
 
    def my_function(param1, param2, param3=None):
-       \"\"\"Brief one-line description.
+       """Brief one-line description.
 
        Longer description with more details if needed.
        Can span multiple paragraphs.
@@ -82,7 +82,7 @@ Use Google-style docstrings:
 
        References:
            Author et al. (2020). Paper Title. Journal.
-       \"\"\"
+       """
 
 
 Writing Tutorials

@@ -41,38 +41,6 @@ Features
 
 ----
 
-Quick Start
-^^^^^^^^^^^
-
-.. code-block:: python
-
-   import brainmass
-   import brainunit as u
-   import brainstate
-   import jax.numpy as jnp
-
-   # Create a network of oscillators
-   nodes = brainmass.HopfOscillator(in_size=90, omega=10*u.Hz)
-   nodes.init_all_states()
-
-   # Add coupling
-   coupling = brainmass.DiffusiveCoupling(conn=connectivity_matrix, k=0.2)
-
-   # Simulate
-   def step(i):
-       x = nodes.x.value
-       coupled = coupling(x, x)
-       output = nodes.update()
-       nodes.x.value += coupled
-       return output
-
-   activity = brainstate.transform.for_loop(step, jnp.arange(1000))
-
-See :doc:`tutorials/quickstart` for more details.
-
-
-----
-
 Installation
 ^^^^^^^^^^^^
 
@@ -195,7 +163,7 @@ If you use ``brainmass`` in your research, please cite:
 
    @software{brainmass2024,
      author = {{BrainX Ecosystem}},
-     title = {brainmass: Neural Mass Models for Whole-Brain Modeling},
+     title = {BrainMass: Neural Mass Models for Whole-Brain Modeling},
      year = {2024},
      url = {https://github.com/chaobrain/brainmass}
    }
@@ -203,6 +171,7 @@ If you use ``brainmass`` in your research, please cite:
 
 
 .. toctree::
+   :hidden:
    :maxdepth: 2
    :caption: Tutorials and Guides
 
@@ -211,6 +180,7 @@ If you use ``brainmass`` in your research, please cite:
    developer/index
 
 .. toctree::
+   :hidden:
    :maxdepth: 1
    :caption: Additional Resources
 

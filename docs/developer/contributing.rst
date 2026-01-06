@@ -66,17 +66,20 @@ Pull Request Process
 ---------------------
 
 1. **Before submitting:**
+
    - Run tests: ``pytest tests/``
    - Check code style: ``ruff check brainmass/``
    - Build docs: ``make -C docs html``
    - Update CHANGELOG
 
 2. **PR description:**
+
    - Describe what changed and why
    - Reference related issues
    - Include examples if applicable
 
 3. **Review process:**
+
    - Maintainers will review within a week
    - Address feedback
    - Once approved, PR will be merged
