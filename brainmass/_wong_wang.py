@@ -111,7 +111,7 @@ class WongWangStep(brainstate.nn.Dynamics):
     =============
     
     >>> model = WongWangStep(in_size=100)
-    >>> model.init_state(batch_size=1)
+    >>> model.init_all_states(batch_size=1)
     >>> 
     >>> # Simulate decision making with rightward motion (c=0.32)
     >>> for t in range(1000):
@@ -181,9 +181,8 @@ class WongWangStep(brainstate.nn.Dynamics):
 
     def init_state(self, batch_size=None, **kwargs):
         """Initialize the synaptic gating variables S1 and S2."""
-        size = self.varshape if batch_size is None else (batch_size,) + self.varshape
-        self.S1 = brainstate.HiddenState.init(jnp.zeros, size)
-        self.S2 = brainstate.HiddenState.init(jnp.zeros, size)
+        self.S1 = brainstate.HiddenState.init(jnp.zeros, self.varshape, batch_size)
+        self.S2 = brainstate.HiddenState.init(jnp.zeros, self.varshape, batch_size)
 
     def phi(self, I):
         """
