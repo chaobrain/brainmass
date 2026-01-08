@@ -19,8 +19,8 @@ import jax.numpy as jnp
 
 import brainstate
 from brainstate.nn import Param
-from ._noise import Noise
-from ._typing import Parameter
+from .noise import Noise
+from .typing import Parameter
 
 __all__ = [
     'WongWangStep',

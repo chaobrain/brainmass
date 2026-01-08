@@ -9,6 +9,7 @@ import pickle
 import time
 from collections import defaultdict
 
+import brainstate
 import braintools
 import brainunit as u
 import matplotlib.pyplot as plt
@@ -17,12 +18,11 @@ import nibabel
 import numpy as np
 import pandas as pd
 import requests
+from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 from scipy.signal import find_peaks
 from sklearn.metrics.pairwise import cosine_similarity
 
-import brainstate
-from brainmass import JansenRit2Window
-from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
+from jansenrit_model import JansenRit2Window
 
 
 def dataloader(emp, TR_per_window):
@@ -573,8 +573,16 @@ def empirical_data_analysis():
     print(f"Elapsed time: {elapsed_time} seconds")
 
 
+# Define distance function
+def euclidean_distance(coord1, coord2):
+    x1, y1, z1 = coord1[0], coord1[1], coord1[2]
+    x2, y2, z2 = coord2[0], coord2[1], coord2[2]
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
+
+
 def model_fitting():
-    # Select the session number to use: Please do not change it as we are using subject-specific anatomy
+    # Select the session number to use:
+    # Please do not change it as we are using subject-specific anatomy
     ses2use = 10
 
     # Load the precomputed EEG evoked response data from a file
@@ -626,17 +634,12 @@ def model_fitting():
     # The network name is the part after the underscore in the stimulation region label
     stim_net = stim_region[ses2use].split('_')[1]
 
-    # Define distance function
-    def euclidean_distance(coord1, coord2):
-        x1, y1, z1 = coord1[0], coord1[1], coord1[2]
-        x2, y2, z2 = coord2[0], coord2[1], coord2[2]
-        return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
-
     # Initialize an empty list to store distances
     distances = []
     # Iterate over each coordinate in the 200-parcel atlas
     for xx in range(coords_200.shape[0]):
-        # Compute the Euclidean distance between the current coordinate and the stimulation coordinates
+        # Compute the Euclidean distance between the current
+        # coordinate and the stimulation coordinates
         # Append the computed distance to the distances list
         distances.append(euclidean_distance(coords_200[xx], stim_coords))
     # Convert the list of distances to a NumPy array for easier manipulation
@@ -646,7 +649,8 @@ def model_fitting():
     for idx, item in enumerate(np.argsort(distances)):
         # Check if the network name of the stimulation region is present in the label of the current parcel
         if stim_net in label_stripped_200[item]:
-            # If the condition is met, assign the index of the current parcel to `parcel2inject`
+            # If the condition is met, assign the index
+            # of the current parcel to `parcel2inject`
             parcel2inject = item
             # Exit the loop since the desired parcel has been found
             break

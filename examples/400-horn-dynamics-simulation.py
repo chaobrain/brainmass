@@ -22,7 +22,7 @@ import numpy as np
 
 import brainstate
 import braintools
-from brainmass._horn import HORNSeqLayer
+from brainmass.horn import HORNSeqLayer
 
 brainstate.environ.set(dt=1.0)  # set global time step
 

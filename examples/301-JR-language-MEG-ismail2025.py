@@ -2,6 +2,7 @@ import os
 import pickle
 from collections import defaultdict
 
+import brainstate
 import braintools
 import brainunit as u
 import matplotlib.pyplot as plt
@@ -9,12 +10,11 @@ import mne
 import numpy as np
 import pandas as pd
 import scipy.signal
+from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
 from scipy.io import loadmat
 from sklearn.metrics.pairwise import cosine_similarity
 
-import brainstate
-from brainmass import JansenRit2Window
-from brainstate.nn import Param, Const, ReluT, ExpT, GaussianReg
+from jansenrit_model import JansenRit2Window
 
 
 def dataloader(emp, TR_per_window):

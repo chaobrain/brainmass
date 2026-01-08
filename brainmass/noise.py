@@ -22,7 +22,7 @@ import jax.numpy as jnp
 
 import brainstate
 from brainstate.nn import Dynamics, Param
-from ._typing import Parameter
+from .typing import Parameter
 
 __all__ = [
     'Noise',

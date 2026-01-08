@@ -13,346 +13,39 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Callable, Union, Optional, Tuple
+from typing import Tuple, Callable, Optional, Union
 
 import brainstate
+import brainstate.environ
 import braintools
+import braintools.init
 import brainunit as u
-import jax.nn
+import jax
 import numpy as np
 from brainstate import HiddenState
-from brainstate.nn import (
-    exp_euler_step, Param, Dynamics, Module, init_maybe_prefetch, Delay, GaussianNoise,
+from brainstate.nn import Dynamics, Delay, Param, Module, init_maybe_prefetch
+
+from brainmass import (
+    LeadfieldReadout,
+    Noise, GaussianNoise,
+    Parameter, Initializer,
+    sys2nd, sigmoid, bounded_input
 )
 
-from ._leadfield import LeadfieldReadout
-from ._noise import Noise
-from ._typing import Parameter, Initializer
-from ._utils import sigmoid, bounded_input, sys2nd
-
 __all__ = [
-    'JansenRitStep',
     "JansenRit2Step",
     "JansenRit2TR",
     "JansenRit2Window",
 ]
 
-Array = brainstate.typing.ArrayLike
 Size = brainstate.typing.Size
+Array = brainstate.typing.ArrayLike
 Prefetch = Union[
     brainstate.nn.PrefetchDelayAt,
     brainstate.nn.PrefetchDelay,
     brainstate.nn.Prefetch,
     Callable,
 ]
-
-
-class Identity:
-    def __call__(self, x):
-        return x
-
-
-class JansenRitStep(brainstate.nn.Dynamics):
-    r"""
-    Jansen-Rit neural mass model.
-
-    This implementation follows the standard three-population Jansen–Rit formulation
-    with state variables for the pyramidal (M), excitatory interneuron (E), and
-    inhibitory interneuron (I) membrane potentials and their first derivatives
-    (Mv, Ev, Iv):
-
-    $$
-    \begin{aligned}
-    &\dot{M}= M_v, \\
-    &\dot{E}= E_v, \\
-    &\dot{I}= I_v, \\
-    &\dot{M}_v= A_e b_e\,\text{scale}\big(S(E - I + M_{\text{inp}})\big) - 2 b_e M_v - b_e^2 M, \\
-    &\dot{E}_v= A_e b_e\,\text{scale}\big(E_{\text{inp}} + C a_2 S(C a_1 M)\big) - 2 b_e E_v - b_e^2 E, \\
-    &\dot{I}_v= A_i b_i\,\text{scale}\big(C a_4 S(C a_3 M + I_{\text{inp}})\big) - 2 b_i I_v - b_i^2 I.
-    \end{aligned}
-    $$
-
-    The static nonlinearity maps membrane potential to firing rate:
-
-    $$
-    S(v) = \frac{s_{\max}}{1 + e^{\, r (v_0 - v)/\mathrm{mV}}},
-    $$
-
-    yielding values in $[0, s_{\max}]$. Here, $v$ is in mV, $s_{\max}$ in s$^{-1}$,
-    $v_0$ in mV, and $r$ is dimensionless.
-
-    Inputs and units:
-
-    - `M_inp` (mV) shifts the pyramidal population input inside the sigmoid in $\dot{M}_v$.
-    - `E_inp` (s$^{-1}$) is added to the excitatory firing-rate drive in $\dot{E}_v$.
-    - `I_inp` (mV) shifts the inhibitory population input inside the sigmoid in $\dot{I}_v$.
-
-    The EEG-like output proxy returned by `eeg()` is the difference between excitatory
-    and inhibitory postsynaptic potentials at the pyramidal population, i.e. `E - I`.
-
-    Standard parameter settings for the Jansen–Rit model. Only parameters with a
-    specified "Range" are estimated in this study.
-
-    .. list-table::
-       :widths: 12 30 14 18
-       :header-rows: 1
-
-       * - Parameter
-         - Description
-         - Default
-         - Range
-       * - Ae
-         - Excitatory gain
-         - 3.25 mV
-         - 2.6-9.75 mV
-       * - Ai
-         - Inhibitory gain
-         - 22 mV
-         - 17.6-110.0 mV
-       * - be
-         - Excitatory time const.
-         - 100 s^-1
-         - 5-150 s^-1
-       * - bi
-         - Inhibitory time const.
-         - 50 s^-1
-         - 25-75 s^-1
-       * - C
-         - Connectivity constant
-         - 135
-         - 65-1350
-       * - a1
-         - Connectivity parameter
-         - 1.0
-         - 0.5-1.5
-       * - a2
-         - Connectivity parameter
-         - 0.8
-         - 0.4-1.2
-       * - a3
-         - Connectivity parameter
-         - 0.25
-         - 0.125-0.375
-       * - a4
-         - Connectivity parameter
-         - 0.25
-         - 0.125-0.375
-       * - smax
-         - Max firing rate
-         - 2.5 s^-1
-         - -
-       * - v0
-         - Firing threshold
-         - 6 mV
-         - -
-       * - r
-         - Sigmoid steepness
-         - 0.56
-         - -
-
-    Parameters
-    ----------
-    in_size : `brainstate.typing.Size`
-        Variable shape for parameter/state broadcasting.
-    Ae : `ArrayLike` or `Callable`, default `3.25 * u.mV`
-        Excitatory gain (mV).
-    Ai : `ArrayLike` or `Callable`, default `22. * u.mV`
-        Inhibitory gain (mV).
-    be : `ArrayLike` or `Callable`, default `100. * u.Hz`
-        Excitatory inverse time constant (s^-1).
-    bi : `ArrayLike` or `Callable`, default `50. * u.Hz`
-        Inhibitory inverse time constant (s^-1).
-    C : `ArrayLike` or `Callable`, default `135.`
-        Global connectivity scaling (dimensionless).
-    a1, a2, a3, a4 : `ArrayLike` or `Callable`, defaults `1., 0.8, 0.25, 0.25`
-        Connectivity parameters (dimensionless) used as in the equations above.
-    s_max : `ArrayLike` or `Callable`, default `2.5 * u.Hz`
-        Maximum firing rate for the sigmoid, units s^-1.
-    v0 : `ArrayLike` or `Callable`, default `6. * u.mV`
-        Sigmoid midpoint (mV).
-    r : `ArrayLike` or `Callable`, default `0.56`
-        Sigmoid steepness (dimensionless).
-    M_init, E_init, I_init : `Callable`, defaults `ZeroInit(unit=u.mV)`
-        Initializers for membrane potentials (mV).
-    Mv_init, Ev_init, Iv_init : `Callable`, defaults `ZeroInit(unit=u.mV/u.second)`
-        Initializers for potential derivatives (mV/s).
-    fr_scale : `Callable`, default `Identity()`
-        Optional scaling applied to firing-rate drives; receives rates in s^-1
-        and returns scaled rates.
-    noise_E, noise_I, noise_M : `Noise` or `None`, default `None`
-        Optional additive noise sources applied to `E_inp`, `I_inp`, and `M_inp`
-        respectively.
-    method : `str`, default `'exp_euler'`
-        Integrator name. `'exp_euler'` uses `brainstate.nn.exp_euler_step`; any
-        other value dispatches to `braintools.quad.ode_{method}_step`.
-
-    Notes
-    -----
-    - In this implementation `fr_scale` is applied to the firing-rate drive terms
-      and defaults to the identity.
-    - Variable naming: $(M, E, I)$ correspond to pyramidal, excitatory, and inhibitory
-      population membrane potentials (mV); $(M_v, E_v, I_v)$ are their time derivatives (mV/s).
-
-    References
-    ----------
-    - [1] Nunez P L, Srinivasan R. Electric fields of the brain: the neurophysics of EEG. Oxford University Press, 2006.
-    - [2] Jansen B H, Rit V G. Electroencephalogram and visual evoked potential generation in a mathematical model of coupled cortical columns. Biological Cybernetics, 1995, 73(4): 357–366.
-    - [3] David O, Friston K J. A neural mass model for MEG/EEG: coupling and neuronal dynamics. NeuroImage, 2003, 20(3): 1743–1755.
-    """
-    __module__ = 'brainmass'
-
-    def __init__(
-        self,
-        in_size: brainstate.typing.Size,
-        Ae: Parameter = 3.25 * u.mV,  # Excitatory gain
-        Ai: Parameter = 22. * u.mV,  # Inhibitory gain
-        be: Parameter = 100. * u.Hz,  # Excit. time const
-        bi: Parameter = 50. * u.Hz,  # Inhib. time const.
-        C: Parameter = 135.,  # Connect. const.
-        a1: Parameter = 1.,  # Connect. param.
-        a2: Parameter = 0.8,  # Connect. param.
-        a3: Parameter = 0.25,  # Connect. param
-        a4: Parameter = 0.25,  # Connect. param.
-        s_max: Parameter = 5.0 * u.Hz,  # Max firing rate
-        v0: Parameter = 6. * u.mV,  # Firing threshold
-        r: Parameter = 0.56,  # Sigmoid steepness
-        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        fr_scale: Callable = Identity(),
-        noise_E: Noise = None,
-        noise_I: Noise = None,
-        noise_M: Noise = None,
-        method: str = 'exp_euler'
-    ):
-        super().__init__(in_size)
-
-        # parameters
-        self.Ae = Param.init(Ae, self.varshape)
-        self.Ai = Param.init(Ai, self.varshape)
-        self.be = Param.init(be, self.varshape)
-        self.bi = Param.init(bi, self.varshape)
-        self.a1 = Param.init(a1, self.varshape)
-        self.a2 = Param.init(a2, self.varshape)
-        self.a3 = Param.init(a3, self.varshape)
-        self.a4 = Param.init(a4, self.varshape)
-        self.v0 = Param.init(v0, self.varshape)
-        self.C = Param.init(C, self.varshape)
-        self.r = Param.init(r, self.varshape)
-        self.s_max = Param.init(s_max, self.varshape)
-
-        # initialization
-        assert callable(M_init), 'M_init must be a callable function'
-        assert callable(E_init), 'E_init must be a callable function'
-        assert callable(I_init), 'I_init must be a callable function'
-        assert callable(Mv_init), 'Mv_init must be a callable function'
-        assert callable(Ev_init), 'Ev_init must be a callable function'
-        assert callable(Iv_init), 'Iv_init must be a callable function'
-        self.M_init = M_init
-        self.E_init = E_init
-        self.I_init = I_init
-        self.Mv_init = Mv_init
-        self.Ev_init = Ev_init
-        self.Iv_init = Iv_init
-
-        # noise
-        self.noise_E = noise_E
-        self.noise_I = noise_I
-        self.noise_M = noise_M
-
-        assert callable(fr_scale), 'fr_scale must be a callable function'
-        self.fr_scale = fr_scale
-        self.method = method
-
-    def init_state(self, batch_size=None, **kwargs):
-        self.M = HiddenState.init(self.M_init, self.varshape, batch_size)
-        self.E = HiddenState.init(self.E_init, self.varshape, batch_size)
-        self.I = HiddenState.init(self.I_init, self.varshape, batch_size)
-        self.Mv = HiddenState.init(self.Mv_init, self.varshape, batch_size)
-        self.Ev = HiddenState.init(self.Ev_init, self.varshape, batch_size)
-        self.Iv = HiddenState.init(self.Iv_init, self.varshape, batch_size)
-
-    def S(self, v):
-        # Sigmoid ranges from 0 to s_max, centered at v0
-        s_max = self.s_max.value()
-        v0 = self.v0.value()
-        r = self.r.value()
-        return s_max * jax.nn.sigmoid(-r * (v0 - v) / u.mV)
-
-    def dMv(self, Mv, M, E, I, inp):
-        # Pyramidal population driven by the difference of PSPs (no extra C here)
-        be = self.be.value()
-        Ae = self.Ae.value()
-        fr = self.S(E - I + inp)
-        return Ae * be * self.fr_scale(fr) - 2 * be * Mv - be ** 2 * M
-
-    def dEv(self, Ev, M, E, inp=0. * u.Hz):
-        # Excitatory interneuron population: A*a*(p + C2*S(C1*M)) - 2*a*y' - a^2*y
-        C = self.C.value()
-        a2 = self.a2.value()
-        a1 = self.a1.value()
-        Ae = self.Ae.value()
-        be = self.be.value()
-        s_M = C * a2 * self.S(C * a1 * M)
-        fr_total = self.fr_scale(inp + s_M)
-        return Ae * be * fr_total - 2 * be * Ev - be ** 2 * E
-
-    def dIv(self, Iv, M, I, inp):
-        # Inhibitory interneuron population: B*b*(C4*S(C3*M)) - 2*b*y' - b^2*y
-        C = self.C.value()
-        a3 = self.a3.value()
-        a4 = self.a4.value()
-        Ai = self.Ai.value()
-        bi = self.bi.value()
-        s_M = C * a4 * self.S(C * a3 * M + inp)
-        fr_total = self.fr_scale(s_M)
-        return Ai * bi * fr_total - 2 * bi * Iv - bi ** 2 * I
-
-    def derivative(self, state, t, M_inp, E_inp, I_inp):
-        M, E, I, Mv, Ev, Iv = state
-        dM = Mv
-        dE = Ev
-        dI = Iv
-        dMv = self.dMv(Mv, M, E, I, M_inp)
-        dEv = self.dEv(Ev, M, E, E_inp)
-        dIv = self.dIv(Iv, M, I, I_inp)
-        return (dM, dE, dI, dMv, dEv, dIv)
-
-    def update(
-        self,
-        M_inp=0. * u.mV,
-        E_inp=0. * u.Hz,
-        I_inp=0. * u.mV,
-    ):
-        M_inp = M_inp if self.noise_M is None else M_inp + self.noise_M()
-        E_inp = E_inp if self.noise_E is None else E_inp + self.noise_E()
-        I_inp = I_inp if self.noise_I is None else I_inp + self.noise_I()
-        if self.method == 'exp_euler':
-            dt = brainstate.environ.get_dt()
-            M = self.M.value + self.Mv.value * dt
-            E = self.E.value + self.Ev.value * dt
-            I = self.I.value + self.Iv.value * dt
-            Mv = exp_euler_step(self.dMv, self.Mv.value, self.M.value, self.E.value, self.I.value, M_inp)
-            Ev = exp_euler_step(self.dEv, self.Ev.value, self.M.value, self.E.value, E_inp)
-            Iv = exp_euler_step(self.dIv, self.Iv.value, self.M.value, self.I.value, I_inp)
-        else:
-            method = getattr(braintools.quad, f'ode_{self.method}_step')
-            state = (self.M.value, self.E.value, self.I.value, self.Mv.value, self.Ev.value, self.Iv.value)
-            M, E, I, Mv, Ev, Iv = method(self.derivative, state, 0. * u.ms, M_inp, E_inp, I_inp)
-        self.M.value = M
-        self.E.value = E
-        self.I.value = I
-        self.Mv.value = Mv
-        self.Ev.value = Ev
-        self.Iv.value = Iv
-        return self.eeg()
-
-    def eeg(self):
-        # EEG-like proxy: difference between excitatory and inhibitory PSPs at pyramidal
-        return self.E.value - self.I.value
 
 
 class JansenRit2Step(Dynamics):
@@ -371,10 +64,10 @@ class JansenRit2Step(Dynamics):
         c2: Parameter = 135 * 0.8,
         c3: Parameter = 135 * 0.25,
         c4: Parameter = 135 * 0.25,
-        kM: Parameter = 0.,
+        kP: Parameter = 0.,
         kE: Parameter = 0.,
         kI: Parameter = 0.,
-        noise_M: Noise = None,
+        noise_P: Noise = None,
         noise_E: Noise = None,
         noise_I: Noise = None,
         # other parameters
@@ -400,28 +93,28 @@ class JansenRit2Step(Dynamics):
         self.c2 = Param.init(c2, self.varshape)
         self.c3 = Param.init(c3, self.varshape)
         self.c4 = Param.init(c4, self.varshape)
-        self.kM = Param.init(kM, self.varshape)
+        self.kP = Param.init(kP, self.varshape)
         self.kE = Param.init(kE, self.varshape)
         self.kI = Param.init(kI, self.varshape)
         self.vmax = Param.init(vmax, self.varshape)
 
         self.noise_E = noise_E
         self.noise_I = noise_I
-        self.noise_M = noise_M
+        self.noise_P = noise_P
 
     def init_state(self, *args, **kwargs):
-        self.M = HiddenState.init(self.state_init, self.varshape)
+        self.P = HiddenState.init(self.state_init, self.varshape)
         self.E = HiddenState.init(self.state_init, self.varshape)
         self.I = HiddenState.init(self.state_init, self.varshape)
-        self.Mv = HiddenState.init(self.state_init, self.varshape)
+        self.Pv = HiddenState.init(self.state_init, self.varshape)
         self.Ev = HiddenState.init(self.state_init, self.varshape)
         self.Iv = HiddenState.init(self.state_init, self.varshape)
 
-    def update(self, M_inp=None, E_inp=None, I_inp=None):
-        M = self.M.value
+    def update(self, inp_P=None, inp_E=None, inp_I=None):
+        P = self.P.value
         E = self.E.value
         I = self.I.value
-        Mv = self.Mv.value
+        Pv = self.Pv.value
         Ev = self.Ev.value
         Iv = self.Iv.value
 
@@ -436,46 +129,45 @@ class JansenRit2Step(Dynamics):
         c2 = self.c2.value()
         c3 = self.c3.value()
         c4 = self.c4.value()
-        kM = self.kM.value()
+        kP = self.kP.value()
         kE = self.kE.value()
         kI = self.kI.value()
 
         # 计算各群体的发放率
-        rM = kM + sigmoid(E - I, vmax, v0, r)
-        if M_inp is not None:
-            rM = rM + M_inp
-        if self.noise_M is not None:
-            rM = rM + self.noise_M.update()
+        rP = kP + sigmoid(E - I, vmax, v0, r)
+        if inp_P is not None:
+            rP = rP + inp_P
+        if self.noise_P is not None:
+            rP = rP + self.noise_P.update()
 
-        rE = kE + c2 * sigmoid(c1 * M, vmax, v0, r)
-        if E_inp is not None:
-            rE = rE + E_inp
+        rE = kE + c2 * sigmoid(c1 * P, vmax, v0, r)
+        if inp_E is not None:
+            rE = rE + inp_E
         if self.noise_E is not None:
             rE = rE + self.noise_E.update()
 
-        rI = kI + c4 * sigmoid(c3 * M, vmax, v0, r)
-        if I_inp is not None:
-            rI = rI + I_inp
+        rI = kI + c4 * sigmoid(c3 * P, vmax, v0, r)
+        if inp_I is not None:
+            rI = rI + inp_I
         if self.noise_I is not None:
             rI = rI + self.noise_I.update()
 
         # Update the states by step-size.
         dt = brainstate.environ.get_dt()
-        ddM = M + dt * Mv / u.second
+        ddP = P + dt * Pv / u.second
         ddE = E + dt * Ev / u.second
         ddI = I + dt * Iv / u.second
-        ddMv = Mv + dt * sys2nd(A, a, bounded_input(rM, self.u_2ndsys_ub), M, Mv) / u.second
+        ddPv = Pv + dt * sys2nd(A, a, bounded_input(rP, self.u_2ndsys_ub), P, Pv) / u.second
         ddEv = Ev + dt * sys2nd(A, a, bounded_input(rE, self.u_2ndsys_ub), E, Ev) / u.second
         ddIv = Iv + dt * sys2nd(B, b, bounded_input(rI, self.u_2ndsys_ub), I, Iv) / u.second
 
         # Calculate the saturation for model states (for stability and gradient calculation).
         self.E.value = bounded_input(ddE, 1e3)
         self.I.value = bounded_input(ddI, 1e3)
-        self.M.value = bounded_input(ddM, 1e3)
+        self.P.value = bounded_input(ddP, 1e3)
         self.Ev.value = bounded_input(ddEv, 1e3)
         self.Iv.value = bounded_input(ddIv, 1e3)
-        self.Mv.value = bounded_input(ddMv, 1e3)
-        return self.E.value - self.I.value
+        self.Pv.value = bounded_input(ddPv, 1e3)
 
 
 class LaplacianConnectivity(Module):
@@ -484,7 +176,7 @@ class LaplacianConnectivity(Module):
 
     This class implements a three-pathway graph Laplacian coupling mechanism
     designed for spatially-extended Jansen-Rit neural mass networks. It computes
-    coupling inputs for the pyramidal (M), excitatory (E), and inhibitory (I)
+    coupling inputs for the pyramidal (P), excitatory (E), and inhibitory (I)
     populations based on delayed activity from connected regions.
 
     Mathematical Model
@@ -523,7 +215,7 @@ class LaplacianConnectivity(Module):
     .. math::
 
         \begin{aligned}
-        \text{inp}_M &= \text{LE}_l + \text{dg}_l \\
+        \text{inp}_P &= \text{LE}_l + \text{dg}_l \\
         \text{inp}_E &= \text{LE}_f + \text{dg}_f \\
         \text{inp}_I &= -(\text{LE}_b + \text{dg}_b)
         \end{aligned}
@@ -532,7 +224,7 @@ class LaplacianConnectivity(Module):
 
     - For lateral pathway: :math:`y_i = \text{EEG}_i = E_i - I_i` (difference of
       excitatory and inhibitory PSPs)
-    - For feedforward pathway: :math:`y_i = M_i` (pyramidal membrane potential)
+    - For feedforward pathway: :math:`y_i = P_i` (pyramidal membrane potential)
     - For feedback pathway: :math:`y_i = \text{EEG}_i = E_i - I_i`
 
     Parameters
@@ -540,7 +232,7 @@ class LaplacianConnectivity(Module):
     delayed_x : Prefetch
         Delayed inter-regional signal accessor, typically returning the delayed
         EEG-like proxy (:math:`E - I`) with shape ``(n_regions,)`` or batched.
-    M : Prefetch
+    P : Prefetch
         Accessor for pyramidal population membrane potential with shape ``(n_regions,)``.
     E : Prefetch
         Accessor for excitatory interneuron postsynaptic potential with shape ``(n_regions,)``.
@@ -592,7 +284,7 @@ class LaplacianConnectivity(Module):
     def __init__(
         self,
         delayed_x: Prefetch,
-        M: Prefetch,
+        P: Prefetch,
         E: Prefetch,
         I: Prefetch,
         sc: Array,
@@ -607,7 +299,7 @@ class LaplacianConnectivity(Module):
         super().__init__()
 
         self.delayed_x = delayed_x
-        self.M = M
+        self.P = P
         self.E = E
         self.I = I
 
@@ -630,7 +322,7 @@ class LaplacianConnectivity(Module):
     @brainstate.nn.call_order(2)
     def init_state(self, *args, **kwargs):
         init_maybe_prefetch(self.delayed_x)
-        init_maybe_prefetch(self.M)
+        init_maybe_prefetch(self.P)
         init_maybe_prefetch(self.E)
         init_maybe_prefetch(self.I)
 
@@ -673,8 +365,16 @@ class LaplacianConnectivity(Module):
         return g_l * LEd_l, g_f * LEd_f, -g_b * LEd_b
 
     def update_step(self, *args, **kwargs) -> Tuple[Array, Array, Array]:
-        """
-        Compute Laplacian coupling inputs for pyramidal, excitatory, and inhibitory populations.
+        """Compute Laplacian coupling inputs for pyramidal, excitatory, and inhibitory populations.
+
+        Returns
+        -------
+        inp_P : ArrayLike
+            Input to pyramidal population from lateral pathway.
+        inp_E : ArrayLike
+            Input to excitatory interneurons from feedforward pathway.
+        inp_I : ArrayLike
+            Input to inhibitory interneurons from feedback pathway (negated).
         """
         # Get pathway gains
         g_l = self.g_l.value()
@@ -687,18 +387,18 @@ class LaplacianConnectivity(Module):
         w_n_l, dg_l = self.w_ll.value()  # lateral pathway weights (symmetric normalized via precompute)
 
         # Get local population states
-        M = self.M()
+        P = self.P()
         E = self.E()
         I = self.I()
         eeg = E - I  # EEG-like proxy (difference of excitatory and inhibitory PSPs)
 
         # Combine LE and dg terms for each population
-        inp_M = g_l * dg_l * M  # pyramidal population (lateral pathway)
+        inp_P = g_l * dg_l * P  # pyramidal population (lateral pathway)
         inp_E = g_f * dg_f * eeg  # excitatory interneurons (feedforward pathway)
         inp_I = -g_b * dg_b * eeg  # inhibitory interneurons (feedback pathway)
 
         # Return inputs for pyramidal, excitatory, and inhibitory populations
-        return inp_M, inp_E, inp_I
+        return inp_P, inp_E, inp_I
 
 
 class JansenRit2TR(Dynamics):
@@ -765,7 +465,7 @@ class JansenRit2TR(Dynamics):
             state_saturation=state_saturation,
             input_saturation=input_saturation,
             state_init=state_init,
-            noise_M=GaussianNoise(in_size, sigma=std_in) if std_in is not None else None,
+            noise_P=GaussianNoise(in_size, sigma=std_in) if std_in is not None else None,
             noise_E=GaussianNoise(in_size, sigma=std_in) if std_in is not None else None,
             noise_I=GaussianNoise(in_size, sigma=std_in) if std_in is not None else None,
         )
@@ -783,7 +483,7 @@ class JansenRit2TR(Dynamics):
         # connectivity
         self.conn = LaplacianConnectivity(
             self.delay_access,
-            self.step.prefetch('M'),
+            self.step.prefetch('P'),
             self.step.prefetch('E'),
             self.step.prefetch('I'),
             sc=sc,
@@ -798,24 +498,24 @@ class JansenRit2TR(Dynamics):
 
     def update(self, inputs: Array, record_state: bool = False):
         k = self.k.value()
-        inp_M_tr, inp_E_tr, inp_I_tr = self.conn.update_tr()
+        inp_P_tr, inp_E_tr, inp_I_tr = self.conn.update_tr()
 
         def step(inp):
             ext = k * inp
-            inp_M_step, inp_E_step, inp_I_step = self.conn.update_step()
+            inp_P_step, inp_E_step, inp_I_step = self.conn.update_step()
             self.step.update(
-                inp_M_tr + inp_M_step + ext,
+                inp_P_tr + inp_P_step + ext,
                 inp_E_tr + inp_E_step,
                 inp_I_tr + inp_I_step
             )
 
         assert inputs.ndim == 2, f'Expected inputs to be 2D array, but got {inputs.ndim}D array.'
         brainstate.transform.for_loop(step, inputs)
-        self.delay.update(self.step.M.value)
+        self.delay.update(self.step.P.value)
         activity = self.step.E.value - self.step.I.value
 
         if record_state:
-            state = dict(M=self.step.M.value, E=self.step.E.value, I=self.step.I.value)
+            state = dict(P=self.step.P.value, E=self.step.E.value, I=self.step.I.value)
             return activity, state
 
         return activity

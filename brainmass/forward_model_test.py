@@ -1,5 +1,5 @@
 """
-Tests for _forward_model.py
+Tests for forward_model.py
 
 Covers:
 - LeadFieldModel forward mapping with units and shapes

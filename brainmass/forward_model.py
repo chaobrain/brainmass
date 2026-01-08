@@ -22,7 +22,7 @@ import jax
 import jax.numpy as jnp
 from brainstate import nn
 
-from ._typing import Parameter
+from .typing import Parameter
 
 Array = jax.Array
 Quantity = u.Quantity

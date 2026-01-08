@@ -20,8 +20,8 @@ import braintools
 import brainunit as u
 from brainstate.nn import Dynamics, Param
 
-from ._noise import Noise
-from ._typing import Parameter 
+from .noise import Noise
+from .typing import Parameter
 
 __all__ = [
     'ThresholdLinearStep',

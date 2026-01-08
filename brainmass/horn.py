@@ -16,15 +16,15 @@
 import math
 from typing import Callable, Sequence, Optional
 
-import brainunit as u
+import brainstate
 import braintools.init
+import brainunit as u
 import jax.numpy as jnp
 import numpy as np
-
-import brainstate
 from brainstate.nn import Param, Module, Dynamics
-from ._coupling import AdditiveCoupling
-from ._typing import Initializer, Parameter
+
+from .coupling import AdditiveCoupling
+from .typing import Initializer, Parameter
 
 __all__ = [
     'HORNStep',
@@ -115,9 +115,6 @@ class HORNStep(Dynamics):
     y : brainstate.HiddenState
         Velocity state vector. Shape equals ``in_size`` after ``init_state``.
         Represents the time derivative of the position state.
-    gain_rec : float
-        Recurrent gain scaling factor, computed as :math:`1/\sqrt{n}` where :math:`n`
-        is the first dimension of ``in_size``. Normalizes recurrent inputs by network size.
 
     Notes
     -----
@@ -156,7 +153,6 @@ class HORNStep(Dynamics):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # Amplitude feedback
-        recurrent_fn: Callable = zeros,  # Velocity feedback
         state_init: Initializer = braintools.init.ZeroInit(),
     ):
         super().__init__(in_size)
@@ -165,9 +161,7 @@ class HORNStep(Dynamics):
         self.omega = Param.init(omega, self.in_size)
         self.gamma = Param.init(gamma, self.in_size)
         self.v = Param.init(v, self.in_size)
-        self.gain_rec = 1. / math.sqrt(self.in_size[0])
         self.state_init = state_init
-        self.recurrent_fn = recurrent_fn
 
     def init_state(self, *args, **kwargs):
         """Initialize position and velocity states for the HORN oscillators.
@@ -211,20 +205,21 @@ class HORNStep(Dynamics):
         compared to standard forward Euler integration.
         """
 
-        # current states and parameters
+        # current states
         y = self.y.value
         x = self.x.value
+
+        # current parameters
+        v = self.v.value()
         omega_factor = self.omega.value() ** 2
         gamma_factor = 2.0 * self.gamma.value()
-        v = self.v.value()
         alpha = self.alpha.value()
         dt = brainstate.environ.get_dt()
 
         # 1. integrate y_t
         # external input + recurrent input from network
-        inp = (inputs + self.gain_rec * (self.recurrent_fn(y) + v * x))
         y_t = y + dt * (
-            alpha * jnp.tanh(inp)  # input (forcing) on y_t
+            alpha * jnp.tanh(inputs + v * x)  # input (forcing) on y_t
             - omega_factor * x  # natural frequency term
             - gamma_factor * y  # damping term
         ) / u.ms
@@ -235,6 +230,22 @@ class HORNStep(Dynamics):
         self.x.value = x_t
         self.y.value = y_t
         return x_t
+
+
+class LinearRecStep(brainstate.nn.Module):
+    pass
+
+
+class DelayedLinearRecStep(brainstate.nn.Module):
+    pass
+
+
+class DelayedLinearRecTR(brainstate.nn.Module):
+    pass
+
+
+class HORN_TR(Module):
+    pass
 
 
 class HORNSeqLayer(Module):
@@ -372,7 +383,6 @@ class HORNSeqLayer(Module):
                 self.horn.prefetch_delay('y', delay_time, neuron_idx, init=braintools.init.ZeroInit()),
                 Param(braintools.init.param(self.rec_w_init, (n_hidden, n_hidden))),
             )
-        self.horn.recurrent_fn = self.h2h
 
     def update(self, inputs, record_state: bool = False):
         """Process a sequence through the HORN layer.
@@ -407,7 +417,8 @@ class HORNSeqLayer(Module):
         """
 
         def step(inp):
-            out = self.horn(inp)
+            rec = self.h2h(self.horn.y.value)
+            out = self.horn(inp + rec)
             st = dict(x=self.horn.x.value, y=self.horn.y.value)
             return (st, out) if record_state else out
 

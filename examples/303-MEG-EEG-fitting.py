@@ -14,6 +14,7 @@
 # ==============================================================================
 import functools
 import os
+import pickle
 from typing import Union, Callable
 
 import brainstate
@@ -21,6 +22,8 @@ import braintools
 import brainunit as u
 import jax.tree
 import matplotlib.pyplot as plt
+import mne
+import nibabel
 import numpy as np
 import pandas as pd
 from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT
@@ -36,7 +39,7 @@ Initializer = Union[Callable, brainstate.typing.ArrayLike]
 brainstate.environ.set(dt=0.0001 * u.second)
 
 
-def get_data():
+def get_language_data():
     # We use an example dataset for one subject on a public Google Drive folder
     output_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_ismail2025/'
 
@@ -76,7 +79,281 @@ def get_data():
     ki0 = np.zeros(node_size)
     ki0[[2, 183, 5]] = 1
 
-    return lm, sc, dist, data_verb, data_noise, ki0
+    uu = np.zeros((data_verb.shape[0], node_size))
+    uu[100:140] = ki0
+
+    return lm, sc, dist, data_verb, uu
+
+
+def get_hdeeg_data():
+    # Select the session number to use:
+    # Please do not change it as we are using subject-specific anatomy
+    ses2use = 10
+
+    # download data
+    data_folder = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
+
+    # Load Schaefer 200-parcel atlas data
+    atlas200_file = os.path.join(data_folder, 'Schaefer2018_200Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
+    atlas200 = pd.read_csv(atlas200_file)
+
+    # Load Schaefer 1000-parcel atlas data
+    atlas1000_file = os.path.join(
+        data_folder, 'Schaefer2018_1000Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
+    atlas1000 = pd.read_csv(atlas1000_file)
+
+    # load the structural connectivity file
+    sc_file = os.path.join(data_folder, 'Schaefer2018_200Parcels_7Networks_count.csv')
+
+    # distance file
+    dist_file = os.path.join(data_folder, 'Schaefer2018_200Parcels_7Networks_distance.csv')
+
+    # Load the precomputed EEG evoked response data from a file
+    all_eeg_evoked = np.load(data_folder + '/empirical_data/all_eeg_evoked.npy')
+
+    # Read the epoch data from an MNE-formatted file
+    epo_eeg = mne.read_epochs(data_folder + '/empirical_data/example_epoched.fif', verbose=False)
+
+    # Compute the average evoked response from the epochs
+    evoked = epo_eeg.average()
+
+    # Replace the data of the averaged evoked response with data from the selected session
+    evoked.data = all_eeg_evoked[ses2use]
+
+    # Load additional data from pickle files
+    with open(data_folder + '/empirical_data/all_epo_seeg.pkl', 'rb') as handle:
+        all_epo_seeg = pickle.load(handle)
+    with open(data_folder + '/empirical_data/dist_Schaefer_1000parcels_7net.pkl', 'rb') as handle:
+        dist_Schaefer_1000parcels_7net = pickle.load(handle)
+
+    # Extract the stimulation region data from the loaded pickle file
+    stim_region = dist_Schaefer_1000parcels_7net['stim_region']
+
+    # Extract coordinates and ROI labels from the atlas data
+    coords_200 = np.array([atlas200['R'], atlas200['A'], atlas200['S']]).T
+    label = atlas200['ROI Name']
+
+    # Remove network names from the ROI labels for clarity
+    label_stripped_200 = []
+    for xx in range(len(label)):
+        label_stripped_200.append(label[xx].replace('7Networks_', ''))
+
+    # Extract coordinates and ROI labels from the atlas data
+    coords_1000 = np.array([atlas1000['R'], atlas1000['A'], atlas1000['S']]).T
+    ROI_Name = atlas1000['ROI Name']
+
+    # Remove network names from the ROI labels for clarity
+    label_stripped_1000 = []
+    for xx in range(len(ROI_Name)):
+        label_stripped_1000.append(ROI_Name[xx].replace('7Networks_', ''))
+
+    # Find the index of the stimulation region in the list of stripped ROI labels (1000 parcels)
+    stim_idx = label_stripped_1000.index(stim_region[ses2use])
+
+    # Use the index to get the coordinates of the stimulation region from the 1000-parcel atlas
+    stim_coords = coords_1000[stim_idx]
+
+    # Extract the network name from the stimulation region label
+    # The network name is the part after the underscore in the stimulation region label
+    stim_net = stim_region[ses2use].split('_')[1]
+
+    # python
+    # vectorized Euclidean distances between coords_200 (N,3) and stim_coords (3,)
+    coords_200 = np.asarray(coords_200)  # ensure array shape (N,3)
+    stim_coords = np.ravel(stim_coords)  # ensure shape (3,)
+
+    # fast, memory-friendly:
+    distances = np.linalg.norm(coords_200 - stim_coords, axis=1)
+
+    # Iterate over the indices of the distances array, sorted in ascending order
+    for idx, item in enumerate(np.argsort(distances)):
+        # Check if the network name of the stimulation region is present in the label of the current parcel
+        if stim_net in label_stripped_200[item]:
+            # If the condition is met, assign the index
+            # of the current parcel to `parcel2inject`
+            parcel2inject = item
+            # Exit the loop since the desired parcel has been found
+            break
+
+    # pick session array, take absolute and ensure float for safe in-place ops
+    keys = list(all_epo_seeg.keys())
+    abs_value = np.abs(all_epo_seeg[keys[ses2use]]).astype(np.float64, copy=False)
+
+    # subtract per-channel mean using broadcasting (axis=1 = channels/rows)
+    abs_value -= abs_value.mean(axis=1, keepdims=True)
+
+    # take absolute of the demeaned signals
+    abs_value = np.abs(abs_value)
+
+    # Find the starting and ending points around the maximum value in the data
+    # Get the index of the maximum value along the time axis
+    starting_point = np.where(abs_value == abs_value.max())[1][0] - 10
+    ending_point = np.where(abs_value == abs_value.max())[1][0] + 10
+
+    # Compute the maximum, mean, and standard deviation of the data within the range around the maximum
+    mean = np.mean(abs_value[:, starting_point:ending_point])
+    std = np.std(abs_value[:, starting_point:ending_point])
+
+    # Define a threshold as mean + 4 times the standard deviation
+    thr = mean + (4 * std)
+
+    # Count the number of unique regions affected by the threshold
+    number_of_region_affected = np.unique(np.where(abs_value > thr)[0]).shape[0]
+
+    # Load the rewritten Schaeffer 200 parcels
+    img = nibabel.load(data_folder + '/calculate_distance/example_Schaefer2018_200Parcels_7Networks_rewritten.nii')
+
+    # Get the shape and affine matrix of the image
+    shape, affine = img.shape[:3], img.affine
+
+    # Create a meshgrid of voxel coordinates
+    coords = np.array(np.meshgrid(*(range(i) for i in shape), indexing='ij'))
+
+    # Rearrange the coordinates array to have the correct shape
+    coords = np.rollaxis(coords, 0, len(shape) + 1)
+
+    # Apply the affine transformation to get the coordinates in millimeters
+    mm_coords = nibabel.affines.apply_affine(affine, coords)
+
+    data = np.asarray(img.get_fdata(), dtype=np.int32)  # label image (voxel values = parcel indices)
+    coords_flat = mm_coords.reshape(-1, 3)  # shape (n_voxels, 3)
+    labels_flat = data.ravel()  # shape (n_voxels,)
+
+    n_parcels = 200
+    minlength = max(int(labels_flat.max()) + 1, n_parcels + 1)  # ensure we have bins up to 200
+
+    # sum coordinates per label for each axis using bincount
+    sums = np.vstack([
+        np.bincount(labels_flat, weights=coords_flat[:, 0], minlength=minlength),
+        np.bincount(labels_flat, weights=coords_flat[:, 1], minlength=minlength),
+        np.bincount(labels_flat, weights=coords_flat[:, 2], minlength=minlength),
+    ])  # shape (3, minlength)
+
+    # voxel counts per label
+    counts = np.bincount(labels_flat, minlength=minlength)  # shape (minlength,)
+
+    # compute centroids (keep zeros for labels with no voxels to match original initialization)
+    centroids = np.zeros((3, minlength), dtype=float)
+    nonzero = counts > 0
+    centroids[:, nonzero] = sums[:, nonzero] / counts[nonzero]
+
+    # extract parcels 1..200 into sub_coords with shape (3, 200)
+    sub_coords = centroids[:, 1:n_parcels + 1].copy()
+
+    # Vectorized Euclidean distances between each parcel centroid and the parcel to inject
+    coords = sub_coords.T.astype(float)  # shape: (n_parcels, 3)
+    center = sub_coords[:, parcel2inject].astype(float)  # shape: (3,)
+    distances = np.linalg.norm(coords - center, axis=1)  # shape: (n_parcels,)
+
+    # Find the indices of the closest parcels to inject, based on the number of affected regions
+    inject_stimulus = np.argsort(distances)[:number_of_region_affected]
+
+    # Compute stimulus weights based on the distances
+    # Adjust distances to a scale of 0 to 1 and calculate the values for the stimulus weights
+    values = (np.max(distances[inject_stimulus] / 10) + 0.5) - (distances[inject_stimulus] / 10)
+
+    # Initialize an array for stimulus weights with zeros
+    stim_weights_thr = np.zeros((len(label)))
+
+    # Assign the computed values to the stimulus weights for the selected parcels
+    stim_weights_thr[inject_stimulus] = values
+
+    old_path = data_folder + "/anatomical/example-bem"
+    new_path = data_folder + "/anatomical/example-bem.fif"  # CS
+    if not os.path.exists(new_path):
+        os.rename(old_path, new_path)
+        print(f"Renamed {old_path} to {new_path}")
+
+    # File paths for transformation, source space, and BEM files
+    trans = data_folder + '/anatomical/example-trans.fif'
+    src = data_folder + '/anatomical/example-src.fif'
+    bem = data_folder + '/anatomical/example-bem.fif'
+
+    # Create a forward solution using the provided transformation, source space, and BEM files
+    # Only EEG is used here; MEG is disabled
+    fwd = mne.make_forward_solution(
+        epo_eeg.info,
+        trans=trans,
+        src=src,
+        bem=bem,
+        meg=False,
+        eeg=True,
+        mindist=5.0,
+        n_jobs=2,
+        verbose=False,
+    )
+
+    # Convert the forward solution to a fixed orientation with surface orientation
+    fwd_fixed = mne.convert_forward_solution(fwd, surf_ori=True, force_fixed=True, use_cps=True)
+    # Update the leadfield matrix to use the fixed orientation
+    leadfield = fwd_fixed['sol']['data']
+
+    # Extract vertex indices for each hemisphere from the forward solution
+    vertices = [src_hemi['vertno'] for src_hemi in fwd_fixed['src']]
+
+    # Read annotation files for left and right hemispheres
+    lh_vertices = nibabel.freesurfer.io.read_annot(
+        data_folder + '/anatomical/lh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
+    rh_vertices = nibabel.freesurfer.io.read_annot(
+        data_folder + '/anatomical/rh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
+
+    # Extract vertices corresponding to the parcels from the annotation files
+    # Add 100 to right hemisphere vertices to adjust for parcel numbering
+    lh_vertices_thr = lh_vertices[vertices[0]]
+    rh_vertices_thr = rh_vertices[vertices[1]] + 100
+    # Combine left and right hemisphere vertices into a single array
+    vertices_thr = np.concatenate([lh_vertices_thr, rh_vertices_thr])
+
+    # python
+    labels = np.asarray(vertices_thr, dtype=np.int64)  # parcel labels per vertex
+    n_parcels = 200
+    minlength = n_parcels + 1  # include label 0
+
+    # Sum leadfield values per label for each channel using np.bincount
+    sums = np.vstack([
+        np.bincount(labels, weights=leadfield[ch], minlength=minlength)
+        for ch in range(leadfield.shape[0])
+    ])  # shape: (channels, minlength)
+
+    # Counts per label
+    counts = np.bincount(labels, minlength=minlength)  # shape: (minlength,)
+
+    # Take only parcels 1..200 and compute safe mean (avoid divide-by-zero)
+    sums_sub = sums[:, 1:n_parcels + 1]  # shape: (channels, n_parcels)
+    counts_sub = counts[1:n_parcels + 1]  # shape: (n_parcels,)
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        new_leadfield = sums_sub / counts_sub[np.newaxis, :]  # shape: (channels, n_parcels)
+
+    # Set columns with zero counts to zero (no vertices for that parcel)
+    zero_mask = counts_sub == 0
+    if np.any(zero_mask):
+        new_leadfield[:, zero_mask] = 0.0
+
+    # Load structural connectivity data from a CSV file
+    sc_df = pd.read_csv(sc_file, header=None, sep=' ')
+    sc = sc_df.values
+    # Apply log transformation and normalization to the structural connectivity matrix
+    sc = np.log1p(sc) / np.linalg.norm(np.log1p(sc))
+
+    # Load the distance data from the saved CSV file
+    dist_df = pd.read_csv(dist_file, header=None, sep=' ')
+    dist = dist_df.values
+
+    # Initialize the stimulus weights for further processing
+    ki0 = stim_weights_thr
+
+    # Extract and normalize EEG data from the evoked response
+    eeg_data = evoked.data
+    eeg_data = eeg_data[:, 200:600].T / (np.abs(eeg_data)).max() * 2
+
+    # Initialize the leadfield matrix for the model
+    lm = new_leadfield.copy() / 10
+
+    # Apply stimulus at time steps 65-75
+    uu = np.zeros((eeg_data.shape[0], dist.shape[0]))
+    uu[65:75] = ki0
+    return lm, sc, dist, eeg_data, uu
 
 
 class BrainModelTR(brainstate.nn.Module):
@@ -100,9 +377,7 @@ class BrainModelTR(brainstate.nn.Module):
         self.dt_per_tr = int(tr / brainstate.environ.get_dt())
 
     def update(self, tr_inputs, record_state: bool = False):
-        def fn_tr(inp_tr):
-            inp_steps = u.math.tile(u.math.expand_dims(inp_tr, 0), (self.dt_per_tr,) + (1,) * inp_tr.ndim)
-            return self.dynamics(inp_steps, record_state=record_state)
+        fn_tr = lambda inp_tr: self.dynamics(inp_tr, record_state=record_state)
 
         if record_state:
             activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
@@ -131,6 +406,7 @@ class HORN_TR(brainstate.nn.Dynamics):
         v: Parameter = 0.0,  # feedback
         state_init: Callable = braintools.init.ZeroInit(),
         delay_init: Callable = braintools.init.ZeroInit(),
+        tr: u.Quantity = 1e-3 * u.second,
     ):
         super().__init__(n_hidden)
 
@@ -138,16 +414,19 @@ class HORN_TR(brainstate.nn.Dynamics):
         dynamics = brainmass.HORNStep(
             n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
         delay_time = dist / mu * brainstate.environ.get_dt()
-        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
-        h2h = brainmass.AdditiveCoupling(
-            dynamics.prefetch_delay('y', delay_time, neuron_idx, init=delay_init),
+        self.h2h = brainmass.AdditiveCoupling(
+            dynamics.prefetch_delay('y', delay_time, brainmass.delay_index(n_hidden), init=delay_init),
             brainmass.LaplacianConnParam(sc),
         )
-        dynamics.recurrent_fn = h2h
         self.dynamics = dynamics
+        self.tr = tr
 
     def update(self, inputs, record_state: bool = False):
-        brainstate.transform.for_loop(self.dynamics, inputs)
+        def step(i):
+            self.dynamics(self.h2h() + inputs)
+
+        n_step = int(self.tr / brainstate.environ.get_dt())
+        brainstate.transform.for_loop(step, np.arange(n_step))
         if record_state:
             return self.dynamics.x.value, {'x': self.dynamics.x.value, 'y': self.dynamics.y.value}
         else:
@@ -222,7 +501,7 @@ class HORNNetworkTR(BrainModelTR):
         super().__init__(dynamics, leadfield, tr=tr)
 
 
-class JansenRit2NetworkTR(BrainModelTR):
+class JansenRitNetworkTR(BrainModelTR):
     """
     Jansen-Rit neural mass network for EEG simulation.
     """
@@ -244,28 +523,9 @@ class JansenRit2NetworkTR(BrainModelTR):
         # other parameters
         tr: u.Quantity = 0.001 * u.second,
     ):
-        # A = Const(3.25, t=ReluT(), reg=GaussianReg(3.25, 0.1, fit_hyper=True))
-        # a = Const(101, t=ReluT(1.), reg=GaussianReg(101, 1.0, fit_hyper=True))
-        # B = Const(22, t=ReluT(), reg=GaussianReg(22, 0.5, fit_hyper=True))
-        # b = Const(51, t=ReluT(1.), reg=GaussianReg(51, 1.0, fit_hyper=True))
-        # g_l = Const(400, t=ReluT(0.01), reg=GaussianReg(400, 1.0, fit_hyper=True))
-        # g_f = Const(10, t=ReluT(0.01), reg=GaussianReg(10, 1.0, fit_hyper=True))
-        # g_b = Const(10, t=ReluT(0.01), reg=GaussianReg(10, 1.0, fit_hyper=True))
-        # c1 = Const(135, t=ReluT(0.01), reg=GaussianReg(135, 1.0, fit_hyper=True))
-        # c2 = Const(135 * 0.8, t=ReluT(0.01), reg=GaussianReg(135 * 0.8, 1.0, fit_hyper=True))
-        # c3 = Const(135 * 0.25, t=ReluT(0.01), reg=GaussianReg(135 * 0.25, 1.0, fit_hyper=True))
-        # c4 = Const(135 * 0.25, t=ReluT(0.01), reg=GaussianReg(135 * 0.25, 1.0, fit_hyper=True))
-        A = Const(3.25)
-        a = Const(101)
-        B = Const(22)
-        b = Const(51)
         g_l = Const(400)
         g_f = Const(10)
         g_b = Const(10)
-        c1 = Const(135)
-        c2 = Const(135 * 0.8)
-        c3 = Const(135 * 0.25)
-        c4 = Const(135 * 0.25)
         # std_in uses ExpT (no reg in original code)
         std_in = Param(6.0, t=ExpT(5.0))
         # Fixed parameters
@@ -287,31 +547,15 @@ class JansenRit2NetworkTR(BrainModelTR):
         state_init = braintools.init.Uniform(-0.01, 0.01)
         delay_init = braintools.init.Uniform(-0.01, 0.01)
 
-        dynamics = brainmass.JansenRit2TR(
+        dynamics = brainmass.JansenRitTR(
             in_size=node_size,
-
-            # dynamics parameters
-            A=A,
-            a=a,
-            B=B,
-            b=b,
-            vmax=vmax,
-            v0=v0,
-            r=r,
-            c1=c1,
-            c2=c2,
-            c3=c3,
-            c4=c4,
-            std_in=std_in,
-            kE=kE,
-            kI=kI,
-            k=k,
 
             # distance parameters
             delay=dist / mu,
 
             # structural parameters
             sc=sc,
+            k=k,
             w_ll=w_ll,
             w_ff=w_ff,
             w_bb=w_bb,
@@ -412,6 +656,7 @@ def visualize_state_output(
     data_target,
     sc=None,
     node_indices=None,
+    stimulus_window=None,
     mode='comprehensive',
     show_statistics=False,
     show=True
@@ -422,7 +667,7 @@ def visualize_state_output(
     Parameters
     ----------
     state_output : dict
-        Dictionary containing state variables (e.g., 'P', 'E', 'I') with shape (time_steps, node_size)
+        Dictionary containing state variables (e.g., 'M', 'E', 'I') with shape (time_steps, node_size)
     eeg_output : np.ndarray
         Predicted MEG/EEG signals with shape (time_steps, channels)
     data_target : np.ndarray
@@ -430,7 +675,10 @@ def visualize_state_output(
     sc : np.ndarray, optional
         Structural connectivity matrix (node_size, node_size). Required for 'representative' mode.
     node_indices : list, optional
-        List of node indices to highlight. Default: [2, 183, 5]
+        List of node indices to highlight. Default: automatically selected from sc if available,
+        otherwise [2, 183, 5]
+    stimulus_window : tuple, optional
+        Tuple of (start_time, end_time) for stimulus window in milliseconds. Default: (100, 140)
     mode : str, optional
         Visualization mode: 'comprehensive' (12-panel overview), 'representative' (4-panel focused view),
         or 'both' (show both). Default: 'comprehensive'
@@ -444,8 +692,10 @@ def visualize_state_output(
     fig or tuple of figs
         The created figure(s)
     """
-    if node_indices is None:
-        node_indices = [2, 183, 5]
+    if stimulus_window is None:
+        stimulus_window = (100, 140)
+
+    stim_start, stim_end = stimulus_window
 
     # Extract states and convert to numpy
     state_output, eeg_output, data_target = jax.tree.map(
@@ -457,35 +707,46 @@ def visualize_state_output(
     node_size = state_output[keys[0]].shape[1]
     time_ms = np.arange(time_steps) * 1.0  # TR = 1ms
 
+    # Set default node_indices if not provided
+    if node_indices is None:
+        if sc is not None:
+            # Auto-select representative nodes based on connectivity
+            node_degree = np.sum(sc, axis=1)
+            # Select top 3 connected nodes
+            node_indices = np.argsort(node_degree)[-3:].tolist()
+        else:
+            # Default fallback
+            node_indices = [2, 183, 5] if node_size > 183 else list(range(min(3, node_size)))
+
     # Helper function: Select representative nodes
-    def select_representative_nodes(sc_mat, n_nodes=8):
+    def select_representative_nodes(sc_mat, primary_nodes, n_nodes=8):
         """Select representative nodes based on connectivity and spatial distribution."""
         node_degree = np.sum(sc_mat, axis=1)
-        auditory_nodes = [2, 183, 5]
-        available = [i for i in range(node_size) if i not in auditory_nodes]
+        available = [i for i in range(node_size) if i not in primary_nodes]
 
         hub_idx = available[np.argmax(node_degree[available])]
         peripheral_idx = available[np.argmin(node_degree[available])]
 
-        excluded = set(auditory_nodes + [hub_idx, peripheral_idx])
+        excluded = set(primary_nodes + [hub_idx, peripheral_idx])
         spatial_candidates = [i for i in range(node_size) if i not in excluded]
 
-        early_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - 30))]
-        middle_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - 94))]
-        late_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - 160))]
+        # Select spatially distributed nodes
+        early_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.15))]
+        middle_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.47))]
+        late_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.80))]
 
-        indices = auditory_nodes + [hub_idx, peripheral_idx, early_spatial, middle_spatial, late_spatial]
+        indices = primary_nodes + [hub_idx, peripheral_idx, early_spatial, middle_spatial, late_spatial]
         labels = [
-            f'Auditory-1 (N{auditory_nodes[0]})',
-            f'Auditory-2 (N{auditory_nodes[1]})',
-            f'Auditory-3 (N{auditory_nodes[2]})',
+            f'Primary-1 (N{primary_nodes[0]})',
+            f'Primary-2 (N{primary_nodes[1]})',
+            f'Primary-3 (N{primary_nodes[2]})',
             f'Hub (N{hub_idx})',
             f'Peripheral (N{peripheral_idx})',
             f'Early (N{early_spatial})',
             f'Middle (N{middle_spatial})',
             f'Late (N{late_spatial})'
         ]
-        types = ['auditory', 'auditory', 'auditory', 'hub', 'peripheral', 'spatial', 'spatial', 'spatial']
+        types = ['primary', 'primary', 'primary', 'hub', 'peripheral', 'spatial', 'spatial', 'spatial']
         colors = ['darkred', 'red', 'lightcoral', 'blue', 'green', 'darkgray', 'gray', 'lightgray']
 
         return {'indices': indices, 'labels': labels, 'types': types, 'colors': colors}
@@ -506,10 +767,10 @@ def visualize_state_output(
 
             for state_name in keys:
                 state = state_output[state_name][:, node_idx]
-                peak_val = np.max(np.abs(state))
-                peak_time = np.argmax(np.abs(state))
-                mean_val = np.mean(state)
-                std_val = np.std(state)
+                peak_val = u.math.max(u.math.abs(state))
+                peak_time = u.math.argmax(u.math.abs(state))
+                mean_val = u.math.mean(state)
+                std_val = u.math.std(state)
 
                 print(f"  {state_name} State:")
                 print(f"    Peak Value: {peak_val:>10.4f}  (at t={peak_time} ms)")
@@ -526,6 +787,7 @@ def visualize_state_output(
         # Row 1: Time series plots for selected nodes
         colors = plt.cm.viridis(np.linspace(0, 1, len(node_indices)))
         for col, (name, state) in enumerate(state_output.items()):
+            state = u.get_magnitude(state)
             ax = fig.add_subplot(gs[0, col])
             for idx, node_idx in enumerate(node_indices):
                 ax.plot(time_ms, state[:, node_idx], label=f'Node {node_idx}', color=colors[idx], linewidth=1.5)
@@ -534,21 +796,23 @@ def visualize_state_output(
             ax.set_title(f'{name} - Selected Nodes')
             ax.legend(fontsize=8)
             ax.grid(True, alpha=0.3)
-            ax.axvspan(100, 140, alpha=0.2, color='red', label='Stimulus')
+            ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', label='Stimulus')
 
         # Row 2: Heatmaps for all nodes
         for col, (name, state) in enumerate(state_output.items()):
+            state = u.get_magnitude(state)
             ax = fig.add_subplot(gs[1, col])
             im = ax.imshow(state.T, aspect='auto', cmap='RdBu_r', extent=(0, time_steps, 0, node_size), origin='lower')
             ax.set_xlabel('Time (ms)')
             ax.set_ylabel('Node Index')
             ax.set_title(f'{name} - All Nodes')
-            ax.axvline(100, color='yellow', linestyle='--', linewidth=1, alpha=0.7)
-            ax.axvline(140, color='yellow', linestyle='--', linewidth=1, alpha=0.7)
+            ax.axvline(stim_start, color='yellow', linestyle='--', linewidth=1, alpha=0.7)
+            ax.axvline(stim_end, color='yellow', linestyle='--', linewidth=1, alpha=0.7)
             plt.colorbar(im, ax=ax, label='State Value')
 
         # Row 3: Distributions of final state values
         for col, (name, state) in enumerate(state_output.items()):
+            state = u.get_magnitude(state)
             ax = fig.add_subplot(gs[2, col])
             st = state[-1, :]
             ax.hist(st, bins=40, color='steelblue', alpha=0.7, edgecolor='black')
@@ -577,7 +841,7 @@ def visualize_state_output(
             ax.set_title(f'Channel {ch_idx} (corr: {corr:.3f})')
             ax.legend(fontsize=8)
             ax.grid(True, alpha=0.3)
-            ax.axvspan(100, 140, alpha=0.2, color='red')
+            ax.axvspan(stim_start, stim_end, alpha=0.2, color='red')
 
         plt.suptitle('Neural Mass Model State Dynamics - Comprehensive View',
                      fontsize=16, fontweight='bold', y=0.995)
@@ -598,10 +862,11 @@ def visualize_state_output(
             ax = axes.flat[panel_idx]
             state_name = keys[panel_idx] if panel_idx < len(keys) else keys[0]
             state = state_output[state_name]
+            state = u.get_magnitude(state)
 
             for idx, node_idx in enumerate(indices):
                 ax.plot(time_ms, state[:, node_idx], label=labels[idx], color=colors[idx], linewidth=2.0)
-            ax.axvspan(100, 140, alpha=0.2, color='red', zorder=0)
+            ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', zorder=0)
             ax.set_xlabel('Time (ms)', fontsize=11)
             ax.set_ylabel('State Value', fontsize=11)
             ax.set_title(f'{state_name} State - Representative Nodes', fontsize=13, fontweight='bold')
@@ -616,13 +881,14 @@ def visualize_state_output(
 
         for idx, (state_name, style, color) in enumerate(zip(keys, line_styles, state_colors)):
             state = state_output[state_name]
+            state = u.get_magnitude(state)
             ax.plot(time_ms, state[:, primary_node], label=f'{state_name} State',
                     linestyle=style, color=color, linewidth=2.5)
 
-        ax.axvspan(100, 140, alpha=0.2, color='red', zorder=0)
+        ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', zorder=0)
         ax.set_xlabel('Time (ms)', fontsize=11)
         ax.set_ylabel('State Value', fontsize=11)
-        ax.set_title(f'P-E-I Dynamics in Auditory Node {primary_node}', fontsize=13, fontweight='bold')
+        ax.set_title(f'Combined Dynamics in Primary Node {primary_node}', fontsize=13, fontweight='bold')
         ax.legend(fontsize=10, loc='best')
         ax.grid(True, alpha=0.3, color='lightgray')
 
@@ -639,7 +905,7 @@ def visualize_state_output(
     elif mode == 'representative':
         if sc is None:
             raise ValueError("Structural connectivity matrix 'sc' is required for representative mode")
-        node_info = select_representative_nodes(sc)
+        node_info = select_representative_nodes(sc, node_indices)
         if show_statistics:
             print_statistics(node_info)
         fig = create_representative_view(node_info)
@@ -650,7 +916,7 @@ def visualize_state_output(
     elif mode == 'both':
         if sc is None:
             raise ValueError("Structural connectivity matrix 'sc' is required for representative mode")
-        node_info = select_representative_nodes(sc)
+        node_info = select_representative_nodes(sc, node_indices)
         if show_statistics:
             print_statistics(node_info)
 
@@ -665,34 +931,32 @@ def visualize_state_output(
         raise ValueError(f"Invalid mode: {mode}. Choose 'comprehensive', 'representative', or 'both'")
 
 
-def train_horn():
-    lm, sc, dist, data_verb, data_noise, ki0 = get_data()
-    node_size = dist.shape[0]
-    uu = np.zeros((data_verb.shape[0], node_size))
-    uu[100:140] = 5.0 * ki0
-    # lm = braintools.init.KaimingNormal()(lm.shape)
+def train_language_horn():
+    lm, sc, dist, data_verb, uu = get_language_data()
+    uu *= 5.0
 
     model = HORNNetworkTR(
-        node_size,
+        dist.shape[0],
         sc=sc, dist=dist * 10, mu=1., lm=lm, cy0=Const(5),
         y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
     )
     fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
-    fitting.train(uu, n_epoches=40)
+    fitting.train(uu, n_epoches=120)
     eeg_output, state_output = fitting.test(uu)
 
     # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show_statistics=True, show=True)
+    visualize_state_output(
+        state_output, eeg_output, data_verb,
+        sc=sc, mode='both', show=True
+    )
 
 
-def train_jr():
-    lm, sc, dist, data_verb, data_noise, ki0 = get_data()
-    node_size = dist.shape[0]
-    uu = np.zeros((data_verb.shape[0], node_size))
-    uu[100:140] = 5e3 * ki0
+def train_language_jr():
+    lm, sc, dist, data_verb, uu = get_language_data()
+    uu *= 5.0
 
-    model = JansenRit2NetworkTR(
-        node_size, sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
+    model = JansenRitNetworkTR(
+        dist.shape[0], sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
         y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
     )
     fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
@@ -700,9 +964,43 @@ def train_jr():
     eeg_output, state_output = fitting.test(uu)
 
     # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show_statistics=True, show=True)
+    visualize_state_output(
+        state_output, eeg_output, data_verb,
+        sc=sc, mode='both', show=True
+    )
+
+
+def train_hdeeg_jr():
+    lm, sc, dist, data_verb, uu = get_hdeeg_data()
+    uu *= 5.0
+
+    # Extract stimulus information from uu
+    # Find which nodes received stimulus (non-zero values)
+    stim_nodes = np.where(np.any(uu != 0, axis=0))[0]
+    # Find time window of stimulus
+    stim_times = np.where(np.any(uu != 0, axis=1))[0]
+    stim_window = (stim_times[0], stim_times[-1]) if len(stim_times) > 0 else (65, 75)
+    # Select top 3 stimulated nodes
+    node_indices = stim_nodes[:3].tolist() if len(stim_nodes) >= 3 else stim_nodes.tolist()
+
+    model = JansenRitNetworkTR(
+        dist.shape[0],
+        sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
+        y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
+    )
+    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
+    fitting.train(uu, n_epoches=100)
+    eeg_output, state_output = fitting.test(uu)
+
+    # Visualize with representative mode
+    visualize_state_output(
+        state_output, eeg_output, data_verb, sc=sc,
+        node_indices=node_indices, stimulus_window=stim_window,
+        mode='both', show=True
+    )
 
 
 if __name__ == '__main__':
-    train_horn()
-    # train_jr()
+    # train_language_horn()
+    train_language_jr()
+    # train_hdeeg_jr()

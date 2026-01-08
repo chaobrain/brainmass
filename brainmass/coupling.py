@@ -20,8 +20,8 @@ import brainunit as u
 
 import brainstate
 from brainstate.nn import Param, Module, init_maybe_prefetch
-from ._typing import Parameter
-from ._utils import set_module_as
+from .typing import Parameter
+from .utils import set_module_as
 
 # Typing alias for static type hints
 Prefetch = Union[
@@ -315,7 +315,8 @@ def laplacian_connectivity(
     *,
     normalize: Optional[Literal["rw", "sym"]] = None,
     eps: float = 1e-12,
-) -> Array:
+    return_diag: bool = False,
+) -> Union[Array, Tuple[Array, Array]]:
     r"""
     Build graph Laplacian matrix from adjacency/connectivity matrix.
 
@@ -362,11 +363,17 @@ def laplacian_connectivity(
     eps : float, default=1e-12
         Small constant added for numerical stability when computing D^{-1} or D^{-1/2},
         preventing division by zero for isolated nodes (zero degree).
+    return_diag : bool, default=False
+        If True, return a tuple ``(L, d)`` where ``L`` is the Laplacian matrix and ``d`` is
+        the degree vector (row sums of W). If False (default), return only the Laplacian matrix.
 
     Returns
     -------
-    ArrayLike
-        The graph Laplacian matrix with the same shape ``(N, N)`` and dtype as input W.
+    ArrayLike or tuple of ArrayLike
+        If ``return_diag=False`` (default): Returns the graph Laplacian matrix with shape ``(N, N)``
+        and dtype as input W.
+        If ``return_diag=True``: Returns a tuple ``(L, d)`` where ``L`` is the Laplacian matrix
+        with shape ``(N, N)`` and ``d`` is the degree vector with shape ``(N,)``.
         If W carries units via `brainunit`, the output preserves unit consistency.
 
     Raises
@@ -410,7 +417,8 @@ def laplacian_connectivity(
     W = u.math.asarray(W)
     d = u.math.sum(W, axis=-1)  # (N,)
     if normalize is None:
-        return W - u.math.diag(d)
+        L = W - u.math.diag(d)
+        return (L, d) if return_diag else L
 
     n = W.shape[-1]
     I = u.math.eye(n, dtype=W.dtype, unit=u.get_unit(W))
@@ -418,12 +426,14 @@ def laplacian_connectivity(
     if normalize == "rw":
         inv_d = 1.0 / u.math.maximum(d, eps)
         DinvW = W * inv_d[:, None]
-        return DinvW - I
+        L = DinvW - I
+        return (L, d) if return_diag else L
 
     if normalize == "sym":
         inv_sqrt_d = 1.0 / u.math.sqrt(u.math.maximum(d, eps))
         Wn = (W * inv_sqrt_d[:, None]) * inv_sqrt_d[None, :]
-        return Wn - I
+        L = Wn - I
+        return (L, d) if return_diag else L
 
     raise ValueError(
         f"Unknown normalize={normalize}, "

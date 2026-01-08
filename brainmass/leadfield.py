@@ -8,7 +8,7 @@ import brainunit as u
 import jax
 from brainstate.nn import Module, Param
 
-from ._typing import Array, Parameter
+from .typing import Array, Parameter
 
 __all__ = [
     'LeadfieldReadout',

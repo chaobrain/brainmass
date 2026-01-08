@@ -20,8 +20,8 @@ import brainunit as u
 
 import brainstate
 from brainstate.nn import Param, Dynamics
-from ._noise import Noise
-from ._typing import Parameter
+from .noise import Noise
+from .typing import Parameter
 
 __all__ = [
     'FitzHughNagumoStep',

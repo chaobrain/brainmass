@@ -18,7 +18,7 @@ __version__ = "0.0.5"
 __version_info__ = tuple(map(int, __version__.split(".")))
 
 # Coupling mechanisms
-from ._coupling import (
+from .coupling import (
     DiffusiveCoupling,
     AdditiveCoupling,
     diffusive_coupling,
@@ -27,32 +27,30 @@ from ._coupling import (
     LaplacianConnParam,
 )
 # Neural mass models
-from ._fhn import FitzHughNagumoStep
+from .fhn import FitzHughNagumoStep
 # Forward models and lead field
-from ._forward_model import (
+from .forward_model import (
     BOLDSignal,
     LeadFieldModel,
     EEGLeadFieldModel,
     MEGLeadFieldModel,
 )
-from ._hopf import HopfStep
+from .hopf import HopfStep
 # HORN models
-from ._horn import (
+from .horn import (
     HORNStep,
     HORNSeqLayer,
     HORNSeqNetwork,
 )
-from ._jansen_rit import (
+from .jansen_rit import (
     JansenRitStep,
-    JansenRit2Step,
-    JansenRit2TR,
-    JansenRit2Window,
+    JansenRitTR,
 )
-from ._kuramoto import KuramotoNetwork
-from ._linear import ThresholdLinearStep
-from ._leadfield import LeadfieldReadout
+from .kuramoto import KuramotoNetwork
+from .leadfield import LeadfieldReadout
+from .linear import ThresholdLinearStep
 # Noise processes
-from ._noise import (
+from .noise import (
     Noise,
     OUProcess,
     GaussianNoise,
@@ -63,31 +61,31 @@ from ._noise import (
     BlueNoise,
     VioletNoise,
 )
-from ._qif import MontbrioPazoRoxinStep
-from ._sl import StuartLandauStep
+from .qif import MontbrioPazoRoxinStep
+from .sl import StuartLandauStep
 # Type aliases
-from ._typing import (
+from .typing import (
     Initializer,
     Array,
     Parameter,
 )
 # Common utilities
-from ._utils import (
+from .utils import (
     sys2nd,
     sigmoid,
     bounded_input,
     process_sequence,
     delay_index,
 )
-from ._vdp import VanDerPolStep
-from ._wilson_cowan import (
+from .vdp import VanDerPolStep
+from .wilson_cowan import (
     WilsonCowanStep,
     WilsonCowanStepNoSaturation,
     WilsonCowanStepSymmetric,
     WilsonCowanStepSimplified,
     WilsonCowanStepLinear,
 )
-from ._wong_wang import WongWangStep
+from .wong_wang import WongWangStep
 from ._xy_model import (
     XY_Oscillator,
 )
@@ -124,7 +122,6 @@ __all__ = [
     # Neural mass models
     'FitzHughNagumoStep',
     'HopfStep',
-    'JansenRitStep',
     'WilsonCowanStep',
     'WilsonCowanStepNoSaturation',
     'WilsonCowanStepSymmetric',
@@ -138,10 +135,9 @@ __all__ = [
     'KuramotoNetwork',
     'StuartLandauStep',
 
-    # Jansen-Rit model version 2
-    'JansenRit2Step',
-    'JansenRit2TR',
-    'JansenRit2Window',
+    # Jansen-Rit model
+    'JansenRitStep',
+    'JansenRitTR',
 
     # Forward models and lead field
     'BOLDSignal',

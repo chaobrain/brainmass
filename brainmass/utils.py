@@ -20,7 +20,7 @@ import brainunit as u
 import jax.tree
 import numpy as np
 
-from ._typing import Array
+from .typing import Array
 
 __all__ = [
     'sys2nd',

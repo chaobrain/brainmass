@@ -19,7 +19,7 @@ import braintools
 import brainunit as u
 
 import brainstate
-from ._noise import Noise
+from .noise import Noise
 
 __all__ = [
     'XY_Oscillator',
