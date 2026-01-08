@@ -44,8 +44,6 @@ from ._horn import (
 )
 from ._jansen_rit import (
     JansenRitStep,
-)
-from ._jansen_rit2 import (
     JansenRit2Step,
     JansenRit2TR,
     JansenRit2Window,
