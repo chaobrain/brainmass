@@ -15,10 +15,11 @@
 
 from typing import Union, Sequence, Dict, Tuple, List, Callable
 
+import brainstate
 import brainunit as u
 import jax.tree
+import numpy as np
 
-import brainstate
 from ._typing import Array
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     'bounded_input',
     'process_sequence',
     'set_module_as',
+    'delay_index',
 ]
 
 
@@ -174,3 +176,7 @@ def set_module_as(module: str):
         return fun
 
     return wrapper
+
+
+def delay_index(n_hidden: int):
+    return np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))

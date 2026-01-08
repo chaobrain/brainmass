@@ -52,7 +52,6 @@ class ModelFitting:
             eeg_output = self.model.update(inputs)
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
         loss = 10. * loss_main + self.model.reg_loss()
-
         return loss, eeg_output
 
     @brainstate.transform.jit(static_argnums=0)
@@ -204,7 +203,8 @@ data_verb = dataloader(verb_meg.T, batch_size)
 data_noise = dataloader(noise_meg.T, batch_size)
 
 # To simulate the auditory inputs in this task we will stimulate the auditory cortices
-# These nodes were identified using an ROI mask of left and right Heschl's gyri based on the Talairach Daemon database
+# These nodes were identified using an ROI mask of left and right Heschl's gyri
+# based on the Talairach Daemon database
 ki0 = np.zeros(node_size)
 ki0[[2, 183, 5]] = 1
 
@@ -298,13 +298,6 @@ def create_model(fit_hyper=True) -> JansenRit2Window:
     )
 
 
-def print_param(model: JansenRit2Window):
-    print("Current model parameters:")
-    for name, param in model.named_param_modules():
-        if param.fit:
-            print(f"{name}: {param.value()}")
-
-
 # Fit two models:
 # 1) verb generation trials and noise trials
 verb_model = create_model(fit_hyper=True)
@@ -321,7 +314,6 @@ verb_F = ModelFitting(verb_model, data_verb, num_epoches, node_size)
 verb_F.train(inputs=stim_input)
 verb_outs = verb_F.test(base_batch_num, stim_input)
 print("Finished fitting model to verb trials")
-print_param(verb_model)
 
 # repeat for noise
 noise_model = create_model(fit_hyper=True)
@@ -329,7 +321,6 @@ noise_F = ModelFitting(noise_model, data_noise, num_epoches, node_size)
 noise_F.train(inputs=stim_input)
 noise_outs = noise_F.test(base_batch_num, stim_input)
 print("Finished fitting model to noise trials")
-# print_param(noise_model)
 
 # 7. Let's Compare Simulated & Empirical MEG Activity
 # we will use the simulations from the fully trained model in the downloaded directory

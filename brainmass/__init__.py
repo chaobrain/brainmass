@@ -52,6 +52,7 @@ from ._jansen_rit2 import (
 )
 from ._kuramoto import KuramotoNetwork
 from ._linear import ThresholdLinearStep
+from ._leadfield import LeadfieldReadout
 # Noise processes
 from ._noise import (
     Noise,
@@ -78,6 +79,7 @@ from ._utils import (
     sigmoid,
     bounded_input,
     process_sequence,
+    delay_index,
 )
 from ._vdp import VanDerPolStep
 from ._wilson_cowan import (
@@ -103,6 +105,7 @@ __all__ = [
     'sigmoid',
     'bounded_input',
     'process_sequence',
+    'delay_index',
 
     # Type aliases
     'Initializer',
@@ -133,6 +136,7 @@ __all__ = [
     'VanDerPolStep',
     'MontbrioPazoRoxinStep',
     'ThresholdLinearStep',
+    'LeadfieldReadout',
     'KuramotoNetwork',
     'StuartLandauStep',
 

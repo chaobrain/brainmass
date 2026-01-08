@@ -16,6 +16,7 @@
 import math
 from typing import Callable, Sequence, Optional
 
+import brainunit as u
 import braintools.init
 import jax.numpy as jnp
 import numpy as np
@@ -98,9 +99,6 @@ class HORNStep(Dynamics):
         Amplitude feedback coefficient (dimensionless). Provides position-based
         self-feedback in the recurrent input. Broadcastable to ``in_size``.
         Default is ``0.0`` (no amplitude feedback).
-    h : ArrayLike, optional
-        Integration step size (dimensionless). Used in the symplectic Euler update.
-        Default is ``1.0``.
     recurrent_fn : Callable, optional
         Recurrent transformation function applied to velocity state :math:`\mathbf{y}`.
         Should accept the velocity state and return the recurrent contribution.
@@ -158,7 +156,6 @@ class HORNStep(Dynamics):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # Amplitude feedback
-        h: brainstate.typing.ArrayLike = 1.0,  # integration step size
         recurrent_fn: Callable = zeros,  # Velocity feedback
         state_init: Initializer = braintools.init.ZeroInit(),
     ):
@@ -168,7 +165,6 @@ class HORNStep(Dynamics):
         self.omega = Param.init(omega, self.in_size)
         self.gamma = Param.init(gamma, self.in_size)
         self.v = Param.init(v, self.in_size)
-        self.h = h
         self.gain_rec = 1. / math.sqrt(self.in_size[0])
         self.state_init = state_init
         self.recurrent_fn = recurrent_fn
@@ -222,18 +218,19 @@ class HORNStep(Dynamics):
         gamma_factor = 2.0 * self.gamma.value()
         v = self.v.value()
         alpha = self.alpha.value()
+        dt = brainstate.environ.get_dt()
 
         # 1. integrate y_t
         # external input + recurrent input from network
         inp = (inputs + self.gain_rec * (self.recurrent_fn(y) + v * x))
-        y_t = y + self.h * (
+        y_t = y + dt * (
             alpha * jnp.tanh(inp)  # input (forcing) on y_t
             - omega_factor * x  # natural frequency term
             - gamma_factor * y  # damping term
-        )
+        ) / u.ms
 
         # 2. integrate x_t with updated y_t, no input here
-        x_t = x + self.h * y_t
+        x_t = x + dt * y_t / u.ms
 
         self.x.value = x_t
         self.y.value = y_t

@@ -327,13 +327,13 @@ def laplacian_connectivity(
     **Unnormalized Laplacian** (``normalize=None``):
 
     $$
-    L = D - W
+    L = W - D
     $$
 
     **Random Walk Normalized Laplacian** (``normalize="rw"``):
 
     $$
-    L_{\mathrm{rw}} = I - D^{-1} W = D^{-1} L
+    L_{\mathrm{rw}} = D^{-1} W = D^{-1} L - I
     $$
 
     This form is asymmetric and commonly used in diffusion processes and random walks on graphs.
@@ -341,7 +341,7 @@ def laplacian_connectivity(
     **Symmetric Normalized Laplacian** (``normalize="sym"``):
 
     $$
-    L_{\mathrm{sym}} = I - D^{-1/2} W D^{-1/2} = D^{-1/2} L D^{-1/2}
+    L_{\mathrm{sym}} = D^{-1/2} W D^{-1/2} = D^{-1/2} L D^{-1/2} - I
     $$
 
     This form is symmetric, preserves spectral properties, and is widely used in spectral clustering
@@ -356,9 +356,9 @@ def laplacian_connectivity(
     normalize : {None, "rw", "sym"}, optional
         Normalization mode for the Laplacian:
 
-        - ``None`` (default): Returns unnormalized Laplacian L = D - W
-        - ``"rw"``: Returns random walk normalized Laplacian L_rw = I - D^{-1}W
-        - ``"sym"``: Returns symmetric normalized Laplacian L_sym = I - D^{-1/2}W D^{-1/2}
+        - ``None`` (default): Returns unnormalized Laplacian L = W - D
+        - ``"rw"``: Returns random walk normalized Laplacian L_rw = D^{-1}W - I
+        - ``"sym"``: Returns symmetric normalized Laplacian L_sym = D^{-1/2}W D^{-1/2} - I
     eps : float, default=1e-12
         Small constant added for numerical stability when computing D^{-1} or D^{-1/2},
         preventing division by zero for isolated nodes (zero degree).

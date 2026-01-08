@@ -152,12 +152,12 @@ class JansenRit2Step(Dynamics):
 
         # Update the states by step-size.
         dt = brainstate.environ.get_dt()
-        ddP = P + dt * Pv
-        ddE = E + dt * Ev
-        ddI = I + dt * Iv
-        ddPv = Pv + dt * sys2nd(A, a, bounded_input(rP, self.u_2ndsys_ub), P, Pv)
-        ddEv = Ev + dt * sys2nd(A, a, bounded_input(rE, self.u_2ndsys_ub), E, Ev)
-        ddIv = Iv + dt * sys2nd(B, b, bounded_input(rI, self.u_2ndsys_ub), I, Iv)
+        ddP = P + dt * Pv / u.second
+        ddE = E + dt * Ev / u.second
+        ddI = I + dt * Iv / u.second
+        ddPv = Pv + dt * sys2nd(A, a, bounded_input(rP, self.u_2ndsys_ub), P, Pv) / u.second
+        ddEv = Ev + dt * sys2nd(A, a, bounded_input(rE, self.u_2ndsys_ub), E, Ev) / u.second
+        ddIv = Iv + dt * sys2nd(B, b, bounded_input(rI, self.u_2ndsys_ub), I, Iv) / u.second
 
         # Calculate the saturation for model states (for stability and gradient calculation).
         self.E.value = bounded_input(ddE, 1e3)
@@ -608,9 +608,8 @@ class JansenRit2Window(Module):
 
     def update(self, inputs, record_state: bool = False):
         if record_state:
-            activities, states = brainstate.transform.for_loop(
-                lambda inp: self.dynamics(inp, record_state=True), inputs
-            )
+            fn = lambda inp: self.dynamics(inp, record_state=True)
+            activities, states = brainstate.transform.for_loop(fn, inputs)
             return self.leadfield(activities), states
         else:
             activities = brainstate.transform.for_loop(self.dynamics, inputs)
