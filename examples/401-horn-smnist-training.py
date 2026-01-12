@@ -15,15 +15,47 @@
 
 import argparse
 
-import brainunit as u
+import brainstate
 import braintools
+import brainunit as u
 import jax.numpy as jnp
 import numpy as np
 import torch
 import torchvision
 
-import brainstate
-from brainmass import HORNSeqNetwork
+
+def get_horn_model(n_inp, n_hidden, n_out):
+    brainstate.environ.set(dt=1.0 * u.ms)
+
+    from brainmass.horn import HORNSeqNetwork
+    alpha = 0.04
+    omega = 0.224
+    gamma = 0.01
+    v = 0.
+    return HORNSeqNetwork(
+        n_inp,
+        n_hidden,
+        n_out,
+        alpha=alpha,
+        omega=omega,
+        gamma=gamma,
+        v=v,
+        delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms)
+    )
+
+
+def get_jansen_rit_model(n_inp, n_hidden, n_out):
+    brainstate.environ.set(dt=0.1 * u.ms)
+
+    from brainmass.jansen_rit import JansenRitNetwork
+    return JansenRitNetwork(
+        n_inp,
+        n_hidden,
+        n_out,
+        delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms),
+        delay_init=braintools.init.Uniform(-0.01, 0.01)
+    )
+
 
 # command line arguments
 parser = argparse.ArgumentParser(description='HORN training script')
@@ -33,15 +65,8 @@ parser.add_argument('--batch-size', type=int, default=64, help='batch size')
 parser.add_argument('--shuffle', action='store_true', help='whether to shuffle stimulus time steps')
 parser.add_argument('--seed', type=int, default=1, help='random seed')
 parser.add_argument('--lr', type=float, default=1e-2, help='learning rate')
-parser.add_argument('--h', type=float, default=1.0, help='microscopic time constant h (default: 1)')
-parser.add_argument('--alpha', type=float, default=0.04, help='excitability coefficient alpha')
-parser.add_argument('--omega', type=float, default=0.224, help='natural frequency omega')  # 2 * pi / 28 for sMNIST
-parser.add_argument('--gamma', type=float, default=0.01, help='damping coefficient gamma')
-parser.add_argument('--v', type=float, default=0., help='feedback coefficient v')
 
 args = parser.parse_args()
-
-brainstate.environ.set(dt=1. * u.ms)
 
 # sMNIST as 1-dim time series
 dim_input = 1
@@ -73,17 +98,8 @@ valid_loader = torch.utils.data.DataLoader(dataset=valid_set, batch_size=batch_s
 test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=batch_size_test, shuffle=False)
 
 # instantiate homogeneous HORN model
-# see dynamics.py for an example of a heterogeneous HORN
-model = HORNSeqNetwork(
-    dim_input,
-    args.num_hidden,
-    dim_output,
-    alpha=args.alpha,
-    omega=args.omega,
-    gamma=args.gamma,
-    v=args.v,
-    delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms)
-)
+model = get_horn_model(dim_input, args.num_hidden, dim_output)
+model = get_jansen_rit_model(dim_input, args.num_hidden, dim_output)
 weights = model.states(brainstate.ParamState)
 
 # bce loss and optimizer for training

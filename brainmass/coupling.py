@@ -16,10 +16,10 @@
 
 from typing import Union, Tuple, Callable, Literal, Optional
 
-import brainunit as u
-
 import brainstate
+import brainunit as u
 from brainstate.nn import Param, Module, init_maybe_prefetch
+
 from .typing import Parameter
 from .utils import set_module_as
 
@@ -205,7 +205,7 @@ class DiffusiveCoupling(Module):
 def additive_coupling(
     delayed_x: Callable | Array,
     conn: Array,
-    k: Array
+    k: Array = 1.0
 ):
     r"""
     Additive coupling kernel (function form).
@@ -473,11 +473,13 @@ class LaplacianConnParam(Param):
         fit: bool = True,
         normalize: Optional[Literal["rw", "sym"]] = None,
         eps: float = 1e-12,
+        return_diag: bool = False,
     ):
         super().__init__(W, fit=fit, precompute=self.normalize)
         self.mask = mask
         self.original_W = W
         self.normalize = normalize
+        self.return_diag = return_diag
         self.eps = eps
         if mask is not None:
             if mask.shape != W.shape:
@@ -489,4 +491,9 @@ class LaplacianConnParam(Param):
         weight = u.math.exp(u.get_magnitude(weight)) * self.original_W
         if self.mask is not None:
             weight = weight * self.mask
-        return laplacian_connectivity(weight, normalize=self.normalize, eps=self.eps)
+        return laplacian_connectivity(
+            weight,
+            normalize=self.normalize,
+            eps=self.eps,
+            return_diag=self.return_diag,
+        )

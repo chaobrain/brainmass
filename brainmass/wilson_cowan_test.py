@@ -511,8 +511,8 @@ class TestWilsonCowanIntegration:
 
 class TestWilsonCowanNoSaturation:
     def test_initialization_basic(self):
-        """Test basic WilsonCowanStepNoSaturation initialization with default parameters"""
-        model = brainmass.WilsonCowanStepNoSaturation(1)
+        """Test basic WilsonCowanNoSaturationStep initialization with default parameters"""
+        model = brainmass.WilsonCowanNoSaturationStep(1)
         assert model.in_size == (1,)
         assert model.tau_E == 1. * u.ms
         assert model.tau_I == 1. * u.ms
@@ -530,8 +530,8 @@ class TestWilsonCowanNoSaturation:
         assert model.noise_I is None
 
     def test_initialization_with_custom_parameters(self):
-        """Test WilsonCowanStepNoSaturation initialization with custom parameters"""
-        model = brainmass.WilsonCowanStepNoSaturation(
+        """Test WilsonCowanNoSaturationStep initialization with custom parameters"""
+        model = brainmass.WilsonCowanNoSaturationStep(
             in_size=5,
             tau_E=2.0 * u.ms,
             tau_I=1.5 * u.ms,
@@ -557,13 +557,13 @@ class TestWilsonCowanNoSaturation:
         assert model.wII == 10.5
 
     def test_initialization_multidimensional(self):
-        """Test WilsonCowanStepNoSaturation initialization with multidimensional input"""
-        model = brainmass.WilsonCowanStepNoSaturation((3, 4))
+        """Test WilsonCowanNoSaturationStep initialization with multidimensional input"""
+        model = brainmass.WilsonCowanNoSaturationStep((3, 4))
         assert model.in_size == (3, 4)
 
     def test_state_initialization(self):
-        """Test state initialization for WilsonCowanStepNoSaturation"""
-        model = brainmass.WilsonCowanStepNoSaturation(5)
+        """Test state initialization for WilsonCowanNoSaturationStep"""
+        model = brainmass.WilsonCowanNoSaturationStep(5)
         model.init_state()
         assert model.rE.value.shape == (5,)
         assert model.rI.value.shape == (5,)
@@ -572,14 +572,14 @@ class TestWilsonCowanNoSaturation:
 
     def test_state_initialization_with_batch(self):
         """Test state initialization with batch dimension"""
-        model = brainmass.WilsonCowanStepNoSaturation(3)
+        model = brainmass.WilsonCowanNoSaturationStep(3)
         model.init_state(batch_size=10)
         assert model.rE.value.shape == (10, 3)
         assert model.rI.value.shape == (10, 3)
 
     def test_sigmoid_function_properties(self):
         """Test sigmoid transfer function properties"""
-        model = brainmass.WilsonCowanStepNoSaturation(1)
+        model = brainmass.WilsonCowanNoSaturationStep(1)
         x = jnp.linspace(-10, 10, 100)
         a, theta = 1.2, 2.8
         y = model.F(x, a, theta)
@@ -591,7 +591,7 @@ class TestWilsonCowanNoSaturation:
 
     def test_drE_differential_equation(self):
         """Test excitatory population differential equation"""
-        model = brainmass.WilsonCowanStepNoSaturation(1)
+        model = brainmass.WilsonCowanNoSaturationStep(1)
         rE = jnp.array([0.5])
         rI = jnp.array([0.3])
         ext = 0.1
@@ -602,7 +602,7 @@ class TestWilsonCowanNoSaturation:
 
     def test_drI_differential_equation(self):
         """Test inhibitory population differential equation"""
-        model = brainmass.WilsonCowanStepNoSaturation(1)
+        model = brainmass.WilsonCowanNoSaturationStep(1)
         rE = jnp.array([0.5])
         rI = jnp.array([0.3])
         ext = 0.1
@@ -613,7 +613,7 @@ class TestWilsonCowanNoSaturation:
     def test_update_returns_correct_shape(self):
         """Test that update returns correct shape"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepNoSaturation(5)
+        model = brainmass.WilsonCowanNoSaturationStep(5)
         model.init_state()
         with brainstate.environ.context(i=0, t=0. * u.ms):
             output = model.update(rE_inp=0.1)
@@ -622,7 +622,7 @@ class TestWilsonCowanNoSaturation:
     def test_update_modifies_state(self):
         """Test that update modifies internal state"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepNoSaturation(1)
+        model = brainmass.WilsonCowanNoSaturationStep(1)
         model.init_state()
         initial_rE = model.rE.value.copy()
         with brainstate.environ.context(i=0, t=0. * u.ms):
@@ -633,7 +633,7 @@ class TestWilsonCowanNoSaturation:
     def test_stability_long_simulation(self):
         """Test stability over long simulation (10000 steps)"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepNoSaturation(1)
+        model = brainmass.WilsonCowanNoSaturationStep(1)
         model.init_state()
         for i in range(10000):
             with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
@@ -645,8 +645,8 @@ class TestWilsonCowanNoSaturation:
 
 class TestWilsonCowanSymmetric:
     def test_initialization_basic(self):
-        """Test basic WilsonCowanStepSymmetric initialization with default parameters"""
-        model = brainmass.WilsonCowanStepSymmetric(1)
+        """Test basic WilsonCowanSymmetricStep initialization with default parameters"""
+        model = brainmass.WilsonCowanSymmetricStep(1)
         assert model.in_size == (1,)
         # Symmetric parameters
         assert model.tau == 1. * u.ms
@@ -662,8 +662,8 @@ class TestWilsonCowanSymmetric:
         assert model.noise_I is None
 
     def test_initialization_with_custom_parameters(self):
-        """Test WilsonCowanStepSymmetric initialization with custom parameters"""
-        model = brainmass.WilsonCowanStepSymmetric(
+        """Test WilsonCowanSymmetricStep initialization with custom parameters"""
+        model = brainmass.WilsonCowanSymmetricStep(
             in_size=5,
             tau=2.0 * u.ms,
             a=1.5,
@@ -685,13 +685,13 @@ class TestWilsonCowanSymmetric:
         assert model.r == 0.8
 
     def test_initialization_multidimensional(self):
-        """Test WilsonCowanStepSymmetric initialization with multidimensional input"""
-        model = brainmass.WilsonCowanStepSymmetric((3, 4))
+        """Test WilsonCowanSymmetricStep initialization with multidimensional input"""
+        model = brainmass.WilsonCowanSymmetricStep((3, 4))
         assert model.in_size == (3, 4)
 
     def test_state_initialization(self):
         """Test state initialization"""
-        model = brainmass.WilsonCowanStepSymmetric(5)
+        model = brainmass.WilsonCowanSymmetricStep(5)
         model.init_state()
         assert model.rE.value.shape == (5,)
         assert model.rI.value.shape == (5,)
@@ -700,7 +700,7 @@ class TestWilsonCowanSymmetric:
 
     def test_symmetric_parameters(self):
         """Test that E and I use the same tau, a, theta"""
-        model = brainmass.WilsonCowanStepSymmetric(1, tau=2.0*u.ms, a=1.5, theta=3.0)
+        model = brainmass.WilsonCowanSymmetricStep(1, tau=2.0 * u.ms, a=1.5, theta=3.0)
         # Verify there's only one set of parameters
         assert hasattr(model, 'tau')
         assert hasattr(model, 'a')
@@ -713,7 +713,7 @@ class TestWilsonCowanSymmetric:
     def test_update_returns_correct_shape(self):
         """Test that update returns correct shape"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepSymmetric(5)
+        model = brainmass.WilsonCowanSymmetricStep(5)
         model.init_state()
         with brainstate.environ.context(i=0, t=0. * u.ms):
             output = model.update(rE_inp=0.1)
@@ -722,7 +722,7 @@ class TestWilsonCowanSymmetric:
     def test_stability_long_simulation(self):
         """Test stability over long simulation"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepSymmetric(1)
+        model = brainmass.WilsonCowanSymmetricStep(1)
         model.init_state()
         for i in range(10000):
             with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
@@ -733,8 +733,8 @@ class TestWilsonCowanSymmetric:
 
 class TestWilsonCowanSimplified:
     def test_initialization_basic(self):
-        """Test basic WilsonCowanStepSimplified initialization with default parameters"""
-        model = brainmass.WilsonCowanStepSimplified(1)
+        """Test basic WilsonCowanSimplifiedStep initialization with default parameters"""
+        model = brainmass.WilsonCowanSimplifiedStep(1)
         assert model.in_size == (1,)
         assert model.tau_E == 1. * u.ms
         assert model.tau_I == 1. * u.ms
@@ -753,8 +753,8 @@ class TestWilsonCowanSimplified:
         assert not hasattr(model, 'wII')
 
     def test_initialization_with_custom_parameters(self):
-        """Test WilsonCowanStepSimplified initialization with custom parameters"""
-        model = brainmass.WilsonCowanStepSimplified(
+        """Test WilsonCowanSimplifiedStep initialization with custom parameters"""
+        model = brainmass.WilsonCowanSimplifiedStep(
             in_size=5,
             tau_E=2.0 * u.ms,
             tau_I=1.5 * u.ms,
@@ -780,7 +780,7 @@ class TestWilsonCowanSimplified:
     def test_simplified_connectivity(self):
         """Test that w_exc and w_inh are correctly applied"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepSimplified(1, w_exc=5., w_inh=10.)
+        model = brainmass.WilsonCowanSimplifiedStep(1, w_exc=5., w_inh=10.)
         model.init_state()
         # Both drE and drI should use the same w_exc and w_inh
         rE = jnp.array([0.5])
@@ -793,7 +793,7 @@ class TestWilsonCowanSimplified:
 
     def test_state_initialization(self):
         """Test state initialization"""
-        model = brainmass.WilsonCowanStepSimplified(5)
+        model = brainmass.WilsonCowanSimplifiedStep(5)
         model.init_state()
         assert model.rE.value.shape == (5,)
         assert model.rI.value.shape == (5,)
@@ -801,7 +801,7 @@ class TestWilsonCowanSimplified:
     def test_update_returns_correct_shape(self):
         """Test that update returns correct shape"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepSimplified(5)
+        model = brainmass.WilsonCowanSimplifiedStep(5)
         model.init_state()
         with brainstate.environ.context(i=0, t=0. * u.ms):
             output = model.update(rE_inp=0.1)
@@ -810,7 +810,7 @@ class TestWilsonCowanSimplified:
     def test_stability_long_simulation(self):
         """Test stability over long simulation"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepSimplified(1)
+        model = brainmass.WilsonCowanSimplifiedStep(1)
         model.init_state()
         for i in range(10000):
             with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
@@ -821,8 +821,8 @@ class TestWilsonCowanSimplified:
 
 class TestWilsonCowanLinear:
     def test_initialization_basic(self):
-        """Test basic WilsonCowanStepLinear initialization with default parameters"""
-        model = brainmass.WilsonCowanStepLinear(1)
+        """Test basic WilsonCowanLinearStep initialization with default parameters"""
+        model = brainmass.WilsonCowanLinearStep(1)
         assert model.in_size == (1,)
         assert model.tau_E == 1. * u.ms
         assert model.tau_I == 1. * u.ms
@@ -839,8 +839,8 @@ class TestWilsonCowanLinear:
         assert not hasattr(model, 'theta_I')
 
     def test_initialization_with_custom_parameters(self):
-        """Test WilsonCowanStepLinear initialization with custom parameters"""
-        model = brainmass.WilsonCowanStepLinear(
+        """Test WilsonCowanLinearStep initialization with custom parameters"""
+        model = brainmass.WilsonCowanLinearStep(
             in_size=5,
             tau_E=2.0 * u.ms,
             tau_I=1.5 * u.ms,
@@ -861,7 +861,7 @@ class TestWilsonCowanLinear:
 
     def test_relu_behavior(self):
         """Test ReLU transfer function behavior"""
-        model = brainmass.WilsonCowanStepLinear(1)
+        model = brainmass.WilsonCowanLinearStep(1)
         model.init_state()
         rE = jnp.array([0.5])
         rI = jnp.array([0.3])
@@ -879,12 +879,12 @@ class TestWilsonCowanLinear:
 
     def test_no_sigmoid_function(self):
         """Test that F sigmoid function doesn't exist"""
-        model = brainmass.WilsonCowanStepLinear(1)
+        model = brainmass.WilsonCowanLinearStep(1)
         assert not hasattr(model, 'F')
 
     def test_state_initialization(self):
         """Test state initialization"""
-        model = brainmass.WilsonCowanStepLinear(5)
+        model = brainmass.WilsonCowanLinearStep(5)
         model.init_state()
         assert model.rE.value.shape == (5,)
         assert model.rI.value.shape == (5,)
@@ -892,7 +892,7 @@ class TestWilsonCowanLinear:
     def test_update_returns_correct_shape(self):
         """Test that update returns correct shape"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepLinear(5)
+        model = brainmass.WilsonCowanLinearStep(5)
         model.init_state()
         with brainstate.environ.context(i=0, t=0. * u.ms):
             output = model.update(rE_inp=0.1)
@@ -901,7 +901,7 @@ class TestWilsonCowanLinear:
     def test_stability_long_simulation(self):
         """Test stability over long simulation"""
         brainstate.environ.set(dt=0.1 * u.ms)
-        model = brainmass.WilsonCowanStepLinear(1)
+        model = brainmass.WilsonCowanLinearStep(1)
         model.init_state()
         for i in range(10000):
             with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):

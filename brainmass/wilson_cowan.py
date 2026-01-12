@@ -27,10 +27,10 @@ from .typing import Parameter
 
 __all__ = [
     'WilsonCowanStep',
-    'WilsonCowanStepNoSaturation',
-    'WilsonCowanStepSymmetric',
-    'WilsonCowanStepSimplified',
-    'WilsonCowanStepLinear',
+    'WilsonCowanNoSaturationStep',
+    'WilsonCowanSymmetricStep',
+    'WilsonCowanSimplifiedStep',
+    'WilsonCowanLinearStep',
 ]
 
 
@@ -209,7 +209,7 @@ class WilsonCowanStep(brainstate.nn.Dynamics):
             Output in approximately ``[0, 1]`` (subject to numerical precision),
             with the same shape as ``x``.
         """
-        # 1 / (1 + jnp.exp(-a * (x - theta))) - 1 / (1 + jnp.exp(a * theta))
+        # return 1 / (1 + jnp.exp(-a * (x - theta))) - 1 / (1 + jnp.exp(a * theta))
         return jax.nn.sigmoid(a * (x - theta)) - jax.nn.sigmoid(-a * theta)
 
     def drE(self, rE, rI, ext):
@@ -318,7 +318,7 @@ class WilsonCowanStep(brainstate.nn.Dynamics):
         return rE
 
 
-class WilsonCowanStepNoSaturation(brainstate.nn.Dynamics):
+class WilsonCowanNoSaturationStep(brainstate.nn.Dynamics):
     r"""Wilson–Cowan neural mass model without saturation factor.
 
     This variant of the Wilson-Cowan model simplifies the dynamics by removing
@@ -419,8 +419,8 @@ class WilsonCowanStepNoSaturation(brainstate.nn.Dynamics):
 
     Examples
     --------
-    >>> model = brainmass.WilsonCowanStepNoSaturation(1)
-    >>> brainstate.nn.init_all_states(model)
+    >>> model = brainmass.WilsonCowanNoSaturationStep(1)
+    >>> model.init_all_states()
     >>> model.update(rE_inp=0.5)
     """
     __module__ = 'brainmass'
@@ -602,7 +602,7 @@ class WilsonCowanStepNoSaturation(brainstate.nn.Dynamics):
         return rE
 
 
-class WilsonCowanStepSymmetric(brainstate.nn.Dynamics):
+class WilsonCowanSymmetricStep(brainstate.nn.Dynamics):
     r"""Wilson-Cowan neural mass model with symmetric parameters.
 
     This variant of the Wilson-Cowan model uses symmetric parameters for the
@@ -701,8 +701,8 @@ class WilsonCowanStepSymmetric(brainstate.nn.Dynamics):
 
     Examples
     --------
-    >>> model = brainmass.WilsonCowanStepSymmetric(1)
-    >>> brainstate.nn.init_all_states(model)
+    >>> model = brainmass.WilsonCowanSymmetricStep(1)
+    >>> model.init_all_states()
     >>> model.update(rE_inp=0.5)
     """
     __module__ = 'brainmass'
@@ -882,7 +882,7 @@ class WilsonCowanStepSymmetric(brainstate.nn.Dynamics):
         return rE
 
 
-class WilsonCowanStepSimplified(brainstate.nn.Dynamics):
+class WilsonCowanSimplifiedStep(brainstate.nn.Dynamics):
     r"""Wilson-Cowan neural mass model with simplified connectivity.
 
     This variant of the Wilson-Cowan model simplifies the connectivity by reducing
@@ -982,8 +982,8 @@ class WilsonCowanStepSimplified(brainstate.nn.Dynamics):
 
     Examples
     --------
-    >>> model = brainmass.WilsonCowanStepSimplified(1)
-    >>> brainstate.nn.init_all_states(model)
+    >>> model = brainmass.WilsonCowanSimplifiedStep(1)
+    >>> model.init_all_states()
     >>> model.update(rE_inp=0.5)
     """
     __module__ = 'brainmass'
@@ -1167,7 +1167,7 @@ class WilsonCowanStepSimplified(brainstate.nn.Dynamics):
         return rE
 
 
-class WilsonCowanStepLinear(brainstate.nn.Dynamics):
+class WilsonCowanLinearStep(brainstate.nn.Dynamics):
     r"""Wilson-Cowan neural mass model with linear (ReLU) transfer function.
 
     This variant of the Wilson-Cowan model replaces the sigmoidal transfer function
@@ -1259,8 +1259,8 @@ class WilsonCowanStepLinear(brainstate.nn.Dynamics):
 
     Examples
     --------
-    >>> model = brainmass.WilsonCowanStepLinear(1)
-    >>> brainstate.nn.init_all_states(model)
+    >>> model = brainmass.WilsonCowanLinearStep(1)
+    >>> model.init_all_states()
     >>> model.update(rE_inp=0.5)
     """
     __module__ = 'brainmass'

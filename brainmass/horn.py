@@ -23,7 +23,7 @@ import jax.numpy as jnp
 import numpy as np
 from brainstate.nn import Param, Module, Dynamics
 
-from .coupling import AdditiveCoupling
+from .coupling import AdditiveCoupling, additive_coupling, LaplacianConnParam
 from .typing import Initializer, Parameter
 
 __all__ = [
@@ -99,10 +99,6 @@ class HORNStep(Dynamics):
         Amplitude feedback coefficient (dimensionless). Provides position-based
         self-feedback in the recurrent input. Broadcastable to ``in_size``.
         Default is ``0.0`` (no amplitude feedback).
-    recurrent_fn : Callable, optional
-        Recurrent transformation function applied to velocity state :math:`\mathbf{y}`.
-        Should accept the velocity state and return the recurrent contribution.
-        Default is ``zeros`` (no velocity-based recurrence).
     state_init : Initializer, optional
         Initializer for both position and velocity states :math:`\mathbf{x}` and :math:`\mathbf{y}`.
         Default is ``braintools.init.ZeroInit()``.
@@ -232,20 +228,194 @@ class HORNStep(Dynamics):
         return x_t
 
 
-class LinearRecStep(brainstate.nn.Module):
-    pass
+class AdditiveConn(Module):
+    def __init__(
+        self,
+        model: Module,
+        w_init: Callable = braintools.init.KaimingNormal(),
+        b_init: Callable = braintools.init.ZeroInit(),
+    ):
+        super().__init__()
+
+        self.model = model
+        self.linear = brainstate.nn.Linear(self.model.in_size, self.model.out_size, w_init=w_init, b_init=b_init)
+
+    def update_tr(self, *args, **kwargs):
+        return 0.
+
+    def update(self, *args, **kwargs):
+        return self.linear(self.model.y.value)
 
 
-class DelayedLinearRecStep(brainstate.nn.Module):
-    pass
+class DelayedAdditiveConn(Module):
+    def __init__(
+        self,
+        model: Dynamics,
+        delay_time: Initializer,
+        delay_init: Initializer = braintools.init.ZeroInit(),
+        w_init: Callable = braintools.init.KaimingNormal(),
+        k: Parameter = 1.0,
+    ):
+        super().__init__()
+
+        n_hidden = model.varshape[0]
+        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
+        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
+        self.prefetch = model.prefetch_delay('y', delay_time, neuron_idx, init=delay_init)
+        self.weights = Param(braintools.init.param(w_init, (n_hidden, n_hidden)))
+        self.k = Param.init(k)
+
+    def update_tr(self, *args, **kwargs):
+        return 0.
+
+    def update(self, *args, **kwargs):
+        delayed = self.prefetch()
+        return additive_coupling(delayed, self.weights.value(), self.k.value())
 
 
-class DelayedLinearRecTR(brainstate.nn.Module):
-    pass
+class DelayedAdditiveConnTR(Module):
+    def __init__(
+        self,
+        model: Dynamics,
+        delay_time: Initializer,
+        delay_init: Initializer = braintools.init.ZeroInit(),
+        w_init: Callable = braintools.init.KaimingNormal(),
+        k: Parameter = 1.0,
+        tr: u.Quantity = 1. * u.ms,
+    ):
+        super().__init__()
+
+        n_hidden = model.varshape[0]
+        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
+        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
+        self.prefetch = model.prefetch_delay('y', delay_time, neuron_idx, init=delay_init, update_every=tr)
+        self.weights = Param(braintools.init.param(w_init, (n_hidden, n_hidden)))
+        self.k = Param.init(k)
+
+    def update_tr(self, *args, **kwargs):
+        delayed = self.prefetch()
+        return additive_coupling(delayed, self.weights.value(), self.k.value())
+
+    def update(self, *args, **kwargs):
+        return 0.
+
+
+class DelayedLaplacianConn(Module):
+    def __init__(
+        self,
+        model: Dynamics,
+        delay_time: Initializer,
+        delay_init: Initializer = braintools.init.ZeroInit(),
+        w_init: Callable = braintools.init.KaimingNormal(),
+        k: Parameter = 1.0,
+    ):
+        super().__init__()
+
+        n_hidden = model.varshape[0]
+        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
+        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
+        self.prefetch = model.prefetch_delay('y', delay_time, neuron_idx, init=delay_init)
+        self.weights = LaplacianConnParam(braintools.init.param(w_init, (n_hidden, n_hidden)))
+        self.k = Param.init(k)
+
+    def update_tr(self, *args, **kwargs):
+        return 0.
+
+    def update(self, *args, **kwargs):
+        delayed = self.prefetch()
+        return additive_coupling(delayed, self.weights.value(), self.k.value())
+
+
+class DelayedLaplacianConnTR(Module):
+    def __init__(
+        self,
+        model: Dynamics,
+        delay_time: Initializer,
+        delay_init: Initializer = braintools.init.ZeroInit(),
+        w_init: Callable = braintools.init.KaimingNormal(),
+        k: Parameter = 1.0,
+        tr: u.Quantity = 1. * u.ms,
+    ):
+        super().__init__()
+
+        n_hidden = model.varshape[0]
+        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
+        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
+        self.prefetch = model.prefetch_delay('y', delay_time, neuron_idx, init=delay_init, update_every=tr)
+        self.weights = LaplacianConnParam(braintools.init.param(w_init, (n_hidden, n_hidden)))
+        self.k = Param.init(k)
+
+    def update_tr(self, *args, **kwargs):
+        delayed = self.prefetch()
+        return additive_coupling(delayed, self.weights.value(), self.k.value())
+
+    def update(self, *args, **kwargs):
+        return 0.
 
 
 class HORN_TR(Module):
-    pass
+    def __init__(
+        self,
+        n_input: int,
+        n_hidden: int,
+        alpha: Parameter = 0.04,  # excitability
+        omega: Parameter = 2. * math.pi / 28.,  # natural frequency
+        gamma: Parameter = 0.01,  # damping
+        v: Parameter = 0.0,  # feedback
+
+        # state initialization
+        state_init: Callable = braintools.init.ZeroInit(),
+
+        # time resolution
+        tr: u.Quantity = 1. * u.ms,
+
+        # input connections
+        inp_w_init: Initializer = braintools.init.KaimingNormal(),
+        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+
+        # recurrent connections
+        delay: Optional[Initializer] = None,
+        rec_type: str = 'additive',
+        rec_w_init: Initializer = braintools.init.KaimingNormal(),
+        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.ZeroInit(),
+    ):
+        super().__init__()
+
+        self.n_input = n_input
+        self.n_hidden = n_hidden
+
+        # dynamics
+        self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
+
+        # input-to-hidden
+        self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
+
+        # hidden-to-hidden
+        if delay is None:
+            self.h2h = AdditiveConn(self.horn, w_init=rec_w_init, b_init=rec_b_init)
+        elif rec_type == 'additive':
+            self.h2h = DelayedAdditiveConn(self.horn, delay, w_init=rec_w_init, delay_init=delay_init)
+        elif rec_type == 'additive_tr':
+            self.h2h = DelayedAdditiveConnTR(self.horn, delay, w_init=rec_w_init, delay_init=delay_init, tr=tr)
+        elif rec_type == 'laplacian':
+            self.h2h = DelayedLaplacianConn(self.horn, delay, w_init=rec_w_init, delay_init=delay_init)
+        elif rec_type == 'laplacian_tr':
+            self.h2h = DelayedLaplacianConnTR(self.horn, delay, w_init=rec_w_init, delay_init=delay_init, tr=tr)
+        else:
+            raise ValueError(f'Unknown delay_type: {rec_type}')
+
+    def update(self, inputs, record_state: bool = False):
+        inpt_tr = self.h2h.update_tr()
+
+        def step(inp):
+            inp_step = self.h2h.update()
+            out = self.horn(inp + inp_step + inpt_tr)
+            st = dict(x=self.horn.x.value, y=self.horn.y.value)
+            return (st, out) if record_state else out
+
+        output = brainstate.transform.for_loop(step, self.i2h(inputs))
+        return output
 
 
 class HORNSeqLayer(Module):
@@ -287,8 +457,6 @@ class HORNSeqLayer(Module):
         Default is ``0.01``.
     v : Parameter, optional
         Amplitude feedback coefficient (dimensionless). Default is ``0.0``.
-    h : ArrayLike, optional
-        Integration step size for HORN dynamics. Default is ``1.0``.
     state_init : Callable, optional
         Initializer for HORN state variables (position and velocity).
         Default is ``braintools.init.ZeroInit()``.
@@ -355,7 +523,7 @@ class HORNSeqLayer(Module):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
-        h: brainstate.typing.ArrayLike = 1.0,  # integration step size
+        delay_init: Callable = braintools.init.ZeroInit(),
         state_init: Callable = braintools.init.ZeroInit(),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
@@ -372,54 +540,20 @@ class HORNSeqLayer(Module):
         self.inp_w_init = inp_w_init
         self.inp_b_init = inp_b_init
 
-        self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, h=h, state_init=state_init)
+        self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
         self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
         if delay is None:
-            self.h2h = brainstate.nn.Linear(n_hidden, n_hidden, w_init=rec_w_init, b_init=rec_b_init)
+            self.h2h = AdditiveConn(self.horn, w_init=rec_w_init, b_init=rec_b_init)
         else:
-            delay_time = braintools.init.param(delay, (n_hidden, n_hidden))
-            neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
-            self.h2h = AdditiveCoupling(
-                self.horn.prefetch_delay('y', delay_time, neuron_idx, init=braintools.init.ZeroInit()),
-                Param(braintools.init.param(self.rec_w_init, (n_hidden, n_hidden))),
-            )
+            self.h2h = DelayedAdditiveConn(self.horn, delay, delay_init=delay_init, w_init=rec_w_init)
 
     def update(self, inputs, record_state: bool = False):
-        """Process a sequence through the HORN layer.
-
-        Applies input-to-hidden transformation, then processes the sequence through
-        HORN dynamics with recurrent connections using a for-loop scan.
-
-        Parameters
-        ----------
-        inputs : array-like
-            Input sequence with shape ``(T, batch?, n_input)`` where ``T`` is the
-            number of time steps, ``batch?`` represents optional batch dimensions,
-            and ``n_input`` is the input feature dimension.
-        record_state : bool, optional
-            If ``True``, returns a tuple of ``(states, outputs)`` where ``states`` is
-            a dictionary containing the position ``x`` and velocity ``y`` sequences.
-            If ``False``, returns only the output sequence. Default is ``False``.
-
-        Returns
-        -------
-        outputs : array-like or tuple
-            If ``record_state=False``: Position state sequence with shape ``(T, batch?, n_hidden)``.
-            If ``record_state=True``: Tuple of ``(states, outputs)`` where ``states``
-                is a dict with keys ``'x'`` and ``'y'`` containing the full state sequences.
-
-        Notes
-        -----
-        The input sequence is first transformed through the ``i2h`` linear layer,
-        then processed step-by-step through the HORN dynamics. At each step, the
-        recurrent transformation ``h2h`` is applied to the current velocity state
-        (and position if ``v != 0``) to compute recurrent feedback.
-        """
-
         def step(inp):
-            rec = self.h2h(self.horn.y.value)
-            out = self.horn(inp + rec)
-            st = dict(x=self.horn.x.value, y=self.horn.y.value)
+            out = self.horn(inp + self.h2h())
+            st = dict(
+                x=self.horn.x.value,
+                y=self.horn.y.value,
+            )
             return (st, out) if record_state else out
 
         output = brainstate.transform.for_loop(step, self.i2h(inputs))
@@ -470,9 +604,6 @@ class HORNSeqNetwork(Module):
     v : Parameter, optional
         Amplitude feedback coefficient (dimensionless), shared across all layers.
         Default is ``0.0``.
-    h : ArrayLike, optional
-        Integration step size for HORN dynamics, shared across all layers.
-        Default is ``1.0``.
     state_init : Callable, optional
         Initializer for HORN state variables in all layers.
         Default is ``braintools.init.ZeroInit()``.
@@ -555,8 +686,8 @@ class HORNSeqNetwork(Module):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
-        h: brainstate.typing.ArrayLike = 1.0,  # integration step size
         state_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.ZeroInit(),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
         rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
@@ -578,9 +709,9 @@ class HORNSeqNetwork(Module):
                 omega=omega,
                 gamma=gamma,
                 v=v,
-                h=h,
                 delay=delay,
                 state_init=state_init,
+                delay_init=delay_init,
                 rec_w_init=rec_w_init,
                 rec_b_init=rec_b_init,
                 inp_w_init=inp_w_init,

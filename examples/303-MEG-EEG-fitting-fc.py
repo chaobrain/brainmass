@@ -588,14 +588,18 @@ class ModelFitting:
         self.mask_e = np.tril_indices(data.shape[-1], -1)
         self.output_size = data.shape[-1]
 
+        self.target_fc = braintools.metric.functional_connectivity(data)
+
     def f_loss(self, tr_inputs, targets, n_warmup):
         with self.model.param_precompute():
             if n_warmup > 0:
                 self.model.update(np.arange(n_warmup))
             eeg_output = self.model.update(tr_inputs)
-        loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
+
+        eeg_fc = braintools.metric.functional_connectivity(eeg_output)
+        loss_main = u.math.sqrt(u.math.mean((eeg_fc - self.target_fc) ** 2))
         loss = 10. * loss_main + self.model.reg_loss()
-        return loss, eeg_output
+        return loss_main, eeg_output
 
     @brainstate.transform.jit(
         static_argnums=(0, 3),
@@ -657,12 +661,11 @@ def visualize_state_output(
     sc=None,
     node_indices=None,
     stimulus_window=None,
-    mode='comprehensive',
-    show_statistics=False,
+    fc_transient=10,
     show=True
 ):
     """
-    Visualize the state output from neural mass models with multiple visualization modes.
+    Visualize the state output from neural mass models with functional connectivity analysis.
 
     Parameters
     ----------
@@ -679,18 +682,15 @@ def visualize_state_output(
         otherwise [2, 183, 5]
     stimulus_window : tuple, optional
         Tuple of (start_time, end_time) for stimulus window in milliseconds. Default: (100, 140)
-    mode : str, optional
-        Visualization mode: 'comprehensive' (12-panel overview), 'representative' (4-panel focused view),
-        or 'both' (show both). Default: 'comprehensive'
-    show_statistics : bool, optional
-        Print statistical summary for representative nodes. Default: False
+    fc_transient : int, optional
+        Number of initial timesteps to remove for FC computation. Default: 10
     show : bool, optional
         Display the figure(s). Default: True
 
     Returns
     -------
-    fig or tuple of figs
-        The created figure(s)
+    fig
+        The created figure
     """
     if stimulus_window is None:
         stimulus_window = (100, 140)
@@ -698,9 +698,7 @@ def visualize_state_output(
     stim_start, stim_end = stimulus_window
 
     # Extract states and convert to numpy
-    state_output, eeg_output, data_target = jax.tree.map(
-        np.asarray, (state_output, eeg_output, data_target)
-    )
+    state_output, eeg_output, data_target = jax.tree.map(np.asarray, (state_output, eeg_output, data_target))
     keys = tuple(state_output.keys())
 
     time_steps = eeg_output.shape[0]
@@ -718,71 +716,10 @@ def visualize_state_output(
             # Default fallback
             node_indices = [2, 183, 5] if node_size > 183 else list(range(min(3, node_size)))
 
-    # Helper function: Select representative nodes
-    def select_representative_nodes(sc_mat, primary_nodes, n_nodes=8):
-        """Select representative nodes based on connectivity and spatial distribution."""
-        node_degree = np.sum(sc_mat, axis=1)
-        available = [i for i in range(node_size) if i not in primary_nodes]
-
-        hub_idx = available[np.argmax(node_degree[available])]
-        peripheral_idx = available[np.argmin(node_degree[available])]
-
-        excluded = set(primary_nodes + [hub_idx, peripheral_idx])
-        spatial_candidates = [i for i in range(node_size) if i not in excluded]
-
-        # Select spatially distributed nodes
-        early_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.15))]
-        middle_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.47))]
-        late_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.80))]
-
-        indices = primary_nodes + [hub_idx, peripheral_idx, early_spatial, middle_spatial, late_spatial]
-        labels = [
-            f'Primary-1 (N{primary_nodes[0]})',
-            f'Primary-2 (N{primary_nodes[1]})',
-            f'Primary-3 (N{primary_nodes[2]})',
-            f'Hub (N{hub_idx})',
-            f'Peripheral (N{peripheral_idx})',
-            f'Early (N{early_spatial})',
-            f'Middle (N{middle_spatial})',
-            f'Late (N{late_spatial})'
-        ]
-        types = ['primary', 'primary', 'primary', 'hub', 'peripheral', 'spatial', 'spatial', 'spatial']
-        colors = ['darkred', 'red', 'lightcoral', 'blue', 'green', 'darkgray', 'gray', 'lightgray']
-
-        return {'indices': indices, 'labels': labels, 'types': types, 'colors': colors}
-
-    # Helper function: Print statistics
-    def print_statistics(node_info):
-        """Print statistical summary of state values."""
-        indices = node_info['indices']
-        labels = node_info['labels']
-
-        print("\n" + "=" * 80)
-        print("REPRESENTATIVE NODE STATE STATISTICS")
-        print("=" * 80)
-
-        for node_idx, label in zip(indices, labels):
-            print(f"\n{label}:")
-            print("-" * 60)
-
-            for state_name in keys:
-                state = state_output[state_name][:, node_idx]
-                peak_val = u.math.max(u.math.abs(state))
-                peak_time = u.math.argmax(u.math.abs(state))
-                mean_val = u.math.mean(state)
-                std_val = u.math.std(state)
-
-                print(f"  {state_name} State:")
-                print(f"    Peak Value: {peak_val:>10.4f}  (at t={peak_time} ms)")
-                print(f"    Mean:       {mean_val:>10.4f}  ±{std_val:.4f}")
-
-        print("\n" + "=" * 80 + "\n")
-
-    # COMPREHENSIVE VISUALIZATION
     def create_comprehensive_view():
-        """Create 12-panel comprehensive visualization."""
-        fig = plt.figure(figsize=(18, 16))
-        gs = GridSpec(4, 3, figure=fig, hspace=0.3, wspace=0.3)
+        """Create 20-panel comprehensive visualization with FC analysis."""
+        fig = plt.figure(figsize=(24, 20))
+        gs = GridSpec(5, 4, figure=fig, hspace=0.3, wspace=0.3)
 
         # Row 1: Time series plots for selected nodes
         colors = plt.cm.viridis(np.linspace(0, 1, len(node_indices)))
@@ -843,92 +780,62 @@ def visualize_state_output(
             ax.grid(True, alpha=0.3)
             ax.axvspan(stim_start, stim_end, alpha=0.2, color='red')
 
-        plt.suptitle('Neural Mass Model State Dynamics - Comprehensive View',
-                     fontsize=16, fontweight='bold', y=0.995)
-        return fig
+        # Row 5: Functional Connectivity Analysis
+        # Compute FC matrices
+        fc_emp = np.corrcoef(data_target, rowvar=False)
+        fc_sim = np.corrcoef(eeg_output[fc_transient:, :], rowvar=False)
+        fc_diff = fc_sim - fc_emp
 
-    # REPRESENTATIVE VISUALIZATION
-    def create_representative_view(node_info):
-        """Create 4-panel representative nodes visualization."""
-        fig, axes = plt.subplots(2, 2, figsize=(16, 10))
-        fig.subplots_adjust(hspace=0.3, wspace=0.3)
+        # Compute FC correlation
+        mask_e = np.tril_indices(data_target.shape[-1], -1)
+        fc_corr = np.corrcoef(fc_sim[mask_e], fc_emp[mask_e])[0, 1]
 
-        indices = node_info['indices']
-        labels = node_info['labels']
-        colors = node_info['colors']
+        # Panel 5.1: Empirical FC Matrix
+        ax = fig.add_subplot(gs[4, 0])
+        im = ax.imshow(fc_emp, aspect='auto', cmap='RdBu_r', vmin=-1, vmax=1, origin='lower')
+        ax.set_xlabel('Channel j')
+        ax.set_ylabel('Channel i')
+        ax.set_title('Empirical FC (Target Data)')
+        plt.colorbar(im, ax=ax, label='Correlation')
 
-        # Panel 1-3: State trajectories for P, E, I
-        for panel_idx in range(3):
-            ax = axes.flat[panel_idx]
-            state_name = keys[panel_idx] if panel_idx < len(keys) else keys[0]
-            state = state_output[state_name]
-            state = u.get_magnitude(state)
+        # Panel 5.2: Simulated FC Matrix
+        ax = fig.add_subplot(gs[4, 1])
+        im = ax.imshow(fc_sim, aspect='auto', cmap='RdBu_r', vmin=-1, vmax=1, origin='lower')
+        ax.set_xlabel('Channel j')
+        ax.set_ylabel('Channel i')
+        ax.set_title(f'Simulated FC (r={fc_corr:.3f})')
+        plt.colorbar(im, ax=ax, label='Correlation')
 
-            for idx, node_idx in enumerate(indices):
-                ax.plot(time_ms, state[:, node_idx], label=labels[idx], color=colors[idx], linewidth=2.0)
-            ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', zorder=0)
-            ax.set_xlabel('Time (ms)', fontsize=11)
-            ax.set_ylabel('State Value', fontsize=11)
-            ax.set_title(f'{state_name} State - Representative Nodes', fontsize=13, fontweight='bold')
-            ax.legend(fontsize=8, loc='best', ncol=2)
-            ax.grid(True, alpha=0.3, color='lightgray')
+        # Panel 5.3: FC Scatter Plot
+        ax = fig.add_subplot(gs[4, 2])
+        ax.scatter(fc_emp[mask_e], fc_sim[mask_e], alpha=0.5, s=10, c='steelblue', edgecolors='none')
+        ax.plot([-1, 1], [-1, 1], 'r--', linewidth=2, label='Identity')
+        ax.set_xlabel('Empirical FC')
+        ax.set_ylabel('Simulated FC')
+        ax.set_title(f'FC Correlation (r={fc_corr:.3f})')
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=8)
 
-        # Panel 4: Combined P-E-I for primary auditory node
-        ax = axes[1, 1]
-        primary_node = indices[0]
-        line_styles = ['-', '--', '-.']
-        state_colors = ['blue', 'red', 'green']
+        # Panel 5.4: FC Difference Heatmap
+        ax = fig.add_subplot(gs[4, 3])
+        vmax_diff = np.abs(fc_diff).max()
+        im = ax.imshow(fc_diff, aspect='auto', cmap='RdBu_r', vmin=-vmax_diff, vmax=vmax_diff, origin='lower')
+        ax.set_xlabel('Channel j')
+        ax.set_ylabel('Channel i')
+        ax.set_title('FC Difference (Sim - Emp)')
+        plt.colorbar(im, ax=ax, label='Difference')
 
-        for idx, (state_name, style, color) in enumerate(zip(keys, line_styles, state_colors)):
-            state = state_output[state_name]
-            state = u.get_magnitude(state)
-            ax.plot(time_ms, state[:, primary_node], label=f'{state_name} State',
-                    linestyle=style, color=color, linewidth=2.5)
-
-        ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', zorder=0)
-        ax.set_xlabel('Time (ms)', fontsize=11)
-        ax.set_ylabel('State Value', fontsize=11)
-        ax.set_title(f'Combined Dynamics in Primary Node {primary_node}', fontsize=13, fontweight='bold')
-        ax.legend(fontsize=10, loc='best')
-        ax.grid(True, alpha=0.3, color='lightgray')
-
-        plt.suptitle('Representative Brain Region State Dynamics', fontsize=16, fontweight='bold', y=0.995)
+        plt.suptitle('Neural Mass Model State Dynamics with FC Analysis', fontsize=16, fontweight='bold', y=0.995)
         return fig
 
     # Main execution logic
-    if mode == 'comprehensive':
-        fig = create_comprehensive_view()
-        if show:
-            plt.show()
-        return fig
-
-    elif mode == 'representative':
-        if sc is None:
-            raise ValueError("Structural connectivity matrix 'sc' is required for representative mode")
-        node_info = select_representative_nodes(sc, node_indices)
-        if show_statistics:
-            print_statistics(node_info)
-        fig = create_representative_view(node_info)
-        if show:
-            plt.show()
-        return fig
-
-    elif mode == 'both':
-        if sc is None:
-            raise ValueError("Structural connectivity matrix 'sc' is required for representative mode")
-        node_info = select_representative_nodes(sc, node_indices)
-        if show_statistics:
-            print_statistics(node_info)
-
-        fig_comp = create_comprehensive_view()
-        fig_rep = create_representative_view(node_info)
-
-        if show:
-            plt.show()
-        return fig_comp, fig_rep
-
-    else:
-        raise ValueError(f"Invalid mode: {mode}. Choose 'comprehensive', 'representative', or 'both'")
+    fig = create_comprehensive_view()
+    if show:
+        plt.show()
+    return fig
 
 
 def train_language_horn():
@@ -942,12 +849,12 @@ def train_language_horn():
         sc=sc, dist=dist * 10, mu=1., lm=lm, cy0=Const(5),
         y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
     )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
-    fitting.train(uu, n_epoches=120)
+    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-3))
+    fitting.train(uu, n_epoches=2000)
     eeg_output, state_output = fitting.test(uu)
 
     # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show=True)
+    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, show=True)
 
 
 def train_language_jr():
@@ -963,7 +870,7 @@ def train_language_jr():
     eeg_output, state_output = fitting.test(uu)
 
     # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show=True)
+    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, show=True)
 
 
 def train_hdeeg_jr():
@@ -990,9 +897,8 @@ def train_hdeeg_jr():
 
     # Visualize with representative mode
     visualize_state_output(
-        state_output, eeg_output, data_verb, sc=sc,
-        node_indices=node_indices, stimulus_window=stim_window,
-        mode='both', show=True
+        state_output, eeg_output, data_verb,
+        sc=sc, node_indices=node_indices, stimulus_window=stim_window, show=True
     )
 
 

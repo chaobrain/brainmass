@@ -22,7 +22,6 @@ from brainstate import DelayState
 from sklearn.decomposition import PCA
 
 import cogtask
-from brainmass import HORNSeqNetwork
 
 brainstate.environ.set(dt=10. * u.ms)
 
@@ -30,22 +29,36 @@ task = cogtask.DelayComparison()
 
 batch_size = 16
 hidden_size = 128
-tau = 400. * u.ms
-alpha = 0.04
-omega = 0.224
-gamma = 0.01
-v = 0.0
 
-model = HORNSeqNetwork(
-    task.num_inputs,
-    hidden_size,
-    task.num_outputs,
-    alpha=alpha,
-    omega=omega,
-    gamma=gamma,
-    v=v,
-    # delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms),
-)
+
+def get_horn_model(n_inp, n_hidden, n_out):
+    from brainmass.horn import HORNSeqNetwork
+    alpha = 0.04
+    omega = 0.224
+    gamma = 0.01
+    v = 0.0
+    return HORNSeqNetwork(
+        n_inp,
+        n_hidden,
+        n_out,
+        alpha=alpha,
+        omega=omega,
+        gamma=gamma,
+        v=v,
+        # delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms),
+    )
+
+
+def get_jansen_rit_model(n_inp, n_hidden, n_out):
+    from brainmass.jansen_rit import JansenRitNetwork
+    return JansenRitNetwork(
+        n_inp, n_hidden, n_out,
+        # delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms)
+    )
+
+
+# model = get_horn_model(task.num_inputs, hidden_size, task.num_outputs)
+model = get_jansen_rit_model(task.num_inputs, hidden_size, task.num_outputs)
 
 # Adam optimizer
 trainable_weights = model.states(brainstate.ParamState)

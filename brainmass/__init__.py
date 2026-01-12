@@ -80,10 +80,10 @@ from .utils import (
 from .vdp import VanDerPolStep
 from .wilson_cowan import (
     WilsonCowanStep,
-    WilsonCowanStepNoSaturation,
-    WilsonCowanStepSymmetric,
-    WilsonCowanStepSimplified,
-    WilsonCowanStepLinear,
+    WilsonCowanNoSaturationStep,
+    WilsonCowanSymmetricStep,
+    WilsonCowanSimplifiedStep,
+    WilsonCowanLinearStep,
 )
 from .wong_wang import WongWangStep
 from ._xy_model import (
@@ -123,10 +123,10 @@ __all__ = [
     'FitzHughNagumoStep',
     'HopfStep',
     'WilsonCowanStep',
-    'WilsonCowanStepNoSaturation',
-    'WilsonCowanStepSymmetric',
-    'WilsonCowanStepSimplified',
-    'WilsonCowanStepLinear',
+    'WilsonCowanNoSaturationStep',
+    'WilsonCowanSymmetricStep',
+    'WilsonCowanSimplifiedStep',
+    'WilsonCowanLinearStep',
     'WongWangStep',
     'VanDerPolStep',
     'MontbrioPazoRoxinStep',
