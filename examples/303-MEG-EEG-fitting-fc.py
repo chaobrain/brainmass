@@ -597,7 +597,10 @@ class ModelFitting:
             eeg_output = self.model.update(tr_inputs)
 
         eeg_fc = braintools.metric.functional_connectivity(eeg_output)
-        loss_main = u.math.sqrt(u.math.mean((eeg_fc - self.target_fc) ** 2))
+        loss_main = (
+            10. * u.math.sqrt(u.math.mean((eeg_fc - self.target_fc) ** 2)) +
+            1. * u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
+        )
         loss = 10. * loss_main + self.model.reg_loss()
         return loss_main, eeg_output
 

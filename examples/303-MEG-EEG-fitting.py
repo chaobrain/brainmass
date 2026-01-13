@@ -17,7 +17,6 @@ import os
 import pickle
 from typing import Union, Callable
 
-import brainstate
 import braintools
 import brainunit as u
 import jax.tree
@@ -26,12 +25,13 @@ import mne
 import nibabel
 import numpy as np
 import pandas as pd
-from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT, SoftplusT
 from matplotlib.gridspec import GridSpec
 from scipy.io import loadmat
 from sklearn.metrics.pairwise import cosine_similarity
 
 import brainmass
+import brainstate
+from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT, SoftplusT, ClipT
 
 Parameter = Union[brainstate.nn.Param, brainstate.typing.ArrayLike, Callable]
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
@@ -433,6 +433,54 @@ class HORN_TR(brainstate.nn.Dynamics):
             return self.dynamics.x.value
 
 
+class HORN_TR2(brainstate.nn.Dynamics):
+    def __init__(
+        self,
+        n_hidden,
+
+        # structural coupling parameters
+        sc: np.ndarray,
+        dist: np.ndarray,
+        mu: float,
+
+        # dynamics parameters
+        alpha: Parameter = 0.04,  # excitability
+        omega: Parameter = 2. * u.math.pi / 28.,  # natural frequency
+        gamma: Parameter = 0.01,  # damping
+        v: Parameter = 0.0,  # feedback
+        state_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.ZeroInit(),
+        tr: u.Quantity = 1e-3 * u.second,
+    ):
+        super().__init__(n_hidden)
+
+        # dynamics
+        dynamics = brainmass.HORNStep(
+            n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
+        delay_time = dist / mu * brainstate.environ.get_dt()
+        self.h2h = brainmass.AdditiveCoupling(
+            dynamics.prefetch_delay(
+                'y', delay_time, brainmass.delay_index(n_hidden),
+                init=delay_init, update_every=tr,
+            ),
+            brainmass.LaplacianConnParam(sc),
+        )
+        self.dynamics = dynamics
+        self.tr = tr
+
+    def update(self, inputs, record_state: bool = False):
+        def step(i):
+            self.dynamics(inp)
+
+        inp = self.h2h() + inputs
+        n_step = int(self.tr / brainstate.environ.get_dt())
+        brainstate.transform.for_loop(step, np.arange(n_step))
+        if record_state:
+            return self.dynamics.x.value, {'x': self.dynamics.x.value, 'y': self.dynamics.y.value}
+        else:
+            return self.dynamics.x.value
+
+
 class HORNNetworkTR(BrainModelTR):
     """
     HORN neural mass network for EEG simulation.
@@ -471,9 +519,17 @@ class HORNNetworkTR(BrainModelTR):
         gamma_max = 2.0 * gamma_base
         omega = braintools.init.Uniform(omega_min, omega_max)(n_hidden)
         gamma = braintools.init.Uniform(gamma_min, gamma_max)(n_hidden)
+        alpha = braintools.init.Uniform(0.005, 0.4)(n_hidden)
 
-        omega = Param(omega, t=SoftplusT(0.001))
-        gamma = Param(gamma, t=SoftplusT(0.001))
+        # omega = Param(omega, t=SoftplusT(0.001))
+        # gamma = Param(gamma, t=SoftplusT(0.001))
+
+        # omega = Param(omega, t=ReluT(0.1))
+        # gamma = Param(gamma, t=ReluT(0.1))
+
+        omega = Param(omega, t=ClipT(0.01, 1.0))
+        gamma = Param(gamma, t=ReluT(1e-4))
+        alpha = Param(alpha, t=ClipT(0.005, 0.4))
 
         # state_init: Callable = braintools.init.ZeroInit()
         # delay_init: Callable = braintools.init.ZeroInit()
@@ -481,7 +537,8 @@ class HORNNetworkTR(BrainModelTR):
         state_init = braintools.init.Uniform(-0.01, 0.01)
         delay_init = braintools.init.Uniform(-0.01, 0.01)
 
-        dynamics = HORN_TR(
+        # dynamics = HORN_TR(
+        dynamics = HORN_TR2(
             n_hidden,
             sc=sc,
             dist=dist,
@@ -932,18 +989,18 @@ def visualize_state_output(
 
 
 def train_language_horn():
-    brainstate.environ.set(dt=1. * u.ms)
+    brainstate.environ.set(dt=1.0 * u.ms)
 
     lm, sc, dist, data_verb, uu = get_language_data()
     uu *= 5.0
 
     model = HORNNetworkTR(
         dist.shape[0],
-        sc=sc, dist=dist * 10, mu=1., lm=lm, cy0=Const(5),
+        sc=sc, dist=dist, mu=0.1, lm=lm, cy0=Const(5),
         y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
     )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
-    fitting.train(uu, n_epoches=120)
+    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-3))
+    fitting.train(uu, n_epoches=1500)
     eeg_output, state_output = fitting.test(uu)
 
     # Visualize with representative mode
@@ -955,7 +1012,8 @@ def train_language_jr():
     uu *= 5.0
 
     model = JansenRitNetworkTR(
-        dist.shape[0], sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
+        dist.shape[0],
+        sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
         y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
     )
     fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))

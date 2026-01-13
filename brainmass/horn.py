@@ -414,8 +414,7 @@ class HORN_TR(Module):
             st = dict(x=self.horn.x.value, y=self.horn.y.value)
             return (st, out) if record_state else out
 
-        output = brainstate.transform.for_loop(step, self.i2h(inputs))
-        return output
+        return brainstate.transform.for_loop(step, self.i2h(inputs))
 
 
 class HORNSeqLayer(Module):

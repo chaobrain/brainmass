@@ -27,9 +27,13 @@ from brainstate.nn import Dynamics, Delay, Param, Module, init_maybe_prefetch
 
 from brainmass import (
     LeadfieldReadout,
-    Noise, GaussianNoise,
-    Parameter, Initializer,
-    sys2nd, sigmoid, bounded_input
+    Noise,
+    GaussianNoise,
+    Parameter,
+    Initializer,
+    sys2nd,
+    sigmoid,
+    bounded_input
 )
 
 __all__ = [
