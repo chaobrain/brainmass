@@ -13,16 +13,18 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Callable
+from typing import Callable, Sequence, Optional
 
 import braintools
 import brainunit as u
 import jax.nn
+import numpy as np
 
 import brainstate
 from brainstate.nn import Param
+from .coupling import additive_coupling
 from .noise import Noise
-from .typing import Parameter
+from .typing import Parameter, Initializer
 
 __all__ = [
     'WilsonCowanBase',
@@ -1069,3 +1071,143 @@ class WilsonCowanLinearStep(WilsonCowanBase):
         tau_I = self.tau_I.value()
         xx = wEI * rE - wII * rI + ext
         return (-rI + (1 - r * rI) * u.math.maximum(xx, 0.)) / tau_I
+
+
+class AdditiveConn(brainstate.nn.Module):
+    def __init__(
+        self,
+        model,
+        w_init: Callable = braintools.init.KaimingNormal(),
+        b_init: Callable = braintools.init.ZeroInit(),
+    ):
+        super().__init__()
+
+        self.model = model
+        self.linear = brainstate.nn.Linear(self.model.in_size, self.model.out_size, w_init=w_init, b_init=b_init)
+
+    def update(self, *args, **kwargs):
+        return self.linear(self.model.rE.value)
+
+
+class DelayedAdditiveConn(brainstate.nn.Module):
+    def __init__(
+        self,
+        model,
+        delay_time: Initializer,
+        delay_init: Initializer = braintools.init.ZeroInit(),
+        w_init: Callable = braintools.init.KaimingNormal(),
+        k: Parameter = 1.0,
+    ):
+        super().__init__()
+
+        n_hidden = model.varshape[0]
+        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
+        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
+        self.prefetch = model.prefetch_delay('rE', delay_time, neuron_idx, init=delay_init)
+        self.weights = Param(braintools.init.param(w_init, (n_hidden, n_hidden)))
+        self.k = Param.init(k)
+
+    def update(self, *args, **kwargs):
+        delayed = self.prefetch()
+        return additive_coupling(delayed, self.weights.value(), self.k.value())
+
+
+class WilsonCowanSeqLayer(brainstate.nn.Module):
+    def __init__(
+        self,
+        n_input: int,
+        n_hidden: int,
+        wc_cls: type = WilsonCowanNoSaturationStep,
+        delay_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.ZeroInit(),
+        rI_init: Callable = braintools.init.ZeroInit(),
+        delay: Optional[Initializer] = None,
+        rec_w_init: Initializer = braintools.init.KaimingNormal(),
+        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_w_init: Initializer = braintools.init.KaimingNormal(),
+        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        **wc_kwargs
+    ):
+        super().__init__()
+
+        self.n_input = n_input
+        self.n_hidden = n_hidden
+        self.rec_w_init = rec_w_init
+        self.rec_b_init = rec_b_init
+        self.inp_w_init = inp_w_init
+        self.inp_b_init = inp_b_init
+
+        self.dynamics = wc_cls(n_hidden, **wc_kwargs, rE_init=rE_init, rI_init=rI_init)
+        self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
+        if delay is None:
+            self.h2h = AdditiveConn(self.dynamics, w_init=rec_w_init, b_init=rec_b_init)
+        else:
+            self.h2h = DelayedAdditiveConn(self.dynamics, delay, delay_init=delay_init, w_init=rec_w_init)
+
+    def update(self, inputs, record_state: bool = False):
+        def step(inp):
+            out = self.dynamics(inp + self.h2h())
+            st = dict(rE=self.dynamics.rE.value, rI=self.dynamics.rI.value)
+            return (st, out) if record_state else out
+
+        return brainstate.transform.for_loop(step, self.i2h(inputs))
+
+
+class WilsonCowanSeqNetwork(brainstate.nn.Module):
+    def __init__(
+        self,
+        n_input: int,
+        n_hidden: int | Sequence[int],
+        n_output: int,
+        wc_cls: type = WilsonCowanNoSaturationStep,
+        delay_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.ZeroInit(),
+        rI_init: Callable = braintools.init.ZeroInit(),
+        delay: Optional[Initializer] = None,
+        rec_w_init: Initializer = braintools.init.KaimingNormal(),
+        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_w_init: Initializer = braintools.init.KaimingNormal(),
+        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        **wc_kwargs
+    ):
+        super().__init__()
+
+        if isinstance(n_hidden, int):
+            n_hidden = [n_hidden]
+        assert isinstance(n_hidden, (list, tuple)), 'n_hidden must be int or sequence of int.'
+
+        self.layers = []
+        for hidden in n_hidden:
+            layer = WilsonCowanSeqLayer(
+                n_input=n_input,
+                n_hidden=hidden,
+                wc_cls=wc_cls,
+                delay=delay,
+                rE_init=rE_init,
+                rI_init=rI_init,
+                delay_init=delay_init,
+                rec_w_init=rec_w_init,
+                rec_b_init=rec_b_init,
+                inp_w_init=inp_w_init,
+                inp_b_init=inp_b_init,
+                **wc_kwargs
+            )
+            self.layers.append(layer)
+            n_input = hidden  # next layer input size is current layer hidden size
+
+        self.h2o = brainstate.nn.Linear(n_input, n_output, w_init=inp_w_init, b_init=inp_b_init)
+
+    def update(self, inputs):
+        x = inputs
+        for layer in self.layers:
+            x = layer(x)
+        output = self.h2o(self.layers[-1].dynamics.rE.value)
+        return output
+
+    def hidden_activation(self, inputs):
+        x = inputs
+        outputs = []
+        for layer in self.layers:
+            x = layer(x)
+            outputs.append(x)
+        return outputs

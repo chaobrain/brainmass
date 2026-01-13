@@ -15,13 +15,14 @@
 
 import argparse
 
-import brainstate
 import braintools
 import brainunit as u
 import jax.numpy as jnp
 import numpy as np
 import torch
 import torchvision
+
+import brainstate
 
 
 def get_horn_model(n_inp, n_hidden, n_out):
@@ -54,6 +55,32 @@ def get_jansen_rit_model(n_inp, n_hidden, n_out):
         n_out,
         delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms),
         delay_init=braintools.init.Uniform(-0.01, 0.01)
+    )
+
+
+def get_wilson_cowan_model(n_inp, n_hidden, n_out):
+    brainstate.environ.set(dt=0.1 * u.ms)
+
+    params = dict(
+        tau_E=12.0 * u.ms,
+        tau_I=10.0 * u.ms,
+        a_E=1.3,
+        theta_E=2.6,
+        a_I=1.0,
+        theta_I=4.0,
+        wEE=10.0,
+        wEI=12.0,
+        wIE=10.0,
+        wII=2.0,
+    )
+    from brainmass.wilson_cowan import WilsonCowanSeqNetwork
+    return WilsonCowanSeqNetwork(
+        n_inp,
+        n_hidden,
+        n_out,
+        delay=braintools.init.Uniform(1 * u.ms, 40 * u.ms),
+        delay_init=braintools.init.Uniform(-0.01, 0.01),
+        **params
     )
 
 
@@ -100,6 +127,8 @@ test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=batch_siz
 # instantiate homogeneous HORN model
 model = get_horn_model(dim_input, args.num_hidden, dim_output)
 model = get_jansen_rit_model(dim_input, args.num_hidden, dim_output)
+model = get_wilson_cowan_model(dim_input, args.num_hidden, dim_output)
+print(model)
 weights = model.states(brainstate.ParamState)
 
 # bce loss and optimizer for training
