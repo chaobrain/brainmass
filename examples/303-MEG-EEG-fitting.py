@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+
 import functools
 import os
 import pickle
@@ -31,7 +32,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 import brainmass
 import brainstate
-from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT, SoftplusT, ClipT
+from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT, ClipT
 
 Parameter = Union[brainstate.nn.Param, brainstate.typing.ArrayLike, Callable]
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
@@ -130,21 +131,20 @@ def get_hdeeg_data():
 
     # Extract coordinates and ROI labels from the atlas data
     coords_200 = np.array([atlas200['R'], atlas200['A'], atlas200['S']]).T
-    label = atlas200['ROI Name']
 
     # Remove network names from the ROI labels for clarity
-    label_stripped_200 = []
-    for xx in range(len(label)):
-        label_stripped_200.append(label[xx].replace('7Networks_', ''))
+    label_stripped_200 = list(map(lambda x: x.replace('7Networks_', ''), atlas200['ROI Name']))
+    # label = atlas200['ROI Name']
+    # label_stripped_200 = []
+    # for xx in range(len(label)):
+    #     label_stripped_200.append(label[xx].replace('7Networks_', ''))
 
     # Extract coordinates and ROI labels from the atlas data
     coords_1000 = np.array([atlas1000['R'], atlas1000['A'], atlas1000['S']]).T
     ROI_Name = atlas1000['ROI Name']
 
     # Remove network names from the ROI labels for clarity
-    label_stripped_1000 = []
-    for xx in range(len(ROI_Name)):
-        label_stripped_1000.append(ROI_Name[xx].replace('7Networks_', ''))
+    label_stripped_1000 = list(map(lambda x: x.replace('7Networks_', ''), ROI_Name))
 
     # Find the index of the stimulation region in the list of stripped ROI labels (1000 parcels)
     stim_idx = label_stripped_1000.index(stim_region[ses2use])
@@ -200,10 +200,11 @@ def get_hdeeg_data():
     number_of_region_affected = np.unique(np.where(abs_value > thr)[0]).shape[0]
 
     # Load the rewritten Schaeffer 200 parcels
-    img = nibabel.load(data_dir + '/calculate_distance/example_Schaefer2018_200Parcels_7Networks_rewritten.nii')
+    atlas200_img = nibabel.load(
+        data_dir + '/calculate_distance/example_Schaefer2018_200Parcels_7Networks_rewritten.nii')
 
     # Get the shape and affine matrix of the image
-    shape, affine = img.shape[:3], img.affine
+    shape, affine = atlas200_img.shape[:3], atlas200_img.affine
 
     # Create a meshgrid of voxel coordinates
     coords = np.array(np.meshgrid(*(range(i) for i in shape), indexing='ij'))
@@ -214,7 +215,7 @@ def get_hdeeg_data():
     # Apply the affine transformation to get the coordinates in millimeters
     mm_coords = nibabel.affines.apply_affine(affine, coords)
 
-    data = np.asarray(img.get_fdata(), dtype=np.int32)  # label image (voxel values = parcel indices)
+    data = np.asarray(atlas200_img.get_fdata(), dtype=np.int32)  # label image (voxel values = parcel indices)
     coords_flat = mm_coords.reshape(-1, 3)  # shape (n_voxels, 3)
     labels_flat = data.ravel()  # shape (n_voxels,)
 
@@ -252,7 +253,7 @@ def get_hdeeg_data():
     values = (np.max(distances[inject_stimulus] / 10) + 0.5) - (distances[inject_stimulus] / 10)
 
     # Initialize an array for stimulus weights with zeros
-    stim_weights_thr = np.zeros((len(label)))
+    stim_weights_thr = np.zeros((len(atlas200['ROI Name'])))
     # Assign the computed values to the stimulus weights for the selected parcels
     stim_weights_thr[inject_stimulus] = values
 
@@ -341,6 +342,467 @@ def get_hdeeg_data():
     # Apply stimulus at time steps 65-75
     uu = np.zeros((eeg_data.shape[0], dist.shape[0]))
     uu[65:75] = stim_weights_thr
+    return lm, sc, dist, eeg_data, uu
+
+
+def _get_leadfield(eeg_info):
+    # 数据根目录路径
+    # 包含图谱文件、连接组数据、EEG记录、解剖文件等
+    data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
+
+    # =========================================================================
+    # 第十一部分：构建EEG前向模型
+    # =========================================================================
+    # 前向模型描述神经源活动如何投射到头皮EEG电极
+    # 需要：头部几何结构、组织电导率、源空间定义
+
+    # 定义解剖文件路径
+    # trans: 头部坐标系到MRI坐标系的变换矩阵
+    trans = data_dir + '/anatomical/example-trans.fif'
+    # src: 源空间定义（皮层表面上的源点位置）
+    src = data_dir + '/anatomical/example-src.fif'
+    # bem: 边界元模型（描述头部组织层的几何结构和电导率）
+    bem = data_dir + '/anatomical/example-bem.fif'
+
+    # 计算前向解
+    # 这是计算密集型操作，将源空间每个点的活动映射到EEG电极
+    fwd = mne.make_forward_solution(
+        eeg_info,  # EEG传感器信息（电极位置等）
+        trans=trans,  # 坐标变换
+        src=src,  # 源空间
+        bem=bem,  # 边界元模型
+        meg=False,  # 不计算MEG
+        eeg=True,  # 只计算EEG
+        mindist=5.0,  # 源点到内颅骨的最小距离（毫米），避免数值问题
+        n_jobs=2,  # 并行计算的作业数
+        verbose=False,  # 不输出详细日志
+    )
+
+    # 将前向解转换为固定方向
+    # surf_ori=True: 使用皮层表面法向量作为源方向
+    # force_fixed=True: 强制使用固定方向（而非自由方向）
+    # use_cps=True: 使用皮层斑块统计
+    fwd_fixed = mne.convert_forward_solution(fwd, surf_ori=True, force_fixed=True, use_cps=True)
+
+    # 提取leadfield矩阵
+    # 形状为 (n_channels, n_sources)，描述每个源对每个电极的贡献
+    leadfield = fwd_fixed['sol']['data']
+
+    # 提取每个半球的源空间顶点索引
+    # vertices[0]: 左半球顶点索引
+    # vertices[1]: 右半球顶点索引
+    vertices = [src_hemi['vertno'] for src_hemi in fwd_fixed['src']]
+
+    # =========================================================================
+    # 第十二部分：将Leadfield从源空间映射到脑区空间
+    # =========================================================================
+    # 目标：将高分辨率的源级leadfield转换为脑区级leadfield
+    # 方法：对每个脑区内的所有源点取平均
+
+    # 读取FreeSurfer的annotation文件，获取每个顶点所属的脑区标签
+    # annotation文件是FreeSurfer格式的表面标签文件
+    lh_vertices = nibabel.freesurfer.io.read_annot(
+        data_dir + '/anatomical/lh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
+    rh_vertices = nibabel.freesurfer.io.read_annot(
+        data_dir + '/anatomical/rh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
+
+    # 获取源空间顶点对应的脑区标签
+    # 左半球标签保持不变（1-100）
+    lh_vertices_thr = lh_vertices[vertices[0]]
+    # 右半球标签加100，使其范围变为101-200
+    rh_vertices_thr = rh_vertices[vertices[1]] + 100
+    # 合并两半球的标签
+    vertices_thr = np.concatenate([lh_vertices_thr, rh_vertices_thr])
+
+    # 准备bincount计算
+    labels = np.asarray(vertices_thr, dtype=np.int64)  # 每个源点的脑区标签
+    n_parcels = 200
+    minlength = n_parcels + 1  # 包含标签0（未分配的顶点）
+
+    # 使用bincount计算每个脑区的leadfield和
+    # 对每个EEG通道，按脑区标签分组求和
+    sums = np.vstack([
+        np.bincount(labels, weights=leadfield[ch], minlength=minlength)
+        for ch in range(leadfield.shape[0])
+    ])  # 形状 (n_channels, minlength)
+
+    # 计算每个脑区包含的源点数量
+    counts = np.bincount(labels, minlength=minlength)  # 形状 (minlength,)
+
+    # 提取脑区1-200的数据（跳过标签0）
+    sums_sub = sums[:, 1:n_parcels + 1]  # 形状 (n_channels, 200)
+    counts_sub = counts[1:n_parcels + 1]  # 形状 (200,)
+
+    # 计算平均值，处理可能的除零情况
+    # np.errstate 临时忽略除零警告
+    with np.errstate(divide='ignore', invalid='ignore'):
+        new_leadfield = sums_sub / counts_sub[np.newaxis, :]  # 形状 (n_channels, 200)
+
+    # 将没有源点的脑区（counts=0）的leadfield设为0
+    zero_mask = counts_sub == 0
+    if np.any(zero_mask):
+        new_leadfield[:, zero_mask] = 0.0
+
+    # 准备leadfield矩阵
+    # 除以10进行缩放，调整数值范围以匹配模型的其他参数
+    lm = new_leadfield.copy() / 10
+
+    return lm
+
+
+def _get_stim_weight(seeg: np.ndarray, stim_region: str):
+    data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
+
+    # =========================================================================
+    # 第二部分：加载脑区图谱数据
+    # =========================================================================
+    # Schaefer图谱是一种基于功能连接的大脑皮层分区方案
+    # 将大脑皮层划分为多个功能均匀的脑区，按7个经典静息态网络组织
+    # 7个网络包括：视觉(Vis)、躯体运动(SomMot)、背侧注意(DorsAttn)、
+    #             腹侧注意(SalVentAttn)、边缘(Limbic)、控制(Cont)、默认模式(Default)
+
+    # 加载200脑区版本的图谱质心坐标
+    # CSV文件包含每个脑区的名称和RAS坐标（Right-Anterior-Superior，神经影像标准坐标系）
+    atlas200 = pd.read_csv(
+        os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
+    )
+
+    # 加载1000脑区版本的图谱质心坐标
+    # 更精细的分区用于精确定位刺激位置，然后映射回200脑区模型
+    atlas1000 = pd.read_csv(
+        os.path.join(data_dir, 'Schaefer2018_1000Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
+    )
+
+    # =========================================================================
+    # 第五部分：处理200脑区图谱的坐标和标签
+    # =========================================================================
+
+    # 从atlas200 DataFrame中提取RAS坐标
+    # R(Right): 左右轴，正值指向右侧
+    # A(Anterior): 前后轴，正值指向前方
+    # S(Superior): 上下轴，正值指向上方
+    # 结果形状为 (200, 3)，每行是一个脑区的三维坐标
+    coords_200 = np.array([atlas200['R'], atlas200['A'], atlas200['S']]).T
+
+    # 清理脑区标签，移除网络前缀 '7Networks_'
+    # 原始标签如 '7Networks_LH_Vis_1' 变为 'LH_Vis_1'
+    # 使用 map + lambda 函数进行批量字符串替换，比for循环更简洁
+    label_stripped_200 = list(map(lambda x: x.replace('7Networks_', ''), atlas200['ROI Name']))
+
+    # =========================================================================
+    # 第六部分：处理1000脑区图谱的坐标和标签
+    # =========================================================================
+
+    # 提取1000脑区图谱的RAS坐标，形状为 (1000, 3)
+    coords_1000 = np.array([atlas1000['R'], atlas1000['A'], atlas1000['S']]).T
+
+    # 同样清理1000脑区的标签
+    label_stripped_1000 = list(map(lambda x: x.replace('7Networks_', ''), atlas1000['ROI Name']))
+
+    # =========================================================================
+    # 第七部分：定位刺激区域并映射到200脑区空间
+    # =========================================================================
+    # 目标：将1000脑区图谱中的精确刺激位置映射到200脑区模型
+    # 策略：找到距离最近且属于同一功能网络的200脑区
+
+    # 在1000脑区标签列表中查找当前session刺激区域的索引
+    stim_idx = label_stripped_1000.index(stim_region)
+
+    # 获取刺激区域在1000脑区图谱中的精确坐标
+    stim_coords = coords_1000[stim_idx]
+
+    # 提取刺激区域所属的功能网络名称
+    # 标签格式为 '{半球}_{网络}_{编号}'，例如 'LH_Vis_1'
+    # split('_')[1] 提取第二部分，即网络名称 'Vis'
+    stim_net = stim_region.split('_')[1]
+
+    # 确保数组形状正确，为后续向量化计算做准备
+    coords_200 = np.asarray(coords_200)  # 确保形状为 (200, 3)
+    stim_coords = np.ravel(stim_coords)  # 展平为一维数组，形状 (3,)
+
+    # 计算所有200个脑区到刺激点的欧氏距离
+    # 使用向量化操作，比循环快得多
+    # coords_200 - stim_coords 利用广播机制，得到 (200, 3) 的差值矩阵
+    # np.linalg.norm(..., axis=1) 沿第二个轴计算范数，得到 (200,) 的距离向量
+    distances = np.linalg.norm(coords_200 - stim_coords, axis=1)
+
+    # 在200脑区中找到最佳匹配的脑区
+    # 条件：1) 距离刺激点最近  2) 属于同一功能网络
+    # np.argsort(distances) 返回按距离从小到大排序的索引
+    for idx, item in enumerate(np.argsort(distances)):
+        # 检查当前脑区是否属于刺激所在的网络
+        if stim_net in label_stripped_200[item]:
+            # 找到符合条件的脑区，记录其索引
+            parcel2inject = item
+            # 跳出循环，不再继续搜索
+            break
+
+    # =========================================================================
+    # 第八部分：分析sEEG响应，确定受影响的脑区数量
+    # =========================================================================
+    # sEEG记录提供了刺激扩散的直接证据
+    # 通过统计阈值方法确定有多少个脑区被电刺激显著激活
+
+    # 获取当前session的sEEG数据
+    # 取绝对值并转换为float64，确保后续数值计算的精度
+    abs_value = np.abs(seeg).astype(np.float64, copy=False)
+
+    # 去除基线：减去每个通道的均值
+    # keepdims=True 保持维度，使广播机制正常工作
+    # 这一步消除了不同通道之间的直流偏移差异
+    abs_value -= abs_value.mean(axis=1, keepdims=True)
+
+    # 再次取绝对值（因为去均值后可能产生负值）
+    abs_value = np.abs(abs_value)
+
+    # 找到最大响应的时间点，并定义其周围的分析窗口
+    # np.where 返回满足条件的索引，[1][0] 取时间轴上的第一个最大值位置
+    # 窗口为最大值前后各10个时间点
+    max_idx = np.where(abs_value == abs_value.max())[1][0]
+    starting_point = max_idx - 10
+    ending_point = max_idx + 10
+
+    # 在分析窗口内计算统计量
+    mean = np.mean(abs_value[:, starting_point:ending_point])
+    std = np.std(abs_value[:, starting_point:ending_point])
+
+    # 定义激活阈值：均值 + 4倍标准差
+    # 4倍标准差是一个相对严格的阈值，确保只有真正被激活的区域才被计入
+    thr = mean + (4 * std)
+
+    # 统计超过阈值的独立通道数量
+    # np.where(abs_value > thr)[0] 获取超过阈值的通道索引
+    # np.unique 去重，因为同一通道可能在多个时间点超过阈值
+    number_of_region_affected = np.unique(np.where(abs_value > thr)[0]).shape[0]
+
+    # =========================================================================
+    # 第九部分：从NIfTI图像计算精确的脑区质心坐标
+    # =========================================================================
+    # 直接从体素级别的parcellation图像计算质心
+    # 比使用atlas CSV中的预计算坐标更精确
+
+    # 加载200脑区的NIfTI格式parcellation图像
+    # 每个体素的值是其所属脑区的标签（1-200，0表示背景）
+    atlas200_img = nibabel.load(
+        data_dir + '/calculate_distance/example_Schaefer2018_200Parcels_7Networks_rewritten.nii')
+
+    # 获取图像的三维形状和仿射变换矩阵
+    # affine矩阵将体素坐标（整数索引）转换为毫米坐标（MNI空间）
+    shape, affine = atlas200_img.shape[:3], atlas200_img.affine
+
+    # 创建体素坐标的三维网格
+    # np.meshgrid 生成坐标网格，indexing='ij' 使用矩阵索引方式
+    coords = np.array(np.meshgrid(*(range(i) for i in shape), indexing='ij'))
+
+    # 重排数组维度
+    # 从 (3, x, y, z) 变为 (x, y, z, 3)，方便后续的仿射变换
+    coords = np.rollaxis(coords, 0, len(shape) + 1)
+
+    # 应用仿射变换，将体素坐标转换为毫米坐标（MNI空间）
+    mm_coords = nibabel.affines.apply_affine(affine, coords)
+    coords_flat = mm_coords.reshape(-1, 3)  # 展平为 (n_voxels, 3)
+
+    # 获取parcellation标签数据并展平
+    data = np.asarray(atlas200_img.get_fdata(), dtype=np.int32)  # 形状 (x, y, z)
+    labels_flat = data.ravel()  # 展平为 (n_voxels,)
+
+    # 设置bincount的参数
+    n_parcels = 200
+    # minlength确保结果数组至少有201个元素（0到200）
+    minlength = max(int(labels_flat.max()) + 1, n_parcels + 1)
+
+    # 使用bincount计算每个脑区的坐标和
+    # bincount(labels, weights=coords) 将coords值按labels分组求和
+    # 对x, y, z三个坐标轴分别计算
+    sums = np.vstack([
+        np.bincount(labels_flat, weights=coords_flat[:, 0], minlength=minlength),
+        np.bincount(labels_flat, weights=coords_flat[:, 1], minlength=minlength),
+        np.bincount(labels_flat, weights=coords_flat[:, 2], minlength=minlength),
+    ])  # 形状 (3, minlength)
+
+    # 计算每个脑区包含的体素数量
+    counts = np.bincount(labels_flat, minlength=minlength)  # 形状 (minlength,)
+
+    # 计算质心坐标 = 坐标和 / 体素数
+    centroids = np.zeros((3, minlength), dtype=float)
+    nonzero = counts > 0  # 找出有体素的脑区
+    centroids[:, nonzero] = sums[:, nonzero] / counts[nonzero]
+
+    # 提取脑区1到200的质心坐标（跳过标签0，即背景）
+    # 形状从 (3, 200) 准备转换为 (200, 3)
+    sub_coords = centroids[:, 1:n_parcels + 1].copy()
+
+    # =========================================================================
+    # 第十部分：计算刺激扩散权重
+    # =========================================================================
+    # 基于距离的刺激权重：距离刺激点越近的脑区，权重越大
+
+    # 转置坐标数组，变为 (n_parcels, 3) 的形状
+    coords = sub_coords.T.astype(float)
+    # 获取刺激注入脑区的质心坐标
+    center = sub_coords[:, parcel2inject].astype(float)
+    # 计算所有脑区到刺激点的距离
+    distances = np.linalg.norm(coords - center, axis=1)
+
+    # 选择距离最近的N个脑区作为受影响区域
+    # N = number_of_region_affected，由sEEG分析确定
+    inject_stimulus = np.argsort(distances)[:number_of_region_affected]
+
+    # 计算距离依赖的刺激权重
+    # 公式设计确保：1) 权重为正值  2) 距离越近权重越大  3) 权重平滑衰减
+    # distances/10 是缩放因子，避免数值过大
+    # +0.5 确保最远的受影响区域也有正的基础权重
+    values = (np.max(distances[inject_stimulus] / 10) + 0.5) - (distances[inject_stimulus] / 10)
+
+    return values, inject_stimulus
+
+
+def get_hdeeg_data_v2():
+    """
+    加载并预处理HD-EEG电刺激数据，用于神经质量模型拟合。
+
+    返回值
+    ------
+    lm : np.ndarray
+        形状 (n_channels, 200)，脑区级leadfield矩阵（已缩放）
+        描述每个脑区的神经活动如何投射到头皮EEG电极
+
+    sc : np.ndarray
+        形状 (200, 200)，归一化的对数变换结构连接矩阵
+        来自扩散MRI纤维追踪，表示脑区间的白质连接强度
+
+    dist : np.ndarray
+        形状 (200, 200)，脑区间欧氏距离矩阵（单位：毫米）
+        用于计算神经信号的传导延迟
+
+    eeg_data : np.ndarray
+        形状 (400, n_channels)，目标EEG时间序列（已归一化）
+        模型需要拟合的真实EEG诱发响应数据
+
+    uu : np.ndarray
+        形状 (400, 200)，外部刺激输入矩阵
+        定义了刺激的时间窗口和空间分布
+    """
+
+    # =========================================================================
+    # 第一部分：基础配置
+    # =========================================================================
+
+    # 选择要使用的实验session编号（0索引）
+    # 注意：不要更改此值，因为后续使用的解剖数据是针对特定被试的
+    # 如果更改session，需要同时更换对应的解剖文件（trans, src, bem等）
+    ses2use = 10
+
+    # 数据根目录路径
+    # 包含图谱文件、连接组数据、EEG记录、解剖文件等
+    data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
+
+    # =========================================================================
+    # 第三部分：加载EEG数据
+    # =========================================================================
+
+    # 加载所有session的预计算EEG诱发响应数据
+    # 形状为 (n_sessions, n_channels, n_timepoints)
+    # 诱发响应是对同一刺激多次重复后的平均EEG信号，可降低噪声
+    all_eeg_evoked = np.load(data_dir + '/empirical_data/all_eeg_evoked.npy')
+
+    # 读取MNE格式的EEG epoch数据
+    # Epoch是按试次（trial）分割的EEG数据段，每个epoch对应一次刺激
+    # 这里主要是为了获取EEG的元数据（电极位置、采样率等信息）
+    epo_eeg = mne.read_epochs(data_dir + '/empirical_data/example_epoched.fif', verbose=False)
+
+    # 计算epoch的平均诱发响应，创建MNE的Evoked对象
+    # Evoked对象包含了传感器信息、时间轴等元数据
+    evoked = epo_eeg.average()
+
+    # 用指定session的数据替换evoked对象中的数据
+    # 这样做的目的是：保留evoked对象的元数据结构，同时使用特定session的实际数据
+    evoked.data = all_eeg_evoked[ses2use]
+
+    # =========================================================================
+    # 第四部分：加载sEEG数据和刺激区域信息
+    # =========================================================================
+    # sEEG（立体定向脑电图）是植入颅内的深部电极记录
+    # 提供刺激扩散的"地面真值"，用于确定电刺激激活了多少个脑区
+
+    # 加载所有session的sEEG epoch数据
+    # 字典格式，键为session标识符，值为对应的sEEG数据数组
+    with open(data_dir + '/empirical_data/all_epo_seeg.pkl', 'rb') as handle:
+        all_epo_seeg = pickle.load(handle)
+
+    # 加载包含刺激区域信息的pickle文件
+    # 其中'stim_region'字段存储了每个session的刺激位置（在1000脑区图谱中的名称）
+    with open(data_dir + '/empirical_data/dist_Schaefer_1000parcels_7net.pkl', 'rb') as handle:
+        dist_Schaefer_1000parcels_7net = pickle.load(handle)
+
+    # 提取刺激区域名称列表
+    # 每个元素是一个字符串，格式如 'LH_Vis_1'（左半球_视觉网络_第1个脑区）
+    stim_region = dist_Schaefer_1000parcels_7net['stim_region']
+
+    # =========================================================================
+    # 第十三部分：加载结构连接和距离矩阵
+    # =========================================================================
+
+    # 加载结构连接矩阵
+    # 来自扩散MRI纤维追踪，值表示脑区间的白质纤维束数量
+    # 定义结构连接矩阵文件路径
+    # 结构连接(SC)来自扩散MRI的纤维追踪，表示脑区间的解剖连接强度
+    sc = pd.read_csv(
+        os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_count.csv'),
+        header=None,
+        sep=' '
+    ).values
+
+    # 对结构连接矩阵进行对数变换和归一化
+    # log1p(x) = log(1+x)，处理零值和压缩动态范围
+    # 除以L2范数进行归一化，使不同被试的数据具有可比性
+    sc = np.log1p(sc) / np.linalg.norm(np.log1p(sc))
+
+    # 加载脑区间距离矩阵
+    # 用于在神经质量模型中计算信号传导延迟
+
+    # 定义脑区间距离矩阵文件路径
+    # 距离矩阵用于计算神经信号在脑区间传播的时间延迟
+    dist = pd.read_csv(
+        os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_distance.csv'),
+        header=None,
+        sep=' '
+    ).values
+
+    # =========================================================================
+    # 第十四部分：准备最终的模型输入
+    # =========================================================================
+
+    # 提取EEG数据并进行预处理
+    eeg_data = evoked.data
+    # 提取时间窗口200-600（约200ms到600ms，包含主要的诱发响应）
+    # .T 转置为 (time, channels) 格式
+    # 归一化到 [-2, 2] 范围，便于模型训练
+    eeg_data = eeg_data[:, 200:600].T / (np.abs(eeg_data)).max() * 2
+
+    # 创建外部刺激输入矩阵
+    stim_weight, indices = _get_stim_weight(
+        all_epo_seeg[ses2use],
+        stim_region[ses2use],
+    )
+
+    # 形状 (n_timepoints, n_regions) = (400, 200)
+    uu = np.zeros((eeg_data.shape[0], dist.shape[0]))
+    # 在时间步65-75应用刺激（对应刺激发生的时间窗口）
+    # 刺激的空间分布由stim_weights_thr定义
+    uu[65:75, indices] = stim_weight
+
+    # 构建EEG前向模型
+    lm = _get_leadfield(epo_eeg.info)
+
+    # =========================================================================
+    # 返回所有模型输入
+    # =========================================================================
+    # lm: leadfield矩阵，将脑区活动映射到EEG
+    # sc: 结构连接矩阵，定义脑区间的连接强度
+    # dist: 距离矩阵，用于计算传导延迟
+    # eeg_data: 目标EEG数据，模型需要拟合的真实信号
+    # uu: 外部刺激输入，定义刺激的时空模式
     return lm, sc, dist, eeg_data, uu
 
 
@@ -1013,7 +1475,8 @@ def train_language_jr():
 
 
 def train_hdeeg_jr():
-    lm, sc, dist, data_verb, uu = get_hdeeg_data()
+    # lm, sc, dist, data_verb, uu = get_hdeeg_data()
+    lm, sc, dist, data_verb, uu = get_hdeeg_data_v2()
     uu *= 5.0
 
     # Extract stimulus information from uu
