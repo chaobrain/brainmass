@@ -84,6 +84,12 @@ from .wilson_cowan import (
     WilsonCowanSymmetricStep,
     WilsonCowanSimplifiedStep,
     WilsonCowanLinearStep,
+    WilsonCowanDivisiveStep,
+    WilsonCowanDivisiveInputStep,
+    WilsonCowanDelayedStep,
+    WilsonCowanAdaptiveStep,
+    WilsonCowanThreePopBase,
+    WilsonCowanThreePopulationStep,
 )
 from .wong_wang import WongWangStep
 from ._xy_model import (
@@ -127,6 +133,12 @@ __all__ = [
     'WilsonCowanSymmetricStep',
     'WilsonCowanSimplifiedStep',
     'WilsonCowanLinearStep',
+    'WilsonCowanDivisiveStep',
+    'WilsonCowanDivisiveInputStep',
+    'WilsonCowanDelayedStep',
+    'WilsonCowanAdaptiveStep',
+    'WilsonCowanThreePopBase',
+    'WilsonCowanThreePopulationStep',
     'WongWangStep',
     'VanDerPolStep',
     'MontbrioPazoRoxinStep',
