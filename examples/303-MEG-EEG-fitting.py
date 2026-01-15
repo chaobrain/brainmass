@@ -91,28 +91,27 @@ def get_hdeeg_data():
     ses2use = 10
 
     # download data
-    data_folder = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
+    data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
 
     # Load Schaefer 200-parcel atlas data
-    atlas200_file = os.path.join(data_folder, 'Schaefer2018_200Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
+    atlas200_file = os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
     atlas200 = pd.read_csv(atlas200_file)
 
     # Load Schaefer 1000-parcel atlas data
-    atlas1000_file = os.path.join(
-        data_folder, 'Schaefer2018_1000Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
+    atlas1000_file = os.path.join(data_dir, 'Schaefer2018_1000Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
     atlas1000 = pd.read_csv(atlas1000_file)
 
     # load the structural connectivity file
-    sc_file = os.path.join(data_folder, 'Schaefer2018_200Parcels_7Networks_count.csv')
+    sc_file = os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_count.csv')
 
     # distance file
-    dist_file = os.path.join(data_folder, 'Schaefer2018_200Parcels_7Networks_distance.csv')
+    dist_file = os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_distance.csv')
 
     # Load the precomputed EEG evoked response data from a file
-    all_eeg_evoked = np.load(data_folder + '/empirical_data/all_eeg_evoked.npy')
+    all_eeg_evoked = np.load(data_dir + '/empirical_data/all_eeg_evoked.npy')
 
     # Read the epoch data from an MNE-formatted file
-    epo_eeg = mne.read_epochs(data_folder + '/empirical_data/example_epoched.fif', verbose=False)
+    epo_eeg = mne.read_epochs(data_dir + '/empirical_data/example_epoched.fif', verbose=False)
 
     # Compute the average evoked response from the epochs
     evoked = epo_eeg.average()
@@ -121,9 +120,9 @@ def get_hdeeg_data():
     evoked.data = all_eeg_evoked[ses2use]
 
     # Load additional data from pickle files
-    with open(data_folder + '/empirical_data/all_epo_seeg.pkl', 'rb') as handle:
+    with open(data_dir + '/empirical_data/all_epo_seeg.pkl', 'rb') as handle:
         all_epo_seeg = pickle.load(handle)
-    with open(data_folder + '/empirical_data/dist_Schaefer_1000parcels_7net.pkl', 'rb') as handle:
+    with open(data_dir + '/empirical_data/dist_Schaefer_1000parcels_7net.pkl', 'rb') as handle:
         dist_Schaefer_1000parcels_7net = pickle.load(handle)
 
     # Extract the stimulation region data from the loaded pickle file
@@ -201,7 +200,7 @@ def get_hdeeg_data():
     number_of_region_affected = np.unique(np.where(abs_value > thr)[0]).shape[0]
 
     # Load the rewritten Schaeffer 200 parcels
-    img = nibabel.load(data_folder + '/calculate_distance/example_Schaefer2018_200Parcels_7Networks_rewritten.nii')
+    img = nibabel.load(data_dir + '/calculate_distance/example_Schaefer2018_200Parcels_7Networks_rewritten.nii')
 
     # Get the shape and affine matrix of the image
     shape, affine = img.shape[:3], img.affine
@@ -254,20 +253,13 @@ def get_hdeeg_data():
 
     # Initialize an array for stimulus weights with zeros
     stim_weights_thr = np.zeros((len(label)))
-
     # Assign the computed values to the stimulus weights for the selected parcels
     stim_weights_thr[inject_stimulus] = values
 
-    old_path = data_folder + "/anatomical/example-bem"
-    new_path = data_folder + "/anatomical/example-bem.fif"  # CS
-    if not os.path.exists(new_path):
-        os.rename(old_path, new_path)
-        print(f"Renamed {old_path} to {new_path}")
-
     # File paths for transformation, source space, and BEM files
-    trans = data_folder + '/anatomical/example-trans.fif'
-    src = data_folder + '/anatomical/example-src.fif'
-    bem = data_folder + '/anatomical/example-bem.fif'
+    trans = data_dir + '/anatomical/example-trans.fif'
+    src = data_dir + '/anatomical/example-src.fif'
+    bem = data_dir + '/anatomical/example-bem.fif'
 
     # Create a forward solution using the provided transformation, source space, and BEM files
     # Only EEG is used here; MEG is disabled
@@ -285,6 +277,7 @@ def get_hdeeg_data():
 
     # Convert the forward solution to a fixed orientation with surface orientation
     fwd_fixed = mne.convert_forward_solution(fwd, surf_ori=True, force_fixed=True, use_cps=True)
+
     # Update the leadfield matrix to use the fixed orientation
     leadfield = fwd_fixed['sol']['data']
 
@@ -293,9 +286,9 @@ def get_hdeeg_data():
 
     # Read annotation files for left and right hemispheres
     lh_vertices = nibabel.freesurfer.io.read_annot(
-        data_folder + '/anatomical/lh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
+        data_dir + '/anatomical/lh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
     rh_vertices = nibabel.freesurfer.io.read_annot(
-        data_folder + '/anatomical/rh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
+        data_dir + '/anatomical/rh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
 
     # Extract vertices corresponding to the parcels from the annotation files
     # Add 100 to right hemisphere vertices to adjust for parcel numbering
@@ -331,17 +324,12 @@ def get_hdeeg_data():
         new_leadfield[:, zero_mask] = 0.0
 
     # Load structural connectivity data from a CSV file
-    sc_df = pd.read_csv(sc_file, header=None, sep=' ')
-    sc = sc_df.values
+    sc = pd.read_csv(sc_file, header=None, sep=' ').values
     # Apply log transformation and normalization to the structural connectivity matrix
     sc = np.log1p(sc) / np.linalg.norm(np.log1p(sc))
 
     # Load the distance data from the saved CSV file
-    dist_df = pd.read_csv(dist_file, header=None, sep=' ')
-    dist = dist_df.values
-
-    # Initialize the stimulus weights for further processing
-    ki0 = stim_weights_thr
+    dist = pd.read_csv(dist_file, header=None, sep=' ').values
 
     # Extract and normalize EEG data from the evoked response
     eeg_data = evoked.data
@@ -352,7 +340,7 @@ def get_hdeeg_data():
 
     # Apply stimulus at time steps 65-75
     uu = np.zeros((eeg_data.shape[0], dist.shape[0]))
-    uu[65:75] = ki0
+    uu[65:75] = stim_weights_thr
     return lm, sc, dist, eeg_data, uu
 
 
@@ -1048,13 +1036,13 @@ def train_hdeeg_jr():
 
     # Visualize with representative mode
     visualize_state_output(
-        state_output, eeg_output, data_verb, sc=sc,
-        node_indices=node_indices, stimulus_window=stim_window,
-        mode='both', show=True
+        state_output, eeg_output, data_verb,
+        sc=sc, node_indices=node_indices, stimulus_window=stim_window, mode='both', show=True
     )
 
 
 if __name__ == '__main__':
-    train_language_horn()
+    pass
+    # train_language_horn()
     # train_language_jr()
-    # train_hdeeg_jr()
+    train_hdeeg_jr()
