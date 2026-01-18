@@ -20,7 +20,6 @@ exclude = [
 name = "brainmass"
 description = "Whole-brain brain modeling for differentiable neural mass models."
 readme = 'README.md'
-license = { text = 'Apache-2.0 license' }
 requires-python = '>=3.10'
 authors = [{ name = 'BranMass Developers', email = 'chao.brain@qq.com' }]
 classifiers = [
@@ -36,7 +35,6 @@ classifiers = [
     'Programming Language :: Python :: 3.12',
     'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: 3.14',
-    'License :: OSI Approved :: Apache Software License',
     'Topic :: Scientific/Engineering :: Bio-Informatics',
     'Topic :: Scientific/Engineering :: Mathematics',
     'Topic :: Scientific/Engineering :: Artificial Intelligence',
@@ -89,3 +87,6 @@ cuda13 = [
 tpu = [
     'jax[tpu]',
 ]
+
+[tool.setuptools.dynamic]
+version = { attr = "brainmass.__version__" }

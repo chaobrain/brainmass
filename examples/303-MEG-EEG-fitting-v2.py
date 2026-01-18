@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-
 import functools
 import os
 import pickle
@@ -32,7 +31,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 import brainmass
 import brainstate
-from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT, ClipT
+from brainstate.nn import GaussianReg, Param, Const, ReluT
 
 Parameter = Union[brainstate.nn.Param, brainstate.typing.ArrayLike, Callable]
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
@@ -658,36 +657,6 @@ def _get_stim_weight(seeg: np.ndarray, stim_region: str):
 
 
 def get_hdeeg_data_v2():
-    """
-    加载并预处理HD-EEG电刺激数据，用于神经质量模型拟合。
-
-    返回值
-    ------
-    lm : np.ndarray
-        形状 (n_channels, 200)，脑区级leadfield矩阵（已缩放）
-        描述每个脑区的神经活动如何投射到头皮EEG电极
-
-    sc : np.ndarray
-        形状 (200, 200)，归一化的对数变换结构连接矩阵
-        来自扩散MRI纤维追踪，表示脑区间的白质连接强度
-
-    dist : np.ndarray
-        形状 (200, 200)，脑区间欧氏距离矩阵（单位：毫米）
-        用于计算神经信号的传导延迟
-
-    eeg_data : np.ndarray
-        形状 (400, n_channels)，目标EEG时间序列（已归一化）
-        模型需要拟合的真实EEG诱发响应数据
-
-    uu : np.ndarray
-        形状 (400, 200)，外部刺激输入矩阵
-        定义了刺激的时间窗口和空间分布
-    """
-
-    # =========================================================================
-    # 第一部分：基础配置
-    # =========================================================================
-
     # 选择要使用的实验session编号（0索引）
     # 注意：不要更改此值，因为后续使用的解剖数据是针对特定被试的
     # 如果更改session，需要同时更换对应的解剖文件（trans, src, bem等）
@@ -806,211 +775,28 @@ def get_hdeeg_data_v2():
     return lm, sc, dist, eeg_data, uu
 
 
+def get_data_v3(subj=2):
+    data = np.load(
+        os.path.join('data/ccepcoreg-eeg-data', f'sub-{subj}-eeg-data.npy'),
+        allow_pickle=True
+    ).item()
+
+    n_trial = data['eeg_data'].shape[0]
+    # n_trial = 5
+    i_start = 200
+    eeg_data = data['eeg_data'][:n_trial, i_start:500]
+    stim_intensity = np.asarray([float(s.replace('ma', '')) for s in data['stim_intensity'][:n_trial]])
+    uu = np.zeros((n_trial, eeg_data.shape[1], data['dist'].shape[0]))
+    uu[:, 270 - i_start: 270 - i_start + 10] = np.expand_dims(
+        data['stim_weights'][:n_trial] * stim_intensity[:, np.newaxis],
+        1
+    )
+    return data['lm'], data['sc'], data['dist'], eeg_data, uu
+
+
 class BrainModelTR(brainstate.nn.Module):
     """
     Whole-brain neural mass model for EEG simulation.
-    """
-
-    def __init__(
-        self,
-        tr_dynamics: brainstate.nn.Dynamics,
-        leadfield: brainstate.nn.Module,
-        tr: u.Quantity = 0.001 * u.second,
-    ):
-        super().__init__()
-
-        self.dynamics = tr_dynamics
-        self.leadfield = leadfield
-
-        # TR parameters
-        self.tr = tr
-        self.dt_per_tr = int(tr / brainstate.environ.get_dt())
-
-    def update(self, tr_inputs, record_state: bool = False):
-        fn_tr = lambda inp_tr: self.dynamics(inp_tr, record_state=record_state)
-
-        if record_state:
-            activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
-            obv = self.leadfield(activities[0])
-            return obv, activities[1]
-        else:
-            activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
-            obv = self.leadfield(activities)
-            return obv
-
-
-class HORN_TR(brainstate.nn.Dynamics):
-    def __init__(
-        self,
-        n_hidden,
-
-        # structural coupling parameters
-        sc: np.ndarray,
-        dist: np.ndarray,
-        mu: float,
-
-        # dynamics parameters
-        alpha: Parameter = 0.04,  # excitability
-        omega: Parameter = 2. * u.math.pi / 28.,  # natural frequency
-        gamma: Parameter = 0.01,  # damping
-        v: Parameter = 0.0,  # feedback
-        state_init: Callable = braintools.init.ZeroInit(),
-        delay_init: Callable = braintools.init.ZeroInit(),
-        tr: u.Quantity = 1e-3 * u.second,
-    ):
-        super().__init__(n_hidden)
-
-        # dynamics
-        dynamics = brainmass.HORNStep(
-            n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
-        delay_time = dist / mu * brainstate.environ.get_dt()
-        self.h2h = brainmass.AdditiveCoupling(
-            dynamics.prefetch_delay('y', delay_time, brainmass.delay_index(n_hidden), init=delay_init),
-            brainmass.LaplacianConnParam(sc),
-        )
-        self.dynamics = dynamics
-        self.tr = tr
-
-    def update(self, inputs, record_state: bool = False):
-        def step(i):
-            self.dynamics(self.h2h() + inputs)
-
-        n_step = int(self.tr / brainstate.environ.get_dt())
-        brainstate.transform.for_loop(step, np.arange(n_step))
-        if record_state:
-            return self.dynamics.x.value, {'x': self.dynamics.x.value, 'y': self.dynamics.y.value}
-        else:
-            return self.dynamics.x.value
-
-
-class HORN_TR2(brainstate.nn.Dynamics):
-    def __init__(
-        self,
-        n_hidden,
-
-        # structural coupling parameters
-        sc: np.ndarray,
-        dist: np.ndarray,
-        mu: float,
-
-        # dynamics parameters
-        alpha: Parameter = 0.04,  # excitability
-        omega: Parameter = 2. * u.math.pi / 28.,  # natural frequency
-        gamma: Parameter = 0.01,  # damping
-        v: Parameter = 0.0,  # feedback
-        state_init: Callable = braintools.init.ZeroInit(),
-        delay_init: Callable = braintools.init.ZeroInit(),
-        tr: u.Quantity = 1e-3 * u.second,
-    ):
-        super().__init__(n_hidden)
-
-        # dynamics
-        dynamics = brainmass.HORNStep(
-            n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
-        delay_time = dist / mu * brainstate.environ.get_dt()
-        self.h2h = brainmass.AdditiveCoupling(
-            dynamics.prefetch_delay(
-                'y', delay_time, brainmass.delay_index(n_hidden),
-                init=delay_init, update_every=tr,
-            ),
-            brainmass.LaplacianConnParam(sc),
-        )
-        self.dynamics = dynamics
-        self.tr = tr
-
-    def update(self, inputs, record_state: bool = False):
-        def step(i):
-            self.dynamics(inp)
-
-        inp = self.h2h() + inputs
-        n_step = int(self.tr / brainstate.environ.get_dt())
-        brainstate.transform.for_loop(step, np.arange(n_step))
-        if record_state:
-            return self.dynamics.x.value, {'x': self.dynamics.x.value, 'y': self.dynamics.y.value}
-        else:
-            return self.dynamics.x.value
-
-
-class HORNNetworkTR(BrainModelTR):
-    """
-    HORN neural mass network for EEG simulation.
-    """
-
-    def __init__(
-        self,
-        n_hidden: int,
-
-        # structural coupling parameters
-        sc: np.ndarray,
-        dist: np.ndarray,
-        mu: float,
-
-        # leadfield parameters
-        cy0: Parameter,
-        lm: Parameter,
-        y0: Parameter,
-
-        # other parameters
-        tr: u.Quantity = 0.001 * u.second,
-    ):
-        # dynamics parameters
-        alpha: Parameter = 0.04  # excitability
-        omega: Parameter = 2. * u.math.pi / 28.  # natural frequency
-        gamma: Parameter = 0.01  # damping
-        v: Parameter = 0.0  # feedback
-
-        # hyperparameters
-        alpha = 0.04  # excitability
-        omega_base = 2. * u.math.pi / 28.  # natural frequency
-        gamma_base = 0.01  # damping
-        omega_min = 0.5 * omega_base
-        omega_max = 2.0 * omega_base
-        gamma_min = 0.5 * gamma_base
-        gamma_max = 2.0 * gamma_base
-        omega = braintools.init.Uniform(omega_min, omega_max)(n_hidden)
-        gamma = braintools.init.Uniform(gamma_min, gamma_max)(n_hidden)
-        alpha = braintools.init.Uniform(0.005, 0.4)(n_hidden)
-
-        # omega = Param(omega, t=SoftplusT(0.001))
-        # gamma = Param(gamma, t=SoftplusT(0.001))
-
-        # omega = Param(omega, t=ReluT(0.1))
-        # gamma = Param(gamma, t=ReluT(0.1))
-
-        omega = Param(omega, t=ClipT(0.01, 1.0))
-        gamma = Param(gamma, t=ReluT(1e-4))
-        alpha = Param(alpha, t=ClipT(0.005, 0.4))
-
-        # state_init: Callable = braintools.init.ZeroInit()
-        # delay_init: Callable = braintools.init.ZeroInit()
-
-        state_init = braintools.init.Uniform(-0.01, 0.01)
-        delay_init = braintools.init.Uniform(-0.01, 0.01)
-
-        # dynamics = HORN_TR(
-        dynamics = HORN_TR2(
-            n_hidden,
-            sc=sc,
-            dist=dist,
-            mu=mu,
-            alpha=alpha,
-            omega=omega,
-            gamma=gamma,
-            v=v,
-            state_init=state_init,
-            delay_init=delay_init,
-        )
-
-        # leadfiled matrix
-        leadfield = brainmass.LeadfieldReadout(lm=lm, y0=y0, cy0=cy0)
-
-        # super initialization
-        super().__init__(dynamics, leadfield, tr=tr)
-
-
-class JansenRitNetworkTR(BrainModelTR):
-    """
-    Jansen-Rit neural mass network for EEG simulation.
     """
 
     def __init__(
@@ -1030,18 +816,11 @@ class JansenRitNetworkTR(BrainModelTR):
         # other parameters
         tr: u.Quantity = 0.001 * u.second,
     ):
+        super().__init__()
+
         g_l = Const(400)
         g_f = Const(10)
         g_b = Const(10)
-        # std_in uses ExpT (no reg in original code)
-        std_in = Param(6.0, t=ExpT(5.0))
-        # Fixed parameters
-        vmax = Const(5)
-        v0 = Const(6)
-        r = Const(0.56)
-        # Fixed parameters
-        kE = Const(0)
-        kI = Const(0)
         k = Param(5.5, t=ReluT(0.5), reg=GaussianReg(5.5, 0.2, fit_hyper=True))
         # Array parameters
         lm_base = 0.01 * brainstate.random.randn_like(lm)
@@ -1076,43 +855,56 @@ class JansenRitNetworkTR(BrainModelTR):
         )
         leadfield = brainmass.LeadfieldReadout(lm=lm, y0=y0, cy0=cy0)
 
-        super().__init__(dynamics, leadfield, tr=tr)
+        self.dynamics = dynamics
+        self.leadfield = leadfield
+        self.n_hidden = dynamics.varshape[0]
+        self.n_output = lm.value().shape[0]
+
+        self.tr = tr
+
+    def update(self, tr_inputs, record_state: bool = False):
+        fn_tr = lambda inp_tr: self.dynamics(inp_tr, record_state=record_state)
+
+        if record_state:
+            activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
+            obv = self.leadfield(activities[0])
+            return obv, activities[1]
+        else:
+            activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
+            obv = self.leadfield(activities)
+            return obv
 
 
 class ModelFitting:
     def __init__(
         self,
         model: BrainModelTR,
-        data: np.ndarray,
         optimizer: braintools.optim.Optimizer,
     ):
         self.model = model
-        self.data = data
         self.optimizer = optimizer
         self.weights = model.states(brainstate.ParamState)
         self.optimizer.register_trainable_weights(self.weights)
-        # define masks for getting lower triangle matrix indices
-        self.mask_e = np.tril_indices(data.shape[-1], -1)
-        self.output_size = data.shape[-1]
 
-    def f_loss(self, tr_inputs, targets, n_warmup):
-        with self.model.param_precompute():
-            if n_warmup > 0:
-                self.model.update(np.arange(n_warmup))
-            eeg_output = self.model.update(tr_inputs)
+        # define masks for getting lower triangle matrix indices
+        self.mask_e = np.tril_indices(model.n_output, -1)
+
+    def f_simulate(self, inputs, record_state=False):
+        vmap_model = brainstate.nn.ModuleMapper(self.model, init_map_size=inputs.shape[0])
+        vmap_model.init_all_states()
+        with vmap_model.param_precompute():
+            return vmap_model.map(functools.partial(self.model.update, record_state=record_state))(inputs)
+
+    def f_loss(self, tr_inputs, targets):
+        eeg_output = self.f_simulate(tr_inputs)
         loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
         loss = 10. * loss_main + self.model.reg_loss()
         return loss, eeg_output
 
-    @brainstate.transform.jit(
-        static_argnums=(0, 3),
-        static_argnames=['n_warmup']
-    )
-    def f_train(self, tr_inputs, targets, n_warmup: int):
-        self.model.init_all_states()
+    @brainstate.transform.jit(static_argnums=0)
+    def f_train(self, tr_inputs, targets):
         f_grad = brainstate.transform.grad(
-            functools.partial(self.f_loss, n_warmup=n_warmup),
-            self.weights, has_aux=True, return_value=True, check_states=False
+            self.f_loss, self.weights, has_aux=True, return_value=True, check_states=False
         )
         grads, loss, eeg_output = f_grad(tr_inputs, targets)
         self.optimizer.step(grads)
@@ -1120,40 +912,42 @@ class ModelFitting:
 
     @brainstate.transform.jit(static_argnums=0)
     def f_predict(self, inputs):
-        self.model.init_all_states()
-        with self.model.param_precompute():
-            eeg_output, state_output = self.model(inputs, record_state=True)
-        return eeg_output, state_output
+        return self.f_simulate(inputs, record_state=True)
 
-    def train(self, inputs, n_epoches: int, n_warmup: int = 0):
+    def train(self, inputs, targets, n_epoches: int):
         loss_his = []
         for i_epoch in range(n_epoches):
-            loss, eeg_output = self.f_train(inputs, self.data, n_warmup=n_warmup)
+            loss, eeg_output = self.f_train(inputs, targets)
+            loss_his.append(np.asarray(loss))
 
-            loss_np = np.asarray(loss)
-            loss_his.append(loss_np)
-
-            fc_emp = np.corrcoef(self.data, rowvar=False)
-            fc_sim = np.corrcoef(eeg_output[10:, :], rowvar=False)
-            cor = np.corrcoef(fc_sim[self.mask_e], fc_emp[self.mask_e])[0, 1]
-            sim = np.diag(cosine_similarity(eeg_output.T, self.data.T)).mean()
-
-            print(f'epoch = {i_epoch}, loss = {loss_np}, FC cor = {cor}, cos sim = {sim}')
+            cors, sims = [], []
+            for i_trial in range(eeg_output.shape[0]):
+                tar = targets[i_trial]
+                eeg_out = eeg_output[i_trial]
+                fc_emp = np.corrcoef(tar, rowvar=False)
+                fc_sim = np.corrcoef(eeg_out[10:, :], rowvar=False)
+                cor = np.corrcoef(fc_sim[self.mask_e], fc_emp[self.mask_e])[0, 1]
+                sim = np.diag(cosine_similarity(eeg_out.T, tar.T)).mean()
+                cors.append(cor)
+                sims.append(sim)
+            print(f'epoch = {i_epoch}, loss = {loss_his[-1]}, FC cor = {np.mean(cors)}, cos sim = {np.mean(sims)}')
 
         return np.array(loss_his)
 
-    def test(self, inputs, n_warmup: int = 0):
-        if n_warmup > 0:
-            self.f_predict(np.zeros(n_warmup))
+    def test(self, inputs, targets, transient_num=20):
         eeg_output, state_output = self.f_predict(inputs)
 
-        transient_num = 20
-        fc = np.corrcoef(self.data, rowvar=False)
-        fc_sim = np.corrcoef(eeg_output[transient_num:], rowvar=False)
-
-        cor = np.corrcoef(fc_sim[self.mask_e], fc[self.mask_e])[0, 1]
-        sim = np.diag(cosine_similarity(eeg_output.T, self.data.T)).mean()
-        print(f'Testing FC = {cor}, cos_sim = {sim}')
+        cors, sims = [], []
+        for i_trial in range(eeg_output.shape[0]):
+            tar = targets[i_trial]
+            eeg_out = eeg_output[i_trial]
+            fc = np.corrcoef(tar, rowvar=False)
+            fc_sim = np.corrcoef(eeg_out[transient_num:], rowvar=False)
+            cor = np.corrcoef(fc_sim[self.mask_e], fc[self.mask_e])[0, 1]
+            sim = np.diag(cosine_similarity(eeg_out.T, tar.T)).mean()
+            cors.append(cor)
+            sims.append(sim)
+        print(f'Testing FC = {np.mean(cors)}, cos_sim = {np.mean(sims)}')
         return eeg_output, state_output
 
 
@@ -1164,39 +958,38 @@ def visualize_state_output(
     sc=None,
     node_indices=None,
     stimulus_window=None,
-    mode='comprehensive',
-    show_statistics=False,
+    trial_indices=None,
     show=True
 ):
     """
-    Visualize the state output from neural mass models with multiple visualization modes.
+    Visualize the state output from neural mass models with support for multiple trials.
 
     Parameters
     ----------
     state_output : dict
-        Dictionary containing state variables (e.g., 'M', 'E', 'I') with shape (time_steps, node_size)
+        Dictionary containing state variables (e.g., 'M', 'E', 'I') with shape
+        (time_steps, node_size) for single trial or (batch, time_steps, node_size) for multiple trials
     eeg_output : np.ndarray
-        Predicted MEG/EEG signals with shape (time_steps, channels)
+        Predicted MEG/EEG signals with shape (time_steps, channels) for single trial
+        or (batch, time_steps, channels) for multiple trials
     data_target : np.ndarray
-        Target MEG/EEG data with shape (time_steps, channels)
+        Target MEG/EEG data with shape (time_steps, channels) for single trial
+        or (batch, time_steps, channels) for multiple trials
     sc : np.ndarray, optional
-        Structural connectivity matrix (node_size, node_size). Required for 'representative' mode.
+        Structural connectivity matrix (node_size, node_size).
     node_indices : list, optional
         List of node indices to highlight. Default: automatically selected from sc if available,
         otherwise [2, 183, 5]
     stimulus_window : tuple, optional
         Tuple of (start_time, end_time) for stimulus window in milliseconds. Default: (100, 140)
-    mode : str, optional
-        Visualization mode: 'comprehensive' (12-panel overview), 'representative' (4-panel focused view),
-        or 'both' (show both). Default: 'comprehensive'
-    show_statistics : bool, optional
-        Print statistical summary for representative nodes. Default: False
+    trial_indices : list, optional
+        List of trial indices to visualize when data has batch dimension. Default: all trials (up to 4)
     show : bool, optional
         Display the figure(s). Default: True
 
     Returns
     -------
-    fig or tuple of figs
+    fig or list of figs
         The created figure(s)
     """
     if stimulus_window is None:
@@ -1210,90 +1003,51 @@ def visualize_state_output(
     )
     keys = tuple(state_output.keys())
 
-    time_steps = eeg_output.shape[0]
-    node_size = state_output[keys[0]].shape[1]
+    # Check if data has batch dimension (3D for states, 3D for eeg)
+    first_state = state_output[keys[0]]
+    has_batch = first_state.ndim == 3
+
+    if has_batch:
+        n_trials = first_state.shape[0]
+        time_steps = first_state.shape[1]
+        node_size = first_state.shape[2]
+
+        # Select trials to visualize
+        if trial_indices is None:
+            trial_indices = list(range(min(n_trials, 4)))  # Default: up to 4 trials
+        n_trials_to_show = len(trial_indices)
+    else:
+        n_trials_to_show = 1
+        time_steps = eeg_output.shape[0]
+        node_size = first_state.shape[1]
+        trial_indices = [0]
+        # Add batch dimension for uniform processing
+        state_output = {k: v[np.newaxis, ...] for k, v in state_output.items()}
+        eeg_output = eeg_output[np.newaxis, ...]
+        data_target = data_target[np.newaxis, ...]
+
     time_ms = np.arange(time_steps) * 1.0  # TR = 1ms
 
     # Set default node_indices if not provided
     if node_indices is None:
         if sc is not None:
-            # Auto-select representative nodes based on connectivity
             node_degree = np.sum(sc, axis=1)
-            # Select top 3 connected nodes
             node_indices = np.argsort(node_degree)[-3:].tolist()
         else:
-            # Default fallback
             node_indices = [2, 183, 5] if node_size > 183 else list(range(min(3, node_size)))
 
-    # Helper function: Select representative nodes
-    def select_representative_nodes(sc_mat, primary_nodes, n_nodes=8):
-        """Select representative nodes based on connectivity and spatial distribution."""
-        node_degree = np.sum(sc_mat, axis=1)
-        available = [i for i in range(node_size) if i not in primary_nodes]
+    def create_trial_view(trial_idx, trial_label):
+        """Create visualization for a single trial."""
+        state_trial = {k: v[trial_idx] for k, v in state_output.items()}
+        eeg_trial = eeg_output[trial_idx]
+        target_trial = data_target[trial_idx]
 
-        hub_idx = available[np.argmax(node_degree[available])]
-        peripheral_idx = available[np.argmin(node_degree[available])]
-
-        excluded = set(primary_nodes + [hub_idx, peripheral_idx])
-        spatial_candidates = [i for i in range(node_size) if i not in excluded]
-
-        # Select spatially distributed nodes
-        early_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.15))]
-        middle_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.47))]
-        late_spatial = spatial_candidates[np.argmin(np.abs(np.array(spatial_candidates) - node_size * 0.80))]
-
-        indices = primary_nodes + [hub_idx, peripheral_idx, early_spatial, middle_spatial, late_spatial]
-        labels = [
-            f'Primary-1 (N{primary_nodes[0]})',
-            f'Primary-2 (N{primary_nodes[1]})',
-            f'Primary-3 (N{primary_nodes[2]})',
-            f'Hub (N{hub_idx})',
-            f'Peripheral (N{peripheral_idx})',
-            f'Early (N{early_spatial})',
-            f'Middle (N{middle_spatial})',
-            f'Late (N{late_spatial})'
-        ]
-        types = ['primary', 'primary', 'primary', 'hub', 'peripheral', 'spatial', 'spatial', 'spatial']
-        colors = ['darkred', 'red', 'lightcoral', 'blue', 'green', 'darkgray', 'gray', 'lightgray']
-
-        return {'indices': indices, 'labels': labels, 'types': types, 'colors': colors}
-
-    # Helper function: Print statistics
-    def print_statistics(node_info):
-        """Print statistical summary of state values."""
-        indices = node_info['indices']
-        labels = node_info['labels']
-
-        print("\n" + "=" * 80)
-        print("REPRESENTATIVE NODE STATE STATISTICS")
-        print("=" * 80)
-
-        for node_idx, label in zip(indices, labels):
-            print(f"\n{label}:")
-            print("-" * 60)
-
-            for state_name in keys:
-                state = state_output[state_name][:, node_idx]
-                peak_val = u.math.max(u.math.abs(state))
-                peak_time = u.math.argmax(u.math.abs(state))
-                mean_val = u.math.mean(state)
-                std_val = u.math.std(state)
-
-                print(f"  {state_name} State:")
-                print(f"    Peak Value: {peak_val:>10.4f}  (at t={peak_time} ms)")
-                print(f"    Mean:       {mean_val:>10.4f}  ±{std_val:.4f}")
-
-        print("\n" + "=" * 80 + "\n")
-
-    # COMPREHENSIVE VISUALIZATION
-    def create_comprehensive_view():
-        """Create 12-panel comprehensive visualization."""
         fig = plt.figure(figsize=(18, 16))
         gs = GridSpec(4, 3, figure=fig, hspace=0.3, wspace=0.3)
 
         # Row 1: Time series plots for selected nodes
         colors = plt.cm.viridis(np.linspace(0, 1, len(node_indices)))
-        for col, (name, state) in enumerate(state_output.items()):
+        for col, (name, state) in enumerate(state_trial.items()):
             state = u.get_magnitude(state)
             ax = fig.add_subplot(gs[0, col])
             for idx, node_idx in enumerate(node_indices):
@@ -1306,7 +1060,7 @@ def visualize_state_output(
             ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', label='Stimulus')
 
         # Row 2: Heatmaps for all nodes
-        for col, (name, state) in enumerate(state_output.items()):
+        for col, (name, state) in enumerate(state_trial.items()):
             state = u.get_magnitude(state)
             ax = fig.add_subplot(gs[1, col])
             im = ax.imshow(state.T, aspect='auto', cmap='RdBu_r', extent=(0, time_steps, 0, node_size), origin='lower')
@@ -1318,7 +1072,7 @@ def visualize_state_output(
             plt.colorbar(im, ax=ax, label='State Value')
 
         # Row 3: Distributions of final state values
-        for col, (name, state) in enumerate(state_output.items()):
+        for col, (name, state) in enumerate(state_trial.items()):
             state = u.get_magnitude(state)
             ax = fig.add_subplot(gs[2, col])
             st = state[-1, :]
@@ -1334,15 +1088,15 @@ def visualize_state_output(
             ax.grid(True, alpha=0.3, axis='y')
 
         # Row 4: MEG comparison
-        n_channels = min(3, eeg_output.shape[1])
-        channel_indices = np.linspace(0, eeg_output.shape[1] - 1, n_channels, dtype=int)
+        n_channels = min(3, eeg_trial.shape[1])
+        channel_indices = np.linspace(0, eeg_trial.shape[1] - 1, n_channels, dtype=int)
 
         for col, ch_idx in enumerate(channel_indices):
             ax = fig.add_subplot(gs[3, col])
-            ax.plot(time_ms, data_target[:, ch_idx], 'k--', linewidth=2, label='Target', alpha=0.7)
-            ax.plot(time_ms, eeg_output[:, ch_idx], 'b-', linewidth=1.5, label='Predicted')
+            ax.plot(time_ms, target_trial[:, ch_idx], 'k--', linewidth=2, label='Target', alpha=0.7)
+            ax.plot(time_ms, eeg_trial[:, ch_idx], 'b-', linewidth=1.5, label='Predicted')
 
-            corr = np.corrcoef(data_target[:, ch_idx], eeg_output[:, ch_idx])[0, 1]
+            corr = np.corrcoef(target_trial[:, ch_idx], eeg_trial[:, ch_idx])[0, 1]
             ax.set_xlabel('Time (ms)')
             ax.set_ylabel('MEG Signal')
             ax.set_title(f'Channel {ch_idx} (corr: {corr:.3f})')
@@ -1350,162 +1104,107 @@ def visualize_state_output(
             ax.grid(True, alpha=0.3)
             ax.axvspan(stim_start, stim_end, alpha=0.2, color='red')
 
-        plt.suptitle('Neural Mass Model State Dynamics - Comprehensive View',
+        plt.suptitle(f'Neural Mass Model State Dynamics - {trial_label}',
                      fontsize=16, fontweight='bold', y=0.995)
         return fig
 
-    # REPRESENTATIVE VISUALIZATION
-    def create_representative_view(node_info):
-        """Create 4-panel representative nodes visualization."""
-        fig, axes = plt.subplots(2, 2, figsize=(16, 10))
-        fig.subplots_adjust(hspace=0.3, wspace=0.3)
+    def create_multi_trial_summary():
+        """Create a summary figure comparing all trials."""
+        n_states = len(keys)
+        fig = plt.figure(figsize=(6 * n_trials_to_show, 4 * (n_states + 1)))
+        gs = GridSpec(n_states + 1, n_trials_to_show, figure=fig, hspace=0.35, wspace=0.25)
 
-        indices = node_info['indices']
-        labels = node_info['labels']
-        colors = node_info['colors']
+        trial_colors = plt.cm.tab10(np.linspace(0, 1, n_trials_to_show))
 
-        # Panel 1-3: State trajectories for P, E, I
-        for panel_idx in range(3):
-            ax = axes.flat[panel_idx]
-            state_name = keys[panel_idx] if panel_idx < len(keys) else keys[0]
-            state = state_output[state_name]
-            state = u.get_magnitude(state)
+        # Rows for each state variable: heatmaps across trials
+        for row, (name, state_all) in enumerate(state_output.items()):
+            for col, (ti, trial_idx) in enumerate(enumerate(trial_indices)):
+                state = u.get_magnitude(state_all[trial_idx])
+                ax = fig.add_subplot(gs[row, col])
+                im = ax.imshow(state.T, aspect='auto', cmap='RdBu_r',
+                               extent=(0, time_steps, 0, node_size), origin='lower')
+                ax.set_xlabel('Time (ms)')
+                ax.set_ylabel('Node Index')
+                ax.set_title(f'{name} - Trial {trial_idx}')
+                ax.axvline(stim_start, color='yellow', linestyle='--', linewidth=1, alpha=0.7)
+                ax.axvline(stim_end, color='yellow', linestyle='--', linewidth=1, alpha=0.7)
+                plt.colorbar(im, ax=ax, label='State Value')
 
-            for idx, node_idx in enumerate(indices):
-                ax.plot(time_ms, state[:, node_idx], label=labels[idx], color=colors[idx], linewidth=2.0)
-            ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', zorder=0)
-            ax.set_xlabel('Time (ms)', fontsize=11)
-            ax.set_ylabel('State Value', fontsize=11)
-            ax.set_title(f'{state_name} State - Representative Nodes', fontsize=13, fontweight='bold')
-            ax.legend(fontsize=8, loc='best', ncol=2)
-            ax.grid(True, alpha=0.3, color='lightgray')
+        # Last row: EEG comparison for each trial
+        for col, (ti, trial_idx) in enumerate(enumerate(trial_indices)):
+            eeg_trial = eeg_output[trial_idx]
+            target_trial = data_target[trial_idx]
+            ax = fig.add_subplot(gs[n_states, col])
 
-        # Panel 4: Combined P-E-I for primary auditory node
-        ax = axes[1, 1]
-        primary_node = indices[0]
-        line_styles = ['-', '--', '-.']
-        state_colors = ['blue', 'red', 'green']
+            # Plot mean across channels
+            target_mean = target_trial.mean(axis=1)
+            pred_mean = eeg_trial.mean(axis=1)
+            ax.plot(time_ms, target_mean, 'k--', linewidth=2, label='Target (mean)', alpha=0.7)
+            ax.plot(time_ms, pred_mean, color=trial_colors[ti], linewidth=1.5, label='Predicted (mean)')
 
-        for idx, (state_name, style, color) in enumerate(zip(keys, line_styles, state_colors)):
-            state = state_output[state_name]
-            state = u.get_magnitude(state)
-            ax.plot(time_ms, state[:, primary_node], label=f'{state_name} State',
-                    linestyle=style, color=color, linewidth=2.5)
+            # Add shaded region for std
+            target_std = target_trial.std(axis=1)
+            pred_std = eeg_trial.std(axis=1)
+            ax.fill_between(time_ms, target_mean - target_std, target_mean + target_std,
+                            color='gray', alpha=0.2)
+            ax.fill_between(time_ms, pred_mean - pred_std, pred_mean + pred_std,
+                            color=trial_colors[ti], alpha=0.2)
 
-        ax.axvspan(stim_start, stim_end, alpha=0.2, color='red', zorder=0)
-        ax.set_xlabel('Time (ms)', fontsize=11)
-        ax.set_ylabel('State Value', fontsize=11)
-        ax.set_title(f'Combined Dynamics in Primary Node {primary_node}', fontsize=13, fontweight='bold')
-        ax.legend(fontsize=10, loc='best')
-        ax.grid(True, alpha=0.3, color='lightgray')
+            corr = np.corrcoef(target_mean, pred_mean)[0, 1]
+            rmse = np.sqrt(np.mean((target_mean - pred_mean) ** 2))
+            ax.set_xlabel('Time (ms)')
+            ax.set_ylabel('EEG Signal (mean)')
+            ax.set_title(f'Trial {trial_idx} (corr: {corr:.3f}, RMSE: {rmse:.3f})')
+            ax.legend(fontsize=8)
+            ax.grid(True, alpha=0.3)
+            ax.axvspan(stim_start, stim_end, alpha=0.2, color='red')
 
-        plt.suptitle('Representative Brain Region State Dynamics', fontsize=16, fontweight='bold', y=0.995)
+        plt.suptitle('Multi-Trial Summary - State Dynamics & EEG Comparison',
+                     fontsize=16, fontweight='bold', y=0.995)
         return fig
 
     # Main execution logic
-    if mode == 'comprehensive':
-        fig = create_comprehensive_view()
-        if show:
-            plt.show()
-        return fig
+    figs = []
 
-    elif mode == 'representative':
-        if sc is None:
-            raise ValueError("Structural connectivity matrix 'sc' is required for representative mode")
-        node_info = select_representative_nodes(sc, node_indices)
-        if show_statistics:
-            print_statistics(node_info)
-        fig = create_representative_view(node_info)
-        if show:
-            plt.show()
-        return fig
+    # Create individual trial views
+    for ti, trial_idx in enumerate(trial_indices):
+        trial_label = f'Trial {trial_idx}' if has_batch or n_trials_to_show > 1 else 'Single Trial'
+        fig = create_trial_view(trial_idx, trial_label)
+        figs.append(fig)
 
-    elif mode == 'both':
-        if sc is None:
-            raise ValueError("Structural connectivity matrix 'sc' is required for representative mode")
-        node_info = select_representative_nodes(sc, node_indices)
-        if show_statistics:
-            print_statistics(node_info)
+    # Create multi-trial summary if multiple trials
+    if n_trials_to_show > 1:
+        fig_summary = create_multi_trial_summary()
+        figs.append(fig_summary)
 
-        fig_comp = create_comprehensive_view()
-        fig_rep = create_representative_view(node_info)
+    if show:
+        plt.show()
 
-        if show:
-            plt.show()
-        return fig_comp, fig_rep
-
-    else:
-        raise ValueError(f"Invalid mode: {mode}. Choose 'comprehensive', 'representative', or 'both'")
-
-
-def train_language_horn():
-    brainstate.environ.set(dt=1.0 * u.ms)
-
-    lm, sc, dist, data_verb, uu = get_language_data()
-    uu *= 5.0
-
-    model = HORNNetworkTR(
-        dist.shape[0],
-        sc=sc, dist=dist, mu=0.1, lm=lm, cy0=Const(5),
-        y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
-    )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-3))
-    fitting.train(uu, n_epoches=1500)
-    eeg_output, state_output = fitting.test(uu)
-
-    # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show=True)
-
-
-def train_language_jr():
-    lm, sc, dist, data_verb, uu = get_language_data()
-    uu *= 5.0
-
-    model = JansenRitNetworkTR(
-        dist.shape[0],
-        sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
-        y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
-    )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
-    fitting.train(uu, n_epoches=100)
-    eeg_output, state_output = fitting.test(uu)
-
-    # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show=True)
+    return figs if len(figs) > 1 else figs[0]
 
 
 def train_hdeeg_jr():
     # lm, sc, dist, data_verb, uu = get_hdeeg_data()
-    lm, sc, dist, data_verb, uu = get_hdeeg_data_v2()
-    uu *= 5.0
+    # lm, sc, dist, data_verb, uu = get_hdeeg_data_v2()
+    lm, sc, dist, activities, inputs = get_data_v3()
+    inputs *= 5.0
 
-    # Extract stimulus information from uu
-    # Find which nodes received stimulus (non-zero values)
-    stim_nodes = np.where(np.any(uu != 0, axis=0))[0]
-    # Find time window of stimulus
-    stim_times = np.where(np.any(uu != 0, axis=1))[0]
-    stim_window = (stim_times[0], stim_times[-1]) if len(stim_times) > 0 else (65, 75)
-    # Select top 3 stimulated nodes
-    node_indices = stim_nodes[:3].tolist() if len(stim_nodes) >= 3 else stim_nodes.tolist()
-
-    model = JansenRitNetworkTR(
+    model = BrainModelTR(
         dist.shape[0],
-        sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
+        sc=sc,
+        dist=dist,
+        mu=1.,
+        lm=lm,
+        cy0=Const(5),
         y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
     )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
-    fitting.train(uu, n_epoches=100)
-    eeg_output, state_output = fitting.test(uu)
+    fitting = ModelFitting(model, braintools.optim.Adam(lr=braintools.optim.StepLR(5e-2, step_size=50, gamma=0.2)))
+    fitting.train(inputs, activities, n_epoches=100)
+    eeg_output, state_output = fitting.test(inputs, activities)
 
-    # Visualize with representative mode
-    visualize_state_output(
-        state_output, eeg_output, data_verb,
-        sc=sc, node_indices=node_indices, stimulus_window=stim_window, mode='both', show=True
-    )
+    visualize_state_output(state_output, eeg_output, activities, sc=sc, show=True)
 
 
 if __name__ == '__main__':
     pass
-    # train_language_horn()
-    # train_language_jr()
     train_hdeeg_jr()

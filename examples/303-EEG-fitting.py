@@ -15,8 +15,7 @@
 
 import functools
 import os
-import pickle
-from typing import Union, Callable
+from typing import Union, Callable, Dict
 
 import braintools
 import brainunit as u
@@ -26,323 +25,18 @@ import mne
 import nibabel
 import numpy as np
 import pandas as pd
+from braintools.metric import cosine_similarity, functional_connectivity, matrix_correlation
 from matplotlib.gridspec import GridSpec
-from scipy.io import loadmat
-from sklearn.metrics.pairwise import cosine_similarity
 
 import brainmass
 import brainstate
-from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT, ClipT
+from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT
 
 Parameter = Union[brainstate.nn.Param, brainstate.typing.ArrayLike, Callable]
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
 
 brainstate.environ.set(dt=0.0001 * u.second)
-
-
-def get_language_data():
-    # We use an example dataset for one subject on a public Google Drive folder
-    output_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_ismail2025/'
-
-    # We will use MEG data recorded during a covert verb generation task in verb generation trials and noise trials
-    # Evoked MEG data averaged across trials (-100 to 400 ms)
-    verb_meg_raw = np.load(os.path.join(output_dir, 'verb_evoked.npy'))  # (time, channels)
-    noise_meg_raw = np.load(os.path.join(output_dir, 'noise_evoked.npy'))  # (time, channels)
-    # Normalize both signals
-    verb_meg = verb_meg_raw / np.abs(verb_meg_raw).max() * 1
-    noise_meg = noise_meg_raw / np.abs(noise_meg_raw).max() * 1
-
-    # We will use the leadfield to simulate MEG activty from sources derived from the individual's head model
-    leadfield = loadmat(os.path.join(output_dir, 'leadfield_3d.mat'))  # shape (sources, sensors, 3)
-    lm_3d = leadfield['M']  # 3D leadfield matrix
-    # Convert 3D to 2D using SVD-based projection
-    lm = np.zeros_like(lm_3d[:, :, 0])
-    for sources in range(lm_3d.shape[0]):
-        u_, d, v = np.linalg.svd(lm_3d[sources])
-        lm[sources] = u_[:, :3].dot(np.diag(d)).dot(v[0])
-    # Scale the leadfield matrix
-    lm = lm.T / 1e-11 * 5  # Shape: (channels, sources)
-
-    # We will use the individual's weights and distance matrices
-    sc_df = pd.read_csv(os.path.join(output_dir, 'weights.csv'), header=None).values
-    sc = np.log1p(sc_df)
-    sc = sc / np.linalg.norm(sc)
-    dist = np.loadtxt(os.path.join(output_dir, 'distance.txt'))
-    node_size = sc.shape[0]
-
-    # Format input data
-    data_verb = verb_meg.T
-    data_noise = noise_meg.T
-
-    # To simulate the auditory inputs in this task we will stimulate the auditory cortices
-    # These nodes were identified using an ROI mask of left and right Heschl's gyri
-    # based on the Talairach Daemon database
-    ki0 = np.zeros(node_size)
-    ki0[[2, 183, 5]] = 1
-
-    uu = np.zeros((data_verb.shape[0], node_size))
-    uu[100:140] = ki0
-
-    return lm, sc, dist, data_verb, uu
-
-
-def get_hdeeg_data_v1():
-    # Select the session number to use:
-    # Please do not change it as we are using subject-specific anatomy
-    ses2use = 10
-
-    # download data
-    data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
-
-    # Load Schaefer 200-parcel atlas data
-    atlas200_file = os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
-    atlas200 = pd.read_csv(atlas200_file)
-
-    # Load Schaefer 1000-parcel atlas data
-    atlas1000_file = os.path.join(data_dir, 'Schaefer2018_1000Parcels_7Networks_order_FSLMNI152_2mm.Centroid_RAS.csv')
-    atlas1000 = pd.read_csv(atlas1000_file)
-
-    # load the structural connectivity file
-    sc_file = os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_count.csv')
-
-    # distance file
-    dist_file = os.path.join(data_dir, 'Schaefer2018_200Parcels_7Networks_distance.csv')
-
-    # Load the precomputed EEG evoked response data from a file
-    all_eeg_evoked = np.load(data_dir + '/empirical_data/all_eeg_evoked.npy')
-
-    # Read the epoch data from an MNE-formatted file
-    epo_eeg = mne.read_epochs(data_dir + '/empirical_data/example_epoched.fif', verbose=False)
-
-    # Compute the average evoked response from the epochs
-    evoked = epo_eeg.average()
-
-    # Replace the data of the averaged evoked response with data from the selected session
-    evoked.data = all_eeg_evoked[ses2use]
-
-    # Load additional data from pickle files
-    with open(data_dir + '/empirical_data/all_epo_seeg.pkl', 'rb') as handle:
-        all_epo_seeg = pickle.load(handle)
-    with open(data_dir + '/empirical_data/dist_Schaefer_1000parcels_7net.pkl', 'rb') as handle:
-        dist_Schaefer_1000parcels_7net = pickle.load(handle)
-
-    # Extract the stimulation region data from the loaded pickle file
-    stim_region = dist_Schaefer_1000parcels_7net['stim_region']
-
-    # Extract coordinates and ROI labels from the atlas data
-    coords_200 = np.array([atlas200['R'], atlas200['A'], atlas200['S']]).T
-
-    # Remove network names from the ROI labels for clarity
-    label_stripped_200 = list(map(lambda x: x.replace('7Networks_', ''), atlas200['ROI Name']))
-    # label = atlas200['ROI Name']
-    # label_stripped_200 = []
-    # for xx in range(len(label)):
-    #     label_stripped_200.append(label[xx].replace('7Networks_', ''))
-
-    # Extract coordinates and ROI labels from the atlas data
-    coords_1000 = np.array([atlas1000['R'], atlas1000['A'], atlas1000['S']]).T
-    ROI_Name = atlas1000['ROI Name']
-
-    # Remove network names from the ROI labels for clarity
-    label_stripped_1000 = list(map(lambda x: x.replace('7Networks_', ''), ROI_Name))
-
-    # Find the index of the stimulation region in the list of stripped ROI labels (1000 parcels)
-    stim_idx = label_stripped_1000.index(stim_region[ses2use])
-
-    # Use the index to get the coordinates of the stimulation region from the 1000-parcel atlas
-    stim_coords = coords_1000[stim_idx]
-
-    # Extract the network name from the stimulation region label
-    # The network name is the part after the underscore in the stimulation region label
-    stim_net = stim_region[ses2use].split('_')[1]
-
-    # python
-    # vectorized Euclidean distances between coords_200 (N,3) and stim_coords (3,)
-    coords_200 = np.asarray(coords_200)  # ensure array shape (N,3)
-    stim_coords = np.ravel(stim_coords)  # ensure shape (3,)
-
-    # fast, memory-friendly:
-    distances = np.linalg.norm(coords_200 - stim_coords, axis=1)
-
-    # Iterate over the indices of the distances array, sorted in ascending order
-    for idx, item in enumerate(np.argsort(distances)):
-        # Check if the network name of the stimulation region is present in the label of the current parcel
-        if stim_net in label_stripped_200[item]:
-            # If the condition is met, assign the index
-            # of the current parcel to `parcel2inject`
-            parcel2inject = item
-            # Exit the loop since the desired parcel has been found
-            break
-
-    # pick session array, take absolute and ensure float for safe in-place ops
-    keys = list(all_epo_seeg.keys())
-    abs_value = np.abs(all_epo_seeg[keys[ses2use]]).astype(np.float64, copy=False)
-
-    # subtract per-channel mean using broadcasting (axis=1 = channels/rows)
-    abs_value -= abs_value.mean(axis=1, keepdims=True)
-
-    # take absolute of the demeaned signals
-    abs_value = np.abs(abs_value)
-
-    # Find the starting and ending points around the maximum value in the data
-    # Get the index of the maximum value along the time axis
-    starting_point = np.where(abs_value == abs_value.max())[1][0] - 10
-    ending_point = np.where(abs_value == abs_value.max())[1][0] + 10
-
-    # Compute the maximum, mean, and standard deviation of the data within the range around the maximum
-    mean = np.mean(abs_value[:, starting_point:ending_point])
-    std = np.std(abs_value[:, starting_point:ending_point])
-
-    # Define a threshold as mean + 4 times the standard deviation
-    thr = mean + (4 * std)
-
-    # Count the number of unique regions affected by the threshold
-    number_of_region_affected = np.unique(np.where(abs_value > thr)[0]).shape[0]
-
-    # Load the rewritten Schaeffer 200 parcels
-    atlas200_img = nibabel.load(
-        data_dir + '/calculate_distance/example_Schaefer2018_200Parcels_7Networks_rewritten.nii')
-
-    # Get the shape and affine matrix of the image
-    shape, affine = atlas200_img.shape[:3], atlas200_img.affine
-
-    # Create a meshgrid of voxel coordinates
-    coords = np.array(np.meshgrid(*(range(i) for i in shape), indexing='ij'))
-
-    # Rearrange the coordinates array to have the correct shape
-    coords = np.rollaxis(coords, 0, len(shape) + 1)
-
-    # Apply the affine transformation to get the coordinates in millimeters
-    mm_coords = nibabel.affines.apply_affine(affine, coords)
-
-    data = np.asarray(atlas200_img.get_fdata(), dtype=np.int32)  # label image (voxel values = parcel indices)
-    coords_flat = mm_coords.reshape(-1, 3)  # shape (n_voxels, 3)
-    labels_flat = data.ravel()  # shape (n_voxels,)
-
-    n_parcels = 200
-    minlength = max(int(labels_flat.max()) + 1, n_parcels + 1)  # ensure we have bins up to 200
-
-    # sum coordinates per label for each axis using bincount
-    sums = np.vstack([
-        np.bincount(labels_flat, weights=coords_flat[:, 0], minlength=minlength),
-        np.bincount(labels_flat, weights=coords_flat[:, 1], minlength=minlength),
-        np.bincount(labels_flat, weights=coords_flat[:, 2], minlength=minlength),
-    ])  # shape (3, minlength)
-
-    # voxel counts per label
-    counts = np.bincount(labels_flat, minlength=minlength)  # shape (minlength,)
-
-    # compute centroids (keep zeros for labels with no voxels to match original initialization)
-    centroids = np.zeros((3, minlength), dtype=float)
-    nonzero = counts > 0
-    centroids[:, nonzero] = sums[:, nonzero] / counts[nonzero]
-
-    # extract parcels 1..200 into sub_coords with shape (3, 200)
-    sub_coords = centroids[:, 1:n_parcels + 1].copy()
-
-    # Vectorized Euclidean distances between each parcel centroid and the parcel to inject
-    coords = sub_coords.T.astype(float)  # shape: (n_parcels, 3)
-    center = sub_coords[:, parcel2inject].astype(float)  # shape: (3,)
-    distances = np.linalg.norm(coords - center, axis=1)  # shape: (n_parcels,)
-
-    # Find the indices of the closest parcels to inject, based on the number of affected regions
-    inject_stimulus = np.argsort(distances)[:number_of_region_affected]
-
-    # Compute stimulus weights based on the distances
-    # Adjust distances to a scale of 0 to 1 and calculate the values for the stimulus weights
-    values = (np.max(distances[inject_stimulus] / 10) + 0.5) - (distances[inject_stimulus] / 10)
-
-    # Initialize an array for stimulus weights with zeros
-    stim_weights_thr = np.zeros((len(atlas200['ROI Name'])))
-    # Assign the computed values to the stimulus weights for the selected parcels
-    stim_weights_thr[inject_stimulus] = values
-
-    # File paths for transformation, source space, and BEM files
-    trans = data_dir + '/anatomical/example-trans.fif'
-    src = data_dir + '/anatomical/example-src.fif'
-    bem = data_dir + '/anatomical/example-bem.fif'
-
-    # Create a forward solution using the provided transformation, source space, and BEM files
-    # Only EEG is used here; MEG is disabled
-    fwd = mne.make_forward_solution(
-        epo_eeg.info,
-        trans=trans,
-        src=src,
-        bem=bem,
-        meg=False,
-        eeg=True,
-        mindist=5.0,
-        n_jobs=2,
-        verbose=False,
-    )
-
-    # Convert the forward solution to a fixed orientation with surface orientation
-    fwd_fixed = mne.convert_forward_solution(fwd, surf_ori=True, force_fixed=True, use_cps=True)
-
-    # Update the leadfield matrix to use the fixed orientation
-    leadfield = fwd_fixed['sol']['data']
-
-    # Extract vertex indices for each hemisphere from the forward solution
-    vertices = [src_hemi['vertno'] for src_hemi in fwd_fixed['src']]
-
-    # Read annotation files for left and right hemispheres
-    lh_vertices = nibabel.freesurfer.io.read_annot(
-        data_dir + '/anatomical/lh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
-    rh_vertices = nibabel.freesurfer.io.read_annot(
-        data_dir + '/anatomical/rh.Schaefer2018_200Parcels_7Networks_order.annot')[0]
-
-    # Extract vertices corresponding to the parcels from the annotation files
-    # Add 100 to right hemisphere vertices to adjust for parcel numbering
-    lh_vertices_thr = lh_vertices[vertices[0]]
-    rh_vertices_thr = rh_vertices[vertices[1]] + 100
-    # Combine left and right hemisphere vertices into a single array
-    vertices_thr = np.concatenate([lh_vertices_thr, rh_vertices_thr])
-
-    # python
-    labels = np.asarray(vertices_thr, dtype=np.int64)  # parcel labels per vertex
-    n_parcels = 200
-    minlength = n_parcels + 1  # include label 0
-
-    # Sum leadfield values per label for each channel using np.bincount
-    sums = np.vstack([
-        np.bincount(labels, weights=leadfield[ch], minlength=minlength)
-        for ch in range(leadfield.shape[0])
-    ])  # shape: (channels, minlength)
-
-    # Counts per label
-    counts = np.bincount(labels, minlength=minlength)  # shape: (minlength,)
-
-    # Take only parcels 1..200 and compute safe mean (avoid divide-by-zero)
-    sums_sub = sums[:, 1:n_parcels + 1]  # shape: (channels, n_parcels)
-    counts_sub = counts[1:n_parcels + 1]  # shape: (n_parcels,)
-
-    with np.errstate(divide='ignore', invalid='ignore'):
-        new_leadfield = sums_sub / counts_sub[np.newaxis, :]  # shape: (channels, n_parcels)
-
-    # Set columns with zero counts to zero (no vertices for that parcel)
-    zero_mask = counts_sub == 0
-    if np.any(zero_mask):
-        new_leadfield[:, zero_mask] = 0.0
-
-    # Load structural connectivity data from a CSV file
-    sc = pd.read_csv(sc_file, header=None, sep=' ').values
-    # Apply log transformation and normalization to the structural connectivity matrix
-    sc = np.log1p(sc) / np.linalg.norm(np.log1p(sc))
-
-    # Load the distance data from the saved CSV file
-    dist = pd.read_csv(dist_file, header=None, sep=' ').values
-
-    # Extract and normalize EEG data from the evoked response
-    eeg_data = evoked.data
-    eeg_data = eeg_data[:, 200:600].T / (np.abs(eeg_data)).max() * 2
-
-    # Initialize the leadfield matrix for the model
-    lm = new_leadfield.copy() / 10
-
-    # Apply stimulus at time steps 65-75
-    uu = np.zeros((eeg_data.shape[0], dist.shape[0]))
-    uu[65:75] = stim_weights_thr
-    return lm, sc, dist, eeg_data, uu
+_global_lm = None
 
 
 def _get_leadfield(eeg_info):
@@ -450,7 +144,10 @@ def _get_leadfield(eeg_info):
     return lm
 
 
-def _get_stim_weight(seeg: np.ndarray, stim_region: str):
+def _get_stim_weight(
+    seeg: np.ndarray,
+    stim_region: str,
+):
     data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
 
     # =========================================================================
@@ -654,10 +351,12 @@ def _get_stim_weight(seeg: np.ndarray, stim_region: str):
     # +0.5 确保最远的受影响区域也有正的基础权重
     values = (np.max(distances[inject_stimulus] / 10) + 0.5) - (distances[inject_stimulus] / 10)
 
-    return values, inject_stimulus
+    res = np.zeros(coords.shape[0])
+    res[inject_stimulus] = values
+    return res
 
 
-def get_hdeeg_data_v2():
+def get_eeg_data(sub: int = 1):
     """
     加载并预处理HD-EEG电刺激数据，用于神经质量模型拟合。
 
@@ -684,40 +383,14 @@ def get_hdeeg_data_v2():
         定义了刺激的时间窗口和空间分布
     """
 
-    # =========================================================================
-    # 第一部分：基础配置
-    # =========================================================================
-
-    # 选择要使用的实验session编号（0索引）
-    # 注意：不要更改此值，因为后续使用的解剖数据是针对特定被试的
-    # 如果更改session，需要同时更换对应的解剖文件（trans, src, bem等）
-    ses2use = 10
+    processed_data_dir = 'D:/codes/githubs/others/ccepcoreg/processed_data_v1'
 
     # 数据根目录路径
     # 包含图谱文件、连接组数据、EEG记录、解剖文件等
-    data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
-
-    # =========================================================================
-    # 第三部分：加载EEG数据
-    # =========================================================================
-
-    # 加载所有session的预计算EEG诱发响应数据
-    # 形状为 (n_sessions, n_channels, n_timepoints)
-    # 诱发响应是对同一刺激多次重复后的平均EEG信号，可降低噪声
-    all_eeg_evoked = np.load(data_dir + '/empirical_data/all_eeg_evoked.npy')
-
-    # 读取MNE格式的EEG epoch数据
-    # Epoch是按试次（trial）分割的EEG数据段，每个epoch对应一次刺激
-    # 这里主要是为了获取EEG的元数据（电极位置、采样率等信息）
-    epo_eeg = mne.read_epochs(data_dir + '/empirical_data/example_epoched.fif', verbose=False)
-
-    # 计算epoch的平均诱发响应，创建MNE的Evoked对象
-    # Evoked对象包含了传感器信息、时间轴等元数据
-    evoked = epo_eeg.average()
-
-    # 用指定session的数据替换evoked对象中的数据
-    # 这样做的目的是：保留evoked对象的元数据结构，同时使用特定session的实际数据
-    evoked.data = all_eeg_evoked[ses2use]
+    data = np.load(
+        os.path.join(processed_data_dir, f'sub-{sub:02}-data.npy'),
+        allow_pickle=True
+    ).item()
 
     # =========================================================================
     # 第四部分：加载sEEG数据和刺激区域信息
@@ -727,21 +400,17 @@ def get_hdeeg_data_v2():
 
     # 加载所有session的sEEG epoch数据
     # 字典格式，键为session标识符，值为对应的sEEG数据数组
-    with open(data_dir + '/empirical_data/all_epo_seeg.pkl', 'rb') as handle:
-        all_epo_seeg = pickle.load(handle)
-
-    # 加载包含刺激区域信息的pickle文件
-    # 其中'stim_region'字段存储了每个session的刺激位置（在1000脑区图谱中的名称）
-    with open(data_dir + '/empirical_data/dist_Schaefer_1000parcels_7net.pkl', 'rb') as handle:
-        dist_Schaefer_1000parcels_7net = pickle.load(handle)
+    seeg = data['ieeg_data']
 
     # 提取刺激区域名称列表
     # 每个元素是一个字符串，格式如 'LH_Vis_1'（左半球_视觉网络_第1个脑区）
-    stim_region = dist_Schaefer_1000parcels_7net['stim_region']
+    stim_region = data['stim_region']
 
     # =========================================================================
     # 第十三部分：加载结构连接和距离矩阵
     # =========================================================================
+
+    data_dir = 'D:/codes/projects/whole-brain-nmm-pytorch/data_momi2025'
 
     # 加载结构连接矩阵
     # 来自扩散MRI纤维追踪，值表示脑区间的白质纤维束数量
@@ -774,26 +443,26 @@ def get_hdeeg_data_v2():
     # =========================================================================
 
     # 提取EEG数据并进行预处理
-    eeg_data = evoked.data
+    eeg_data = data['eeg_data']
     # 提取时间窗口200-600（约200ms到600ms，包含主要的诱发响应）
-    # .T 转置为 (time, channels) 格式
+    # .T 转置为 (n_trial, channels, time) 格式
     # 归一化到 [-2, 2] 范围，便于模型训练
-    eeg_data = eeg_data[:, 200:600].T / (np.abs(eeg_data)).max() * 2
+    eeg_data = np.transpose(eeg_data, (0, 2, 1)) / (np.abs(eeg_data)).max() * 2
 
     # 创建外部刺激输入矩阵
-    stim_weight, indices = _get_stim_weight(
-        all_epo_seeg[ses2use],
-        stim_region[ses2use],
-    )
+    stim_weights = np.asarray([
+        _get_stim_weight(seeg[i], stim_region[i])
+        for i in range(eeg_data.shape[0])
+    ])
 
-    # 形状 (n_timepoints, n_regions) = (400, 200)
-    uu = np.zeros((eeg_data.shape[0], dist.shape[0]))
-    # 在时间步65-75应用刺激（对应刺激发生的时间窗口）
-    # 刺激的空间分布由stim_weights_thr定义
-    uu[65:75, indices] = stim_weight
-
-    # 构建EEG前向模型
-    lm = _get_leadfield(epo_eeg.info)
+    global _global_lm
+    if _global_lm is None:
+        # 读取MNE格式的EEG epoch数据
+        # Epoch是按试次（trial）分割的EEG数据段，每个epoch对应一次刺激
+        # 这里主要是为了获取EEG的元数据（电极位置、采样率等信息）
+        epo_eeg = mne.read_epochs(data_dir + '/empirical_data/example_epoched.fif', verbose=False)
+        # 构建EEG前向模型
+        _global_lm = _get_leadfield(epo_eeg.info)
 
     # =========================================================================
     # 返回所有模型输入
@@ -803,236 +472,45 @@ def get_hdeeg_data_v2():
     # dist: 距离矩阵，用于计算传导延迟
     # eeg_data: 目标EEG数据，模型需要拟合的真实信号
     # uu: 外部刺激输入，定义刺激的时空模式
-    return lm, sc, dist, eeg_data, uu
+    data['lm'] = _global_lm
+    data['sc'] = sc
+    data['dist'] = dist
+    data['eeg_data'] = eeg_data
+    data['stim_weights'] = stim_weights
+
+    return data
 
 
-class BrainModelTR(brainstate.nn.Module):
+def save_data():
+    save_dir = 'data/ccepcoreg-eeg-data'
+    for i in range(1, 37):
+        print('Processing subject', i)
+        np.save(os.path.join(save_dir, f'sub-{i}-eeg-data.npy'), get_eeg_data(i))
+
+
+def load_data(subj: int = 1):
+    return np.load(
+        os.path.join('data/ccepcoreg-eeg-data', f'sub-{subj}-eeg-data.npy'),
+        allow_pickle=True
+    ).item()
+
+
+class JansenRitNetwork(brainstate.nn.Module):
     """
     Whole-brain neural mass model for EEG simulation.
     """
 
     def __init__(
         self,
-        tr_dynamics: brainstate.nn.Dynamics,
-        leadfield: brainstate.nn.Module,
+        node_size: int,
+        sc: np.ndarray,
+        dist: np.ndarray,
+        mu: float,
+        lm: Parameter,
         tr: u.Quantity = 0.001 * u.second,
     ):
         super().__init__()
 
-        self.dynamics = tr_dynamics
-        self.leadfield = leadfield
-
-        # TR parameters
-        self.tr = tr
-        self.dt_per_tr = int(tr / brainstate.environ.get_dt())
-
-    def update(self, tr_inputs, record_state: bool = False):
-        fn_tr = lambda inp_tr: self.dynamics(inp_tr, record_state=record_state)
-
-        if record_state:
-            activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
-            obv = self.leadfield(activities[0])
-            return obv, activities[1]
-        else:
-            activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
-            obv = self.leadfield(activities)
-            return obv
-
-
-class HORN_TR(brainstate.nn.Dynamics):
-    def __init__(
-        self,
-        n_hidden,
-
-        # structural coupling parameters
-        sc: np.ndarray,
-        dist: np.ndarray,
-        mu: float,
-
-        # dynamics parameters
-        alpha: Parameter = 0.04,  # excitability
-        omega: Parameter = 2. * u.math.pi / 28.,  # natural frequency
-        gamma: Parameter = 0.01,  # damping
-        v: Parameter = 0.0,  # feedback
-        state_init: Callable = braintools.init.ZeroInit(),
-        delay_init: Callable = braintools.init.ZeroInit(),
-        tr: u.Quantity = 1e-3 * u.second,
-    ):
-        super().__init__(n_hidden)
-
-        # dynamics
-        dynamics = brainmass.HORNStep(
-            n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
-        delay_time = dist / mu * brainstate.environ.get_dt()
-        self.h2h = brainmass.AdditiveCoupling(
-            dynamics.prefetch_delay('y', delay_time, brainmass.delay_index(n_hidden), init=delay_init),
-            brainmass.LaplacianConnParam(sc),
-        )
-        self.dynamics = dynamics
-        self.tr = tr
-
-    def update(self, inputs, record_state: bool = False):
-        def step(i):
-            self.dynamics(self.h2h() + inputs)
-
-        n_step = int(self.tr / brainstate.environ.get_dt())
-        brainstate.transform.for_loop(step, np.arange(n_step))
-        if record_state:
-            return self.dynamics.x.value, {'x': self.dynamics.x.value, 'y': self.dynamics.y.value}
-        else:
-            return self.dynamics.x.value
-
-
-class HORN_TR2(brainstate.nn.Dynamics):
-    def __init__(
-        self,
-        n_hidden,
-
-        # structural coupling parameters
-        sc: np.ndarray,
-        dist: np.ndarray,
-        mu: float,
-
-        # dynamics parameters
-        alpha: Parameter = 0.04,  # excitability
-        omega: Parameter = 2. * u.math.pi / 28.,  # natural frequency
-        gamma: Parameter = 0.01,  # damping
-        v: Parameter = 0.0,  # feedback
-        state_init: Callable = braintools.init.ZeroInit(),
-        delay_init: Callable = braintools.init.ZeroInit(),
-        tr: u.Quantity = 1e-3 * u.second,
-    ):
-        super().__init__(n_hidden)
-
-        # dynamics
-        dynamics = brainmass.HORNStep(
-            n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
-        delay_time = dist / mu * brainstate.environ.get_dt()
-        self.h2h = brainmass.AdditiveCoupling(
-            dynamics.prefetch_delay(
-                'y', delay_time, brainmass.delay_index(n_hidden),
-                init=delay_init, update_every=tr,
-            ),
-            brainmass.LaplacianConnParam(sc),
-        )
-        self.dynamics = dynamics
-        self.tr = tr
-
-    def update(self, inputs, record_state: bool = False):
-        def step(i):
-            self.dynamics(inp)
-
-        inp = self.h2h() + inputs
-        n_step = int(self.tr / brainstate.environ.get_dt())
-        brainstate.transform.for_loop(step, np.arange(n_step))
-        if record_state:
-            return self.dynamics.x.value, {'x': self.dynamics.x.value, 'y': self.dynamics.y.value}
-        else:
-            return self.dynamics.x.value
-
-
-class HORNNetworkTR(BrainModelTR):
-    """
-    HORN neural mass network for EEG simulation.
-    """
-
-    def __init__(
-        self,
-        n_hidden: int,
-
-        # structural coupling parameters
-        sc: np.ndarray,
-        dist: np.ndarray,
-        mu: float,
-
-        # leadfield parameters
-        cy0: Parameter,
-        lm: Parameter,
-        y0: Parameter,
-
-        # other parameters
-        tr: u.Quantity = 0.001 * u.second,
-    ):
-        # dynamics parameters
-        alpha: Parameter = 0.04  # excitability
-        omega: Parameter = 2. * u.math.pi / 28.  # natural frequency
-        gamma: Parameter = 0.01  # damping
-        v: Parameter = 0.0  # feedback
-
-        # hyperparameters
-        alpha = 0.04  # excitability
-        omega_base = 2. * u.math.pi / 28.  # natural frequency
-        gamma_base = 0.01  # damping
-        omega_min = 0.5 * omega_base
-        omega_max = 2.0 * omega_base
-        gamma_min = 0.5 * gamma_base
-        gamma_max = 2.0 * gamma_base
-        omega = braintools.init.Uniform(omega_min, omega_max)(n_hidden)
-        gamma = braintools.init.Uniform(gamma_min, gamma_max)(n_hidden)
-        alpha = braintools.init.Uniform(0.005, 0.4)(n_hidden)
-
-        # omega = Param(omega, t=SoftplusT(0.001))
-        # gamma = Param(gamma, t=SoftplusT(0.001))
-
-        # omega = Param(omega, t=ReluT(0.1))
-        # gamma = Param(gamma, t=ReluT(0.1))
-
-        omega = Param(omega, t=ClipT(0.01, 1.0))
-        gamma = Param(gamma, t=ReluT(1e-4))
-        alpha = Param(alpha, t=ClipT(0.005, 0.4))
-
-        # state_init: Callable = braintools.init.ZeroInit()
-        # delay_init: Callable = braintools.init.ZeroInit()
-
-        state_init = braintools.init.Uniform(-0.01, 0.01)
-        delay_init = braintools.init.Uniform(-0.01, 0.01)
-
-        # dynamics = HORN_TR(
-        dynamics = HORN_TR2(
-            n_hidden,
-            sc=sc,
-            dist=dist,
-            mu=mu,
-            alpha=alpha,
-            omega=omega,
-            gamma=gamma,
-            v=v,
-            state_init=state_init,
-            delay_init=delay_init,
-        )
-
-        # leadfiled matrix
-        leadfield = brainmass.LeadfieldReadout(lm=lm, y0=y0, cy0=cy0)
-
-        # super initialization
-        super().__init__(dynamics, leadfield, tr=tr)
-
-
-class JansenRitNetworkTR(BrainModelTR):
-    """
-    Jansen-Rit neural mass network for EEG simulation.
-    """
-
-    def __init__(
-        self,
-        node_size: int,
-
-        # structural coupling parameters
-        sc: np.ndarray,
-        dist: np.ndarray,
-        mu: float,
-
-        # leadfield parameters
-        cy0: Parameter,
-        lm: Parameter,
-        y0: Parameter,
-
-        # other parameters
-        tr: u.Quantity = 0.001 * u.second,
-    ):
-        g_l = Const(400)
-        g_f = Const(10)
-        g_b = Const(10)
         # std_in uses ExpT (no reg in original code)
         std_in = Param(6.0, t=ExpT(5.0))
         # Fixed parameters
@@ -1043,118 +521,146 @@ class JansenRitNetworkTR(BrainModelTR):
         kE = Const(0)
         kI = Const(0)
         k = Param(5.5, t=ReluT(0.5), reg=GaussianReg(5.5, 0.2, fit_hyper=True))
-        # Array parameters
-        lm_base = 0.01 * brainstate.random.randn_like(lm)
-        lm_noise = 0.1 * brainstate.random.randn_like(lm)
-        lm = Param(lm + lm_base + lm_noise)
-        w_bb = Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype()))
-        w_ff = Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype()))
-        w_ll = Param(np.full((node_size, node_size), 0.05, dtype=brainstate.environ.dftype()))
-        # initialization
-        state_init = braintools.init.Uniform(-0.01, 0.01)
-        delay_init = braintools.init.Uniform(-0.01, 0.01)
 
+        # initialization
         dynamics = brainmass.JansenRitTR(
             in_size=node_size,
-
-            # distance parameters
             delay=dist / mu,
-
-            # structural parameters
             sc=sc,
             k=k,
-            w_ll=w_ll,
-            w_ff=w_ff,
-            w_bb=w_bb,
-            g_l=g_l,
-            g_f=g_f,
-            g_b=g_b,
-
-            # other parameters
-            state_init=state_init,
-            delay_init=delay_init,
+            w_ll=braintools.init.Constant(0.05),
+            w_ff=braintools.init.Constant(0.05),
+            w_bb=braintools.init.Constant(0.05),
+            g_l=Const(400),
+            g_f=Const(10),
+            g_b=Const(10),
+            state_init=braintools.init.Uniform(-0.01, 0.01),
+            delay_init=braintools.init.Uniform(-0.01, 0.01),
         )
+
+        lm = Param(lm + 0.11 * brainstate.random.randn_like(lm))
+        y0 = Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True))
+        cy0 = Const(5)
         leadfield = brainmass.LeadfieldReadout(lm=lm, y0=y0, cy0=cy0)
 
-        super().__init__(dynamics, leadfield, tr=tr)
+        self.dynamics = dynamics
+        self.leadfield = leadfield
+
+        # TR parameters
+        self.tr = tr
+
+    def update(self, tr_inputs, record_state: bool = False):
+        if isinstance(tr_inputs, brainstate.typing.ArrayLike):
+            fn_tr = lambda inp_tr: self.dynamics(inp_tr, record_state=record_state)
+            activities = brainstate.transform.for_loop(fn_tr, tr_inputs)
+
+        elif isinstance(tr_inputs, dict):
+            inp_fn = tr_inputs['inp']
+            n_tr = tr_inputs['n']
+
+            def step(i_tr):
+                return self.dynamics(inp_fn(i_tr), record_state=record_state)
+
+            activities = brainstate.transform.for_loop(step, np.arange(n_tr))
+
+        else:
+            raise ValueError('Invalid input')
+
+        if record_state:
+            obv = self.leadfield(activities[0])
+            return obv, activities[1]
+        else:
+            obv = self.leadfield(activities)
+            return obv
 
 
 class ModelFitting:
     def __init__(
         self,
-        model: BrainModelTR,
-        data: np.ndarray,
+        model: JansenRitNetwork,
         optimizer: braintools.optim.Optimizer,
+        data: Dict[str, np.ndarray],
     ):
         self.model = model
-        self.data = data
         self.optimizer = optimizer
         self.weights = model.states(brainstate.ParamState)
         self.optimizer.register_trainable_weights(self.weights)
-        # define masks for getting lower triangle matrix indices
-        self.mask_e = np.tril_indices(data.shape[-1], -1)
-        self.output_size = data.shape[-1]
+        self.data = data
 
-    def f_loss(self, tr_inputs, targets, n_warmup):
-        with self.model.param_precompute():
-            if n_warmup > 0:
-                self.model.update(np.arange(n_warmup))
-            eeg_output = self.model.update(tr_inputs)
-        loss_main = u.math.sqrt(u.math.mean((eeg_output - targets) ** 2))
-        loss = 10. * loss_main + self.model.reg_loss()
-        return loss, eeg_output
+        self.eeg_data = data['eeg_data']
+        self.stim_weights = data['stim_weights']
+        self.stim_intensity = np.asarray([float(s.replace('ma', '')) for s in data['stim_intensity']]) * 1e2
+        self.stim_duration = np.asarray([float(s.replace('ms', '')) for s in data['stim_duration']]) * 10. * u.ms
 
-    @brainstate.transform.jit(
-        static_argnums=(0, 3),
-        static_argnames=['n_warmup']
-    )
-    def f_train(self, tr_inputs, targets, n_warmup: int):
-        self.model.init_all_states()
-        f_grad = brainstate.transform.grad(
-            functools.partial(self.f_loss, n_warmup=n_warmup),
-            self.weights, has_aux=True, return_value=True, check_states=False
+        self.i_start = 300. * u.ms
+
+    def f_input(self, i_tr, inp, dur, weight):
+        current_t = i_tr * self.model.tr
+        return u.math.where(
+            current_t < self.i_start,
+            0.,
+            u.math.where(
+                current_t > (self.i_start + dur),
+                0.,
+                inp * weight,
+            )
         )
-        grads, loss, eeg_output = f_grad(tr_inputs, targets)
-        self.optimizer.step(grads)
-        return loss, eeg_output
+
+    def f_simulate(self, record_state=False):
+        def step(inp, dur, weight):
+            return self.model.update(
+                {
+                    'inp': functools.partial(self.f_input, inp=inp, dur=dur, weight=weight),
+                    'n': self.eeg_data.shape[1]
+                },
+                record_state=record_state,
+            )
+
+        vmap_model = brainstate.nn.ModuleMapper(self.model, init_map_size=self.eeg_data.shape[0])
+        vmap_model.init_all_states()
+        with vmap_model.param_precompute():
+            return vmap_model.map(step)(self.stim_intensity, self.stim_duration, self.stim_weights)
+
+    def f_loss(self):
+        slicer = (slice(None), slice(200, 800))
+        eeg_output = self.f_simulate()
+        loss_main = u.math.sqrt(u.math.mean((eeg_output[slicer] - self.eeg_data[slicer]) ** 2))
+        loss_reg = self.model.reg_loss()
+        loss = 10. * loss_main + loss_reg
+        return loss, (eeg_output, loss_main, loss_reg)
 
     @brainstate.transform.jit(static_argnums=0)
-    def f_predict(self, inputs):
-        self.model.init_all_states()
-        with self.model.param_precompute():
-            eeg_output, state_output = self.model(inputs, record_state=True)
+    def f_train(self):
+        f_grad = brainstate.transform.grad(
+            self.f_loss, self.weights, has_aux=True, return_value=True, check_states=False
+        )
+        grads, loss, (eeg_output, loss_main, loss_reg) = f_grad()
+        self.optimizer.step(grads)
+        return loss_main, loss_reg, eeg_output
+
+    @brainstate.transform.jit(static_argnums=0)
+    def f_predict(self):
+        eeg_output, state_output = self.f_simulate(record_state=True)
         return eeg_output, state_output
 
-    def train(self, inputs, n_epoches: int, n_warmup: int = 0):
-        loss_his = []
+    def train(self, n_epoches: int):
+        loss_main_his = []
+        loss_reg_his = []
         for i_epoch in range(n_epoches):
-            loss, eeg_output = self.f_train(inputs, self.data, n_warmup=n_warmup)
+            loss_main, loss_reg, eeg_output = self.f_train()
 
-            loss_np = np.asarray(loss)
-            loss_his.append(loss_np)
+            loss_main_np = np.asarray(loss_main)
+            loss_reg_np = np.asarray(loss_reg)
+            loss_main_his.append(loss_main_np)
+            loss_reg_his.append(loss_reg_np)
 
-            fc_emp = np.corrcoef(self.data, rowvar=False)
-            fc_sim = np.corrcoef(eeg_output[10:, :], rowvar=False)
-            cor = np.corrcoef(fc_sim[self.mask_e], fc_emp[self.mask_e])[0, 1]
-            sim = np.diag(cosine_similarity(eeg_output.T, self.data.T)).mean()
+            f_cor = jax.vmap(lambda x, y: matrix_correlation(functional_connectivity(x), functional_connectivity(y)))
+            cor = f_cor(eeg_output, self.eeg_data).mean()
+            sim = jax.vmap(cosine_similarity)(eeg_output, self.eeg_data).mean()
 
-            print(f'epoch = {i_epoch}, loss = {loss_np}, FC cor = {cor}, cos sim = {sim}')
+            print(f'epoch = {i_epoch}, loss = {loss_main_np}, FC cor = {cor}, cos sim = {sim}')
 
-        return np.array(loss_his)
-
-    def test(self, inputs, n_warmup: int = 0):
-        if n_warmup > 0:
-            self.f_predict(np.zeros(n_warmup))
-        eeg_output, state_output = self.f_predict(inputs)
-
-        transient_num = 20
-        fc = np.corrcoef(self.data, rowvar=False)
-        fc_sim = np.corrcoef(eeg_output[transient_num:], rowvar=False)
-
-        cor = np.corrcoef(fc_sim[self.mask_e], fc[self.mask_e])[0, 1]
-        sim = np.diag(cosine_similarity(eeg_output.T, self.data.T)).mean()
-        print(f'Testing FC = {cor}, cos_sim = {sim}')
-        return eeg_output, state_output
+        return np.array(loss_main_his), np.asarray(loss_reg_his)
 
 
 def visualize_state_output(
@@ -1200,7 +706,7 @@ def visualize_state_output(
         The created figure(s)
     """
     if stimulus_window is None:
-        stimulus_window = (100, 140)
+        stimulus_window = (300, 310)
 
     stim_start, stim_end = stimulus_window
 
@@ -1438,74 +944,72 @@ def visualize_state_output(
         raise ValueError(f"Invalid mode: {mode}. Choose 'comprehensive', 'representative', or 'both'")
 
 
-def train_language_horn():
-    brainstate.environ.set(dt=1.0 * u.ms)
-
-    lm, sc, dist, data_verb, uu = get_language_data()
-    uu *= 5.0
-
-    model = HORNNetworkTR(
-        dist.shape[0],
-        sc=sc, dist=dist, mu=0.1, lm=lm, cy0=Const(5),
-        y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
-    )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-3))
-    fitting.train(uu, n_epoches=1500)
-    eeg_output, state_output = fitting.test(uu)
-
-    # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show=True)
-
-
-def train_language_jr():
-    lm, sc, dist, data_verb, uu = get_language_data()
-    uu *= 5.0
-
-    model = JansenRitNetworkTR(
-        dist.shape[0],
-        sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
-        y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
-    )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
-    fitting.train(uu, n_epoches=100)
-    eeg_output, state_output = fitting.test(uu)
-
-    # Visualize with representative mode
-    visualize_state_output(state_output, eeg_output, data_verb, sc=sc, mode='both', show=True)
-
-
 def train_hdeeg_jr():
-    # lm, sc, dist, data_verb, uu = get_hdeeg_data()
-    lm, sc, dist, data_verb, uu = get_hdeeg_data_v2()
-    uu *= 5.0
+    data = load_data(2)
+    data['eeg_data'] = data['eeg_data'][:1]
+    data['stim_weights'] = data['stim_weights'][:1]
+    data['stim_intensity'] = data['stim_intensity'][:1]
+    data['stim_duration'] = data['stim_duration'][:1]
 
-    # Extract stimulus information from uu
-    # Find which nodes received stimulus (non-zero values)
-    stim_nodes = np.where(np.any(uu != 0, axis=0))[0]
-    # Find time window of stimulus
-    stim_times = np.where(np.any(uu != 0, axis=1))[0]
-    stim_window = (stim_times[0], stim_times[-1]) if len(stim_times) > 0 else (65, 75)
-    # Select top 3 stimulated nodes
-    node_indices = stim_nodes[:3].tolist() if len(stim_nodes) >= 3 else stim_nodes.tolist()
-
-    model = JansenRitNetworkTR(
-        dist.shape[0],
-        sc=sc, dist=dist, mu=1., lm=lm, cy0=Const(5),
-        y0=Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True)),
+    model = JansenRitNetwork(
+        data['dist'].shape[0],
+        sc=data['sc'],
+        dist=data['dist'],
+        mu=1.,
+        lm=data['lm'],
+        tr=1 * u.ms,
     )
-    fitting = ModelFitting(model, data_verb, braintools.optim.Adam(lr=5e-2))
-    fitting.train(uu, n_epoches=100)
-    eeg_output, state_output = fitting.test(uu)
+    fitting = ModelFitting(
+        model,
+        braintools.optim.Adam(lr=5e-2),
+        data=data,
+    )
+    fitting.train(n_epoches=200)
 
-    # Visualize with representative mode
+    eeg_predicts, states = fitting.f_predict()
+
+    # Select first trial for visualization (remove batch dimension)
     visualize_state_output(
-        state_output, eeg_output, data_verb,
-        sc=sc, node_indices=node_indices, stimulus_window=stim_window, mode='both', show=True
+        state_output=jax.tree.map(lambda x: x[0], states),
+        eeg_output=eeg_predicts[0],
+        data_target=data['eeg_data'][0],
+        sc=data['sc'],
     )
+
+
+def visualize_inputs():
+    data = load_data(1)
+    data['eeg_data'] = data['eeg_data'][:1]
+    data['stim_weights'] = data['stim_weights'][:1]
+    data['stim_intensity'] = data['stim_intensity'][:1]
+    data['stim_duration'] = data['stim_duration'][:1]
+
+    model = JansenRitNetwork(
+        data['dist'].shape[0],
+        sc=data['sc'],
+        dist=data['dist'],
+        mu=1.,
+        lm=data['lm'],
+        tr=1 * u.ms,
+    )
+    fitting = ModelFitting(
+        model,
+        braintools.optim.Adam(lr=5e-2),
+        data=data,
+    )
+    fn = functools.partial(
+        fitting.f_input,
+        inp=fitting.stim_intensity[0],
+        dur=fitting.stim_duration[0],
+        weight=fitting.stim_weights[0],
+    )
+    inputs = brainstate.transform.for_loop(fn, np.arange(fitting.eeg_data.shape[1]))
+    plt.imshow(inputs)
+    plt.show()
 
 
 if __name__ == '__main__':
     pass
-    # train_language_horn()
-    # train_language_jr()
+    # save_data()
     train_hdeeg_jr()
+    # visualize_inputs()
