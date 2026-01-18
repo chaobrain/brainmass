@@ -17,6 +17,9 @@
 __version__ = "0.0.5"
 __version_info__ = tuple(map(int, __version__.split(".")))
 
+from ._xy_model import (
+    XY_Oscillator,
+)
 # Coupling mechanisms
 from .coupling import (
     DiffusiveCoupling,
@@ -92,9 +95,6 @@ from .wilson_cowan import (
     WilsonCowanThreePopulationStep,
 )
 from .wong_wang import WongWangStep
-from ._xy_model import (
-    XY_Oscillator,
-)
 
 __all__ = [
     # Version
@@ -170,3 +170,18 @@ __all__ = [
     'HORNSeqLayer',
     'HORNSeqNetwork',
 ]
+
+
+def __getattr__(old_name):
+    name = old_name.replace('Model', 'Step')
+    if name in __all__:
+        import warnings
+        from . import __name__ as module_name
+        module = __import__(module_name, fromlist=[name])
+        warnings.warn(
+            f"{module_name}.{name} is deprecated, use {module_name}.{old_name} instead.",
+            DeprecationWarning
+        )
+        return getattr(module, name)
+    else:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
