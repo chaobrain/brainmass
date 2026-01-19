@@ -30,7 +30,7 @@ from matplotlib.gridspec import GridSpec
 
 import brainmass
 import brainstate
-from brainstate.nn import GaussianReg, Param, Const, ReluT, ExpT
+from brainstate.nn import GaussianReg, Param, Const, ReluT
 
 Parameter = Union[brainstate.nn.Param, brainstate.typing.ArrayLike, Callable]
 Initializer = Union[Callable, brainstate.typing.ArrayLike]
@@ -511,26 +511,15 @@ class JansenRitNetwork(brainstate.nn.Module):
     ):
         super().__init__()
 
-        # std_in uses ExpT (no reg in original code)
-        std_in = Param(6.0, t=ExpT(5.0))
-        # Fixed parameters
-        vmax = Const(5)
-        v0 = Const(6)
-        r = Const(0.56)
-        # Fixed parameters
-        kE = Const(0)
-        kI = Const(0)
-        k = Param(5.5, t=ReluT(0.5), reg=GaussianReg(5.5, 0.2, fit_hyper=True))
-
-        # initialization
-        dynamics = brainmass.JansenRitTR(
+        shape = (node_size, node_size)
+        self.dynamics = brainmass.JansenRitTR(
             in_size=node_size,
             delay=dist / mu,
             sc=sc,
-            k=k,
-            w_ll=braintools.init.Constant(0.05),
-            w_ff=braintools.init.Constant(0.05),
-            w_bb=braintools.init.Constant(0.05),
+            k=Param(5.5, t=ReluT(0.5), reg=GaussianReg(5.5, 0.2, fit_hyper=True)),
+            w_ll=Param(braintools.init.Constant(0.05)(shape)),
+            w_ff=Param(braintools.init.Constant(0.05)(shape)),
+            w_bb=Param(braintools.init.Constant(0.05)(shape)),
             g_l=Const(400),
             g_f=Const(10),
             g_b=Const(10),
@@ -541,12 +530,7 @@ class JansenRitNetwork(brainstate.nn.Module):
         lm = Param(lm + 0.11 * brainstate.random.randn_like(lm))
         y0 = Param(-0.5, reg=GaussianReg(-0.5, 0.05, fit_hyper=True))
         cy0 = Const(5)
-        leadfield = brainmass.LeadfieldReadout(lm=lm, y0=y0, cy0=cy0)
-
-        self.dynamics = dynamics
-        self.leadfield = leadfield
-
-        # TR parameters
+        self.leadfield = brainmass.LeadfieldReadout(lm=lm, y0=y0, cy0=cy0)
         self.tr = tr
 
     def update(self, tr_inputs, record_state: bool = False):
