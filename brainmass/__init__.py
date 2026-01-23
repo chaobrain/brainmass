@@ -97,10 +97,6 @@ from .wilson_cowan import (
 from .wong_wang import WongWangStep
 
 __all__ = [
-    # Version
-    '__version__',
-    '__version_info__',
-
     # Common utilities
     'XY_Oscillator',
     'sys2nd',
