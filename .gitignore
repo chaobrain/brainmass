@@ -231,3 +231,4 @@ cython_debug/
 /docs/changelog.md
 /examples/data/
 /docs/api/generated/
+/examples/results/
