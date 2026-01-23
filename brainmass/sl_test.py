@@ -28,8 +28,8 @@ class TestStuartLandauOscillator:
         ny = brainmass.OUProcess(1, sigma=0.0)
         m = brainmass.StuartLandauStep(in_size=1, noise_x=nx, noise_y=ny)
         assert m.in_size == (1,)
-        assert m.a == 0.25
-        assert m.w == 0.2
+        assert m.a.val == 0.25
+        assert m.w.val == 0.2
         assert m.noise_x is nx
         assert m.noise_y is ny
 
@@ -61,7 +61,7 @@ class TestStuartLandauOscillator:
         # Modify and reset
         m.x.value = jnp.ones((3, 4)) * 0.1
         m.y.value = jnp.ones((3, 4)) * -0.2
-        m.reset_state(batch_size=3)
+        m.init_state(batch_size=3)
         assert u.math.allclose(m.x.value, jnp.zeros((3, 4)))
         assert u.math.allclose(m.y.value, jnp.zeros((3, 4)))
 

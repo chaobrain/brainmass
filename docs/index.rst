@@ -144,29 +144,7 @@ Documentation Structure
 BrainX Ecosystem
 ^^^^^^^^^^^^^^^^
 
-``brainmass`` is part of the `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_:
-
-- **brainstate**: State management for dynamical systems
-- **brainunit**: Unit-aware array operations
-- **braintools**: Utilities and transforms
-- **brainmass**: Neural mass models (this package)
-
-
-----
-
-Citation
-^^^^^^^^
-
-If you use ``brainmass`` in your research, please cite:
-
-.. code-block:: bibtex
-
-   @software{brainmass2024,
-     author = {{BrainX Ecosystem}},
-     title = {BrainMass: Neural Mass Models for Whole-Brain Modeling},
-     year = {2024},
-     url = {https://github.com/chaobrain/brainmass}
-   }
+``brainmass`` is one part of our `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_:
 
 
 

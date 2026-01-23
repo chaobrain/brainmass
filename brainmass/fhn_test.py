@@ -29,13 +29,13 @@ class TestFitzHughNagumoModel:
         nW = brainmass.OUProcess(1, sigma=0.01)
         m = brainmass.FitzHughNagumoStep(in_size=1, noise_V=nV, noise_w=nW)
         assert m.in_size == (1,)
-        assert m.alpha == 3.0
-        assert m.beta == 4.0
-        assert m.gamma == -1.5
-        assert m.delta == 0.0
-        assert m.epsilon == 0.5
+        assert m.alpha.val == 3.0
+        assert m.beta.val == 4.0
+        assert m.gamma.val == -1.5
+        assert m.delta.val == 0.0
+        assert m.epsilon.val == 0.5
         # tau carries time unit
-        assert u.get_unit(m.tau).dim == u.ms.dim
+        assert u.get_unit(m.tau.val).dim == u.ms.dim
 
     def test_state_initialization_and_reset(self):
         nV = brainmass.OUProcess(4, sigma=0.0)
@@ -66,7 +66,7 @@ class TestFitzHughNagumoModel:
         # Modify and reset
         m.V.value = jnp.ones((2, 4)) * 0.3
         m.w.value = jnp.ones((2, 4)) * -0.1
-        m.reset_state(batch_size=2)
+        m.init_state(batch_size=2)
         assert u.math.allclose(m.V.value, jnp.zeros((2, 4)))
         assert u.math.allclose(m.w.value, jnp.zeros((2, 4)))
 

@@ -26,17 +26,17 @@ class TestWilsonCowanModel:
         """Test basic WilsonCowanStep initialization with default parameters"""
         model = brainmass.WilsonCowanStep(1)
         assert model.in_size == (1,)
-        assert model.tau_E == 1. * u.ms
-        assert model.tau_I == 1. * u.ms
-        assert model.a_E == 1.2
-        assert model.a_I == 1.0
-        assert model.theta_E == 2.8
-        assert model.theta_I == 4.0
-        assert model.wEE == 12.
-        assert model.wIE == 4.
-        assert model.wEI == 13.
-        assert model.wII == 11.
-        assert model.r == 1.
+        assert model.tau_E.val == 1. * u.ms
+        assert model.tau_I.val == 1. * u.ms
+        assert model.a_E.val == 1.2
+        assert model.a_I.val == 1.0
+        assert model.theta_E.val == 2.8
+        assert model.theta_I.val == 4.0
+        assert model.wEE.val == 12.
+        assert model.wIE.val == 4.
+        assert model.wEI.val == 13.
+        assert model.wII.val == 11.
+        assert model.r.val == 1.
         assert model.noise_E is None
         assert model.noise_I is None
 
@@ -57,17 +57,17 @@ class TestWilsonCowanModel:
             r=0.8
         )
         assert model.in_size == (5,)
-        assert model.tau_E == 2.0 * u.ms
-        assert model.tau_I == 1.5 * u.ms
-        assert model.a_E == 1.5
-        assert model.a_I == 1.1
-        assert model.theta_E == 3.0
-        assert model.theta_I == 4.5
-        assert model.wEE == 10.
-        assert model.wIE == 3.5
-        assert model.wEI == 12.
-        assert model.wII == 10.5
-        assert model.r == 0.8
+        assert model.tau_E.val == 2.0 * u.ms
+        assert model.tau_I.val == 1.5 * u.ms
+        assert model.a_E.val == 1.5
+        assert model.a_I.val == 1.1
+        assert model.theta_E.val == 3.0
+        assert model.theta_I.val == 4.5
+        assert model.wEE.val == 10.
+        assert model.wIE.val == 3.5
+        assert model.wEI.val == 12.
+        assert model.wII.val == 10.5
+        assert model.r.val == 0.8
 
     def test_initialization_multidimensional(self):
         """Test WilsonCowanStep initialization with multidimensional input"""
@@ -136,7 +136,7 @@ class TestWilsonCowanModel:
         assert not u.math.allclose(model.rI.value, np.zeros(2))
 
         # Reset should return to zeros
-        model.reset_state()
+        model.init_state()
         assert u.math.allclose(model.rE.value, np.zeros(2))
         assert u.math.allclose(model.rI.value, np.zeros(2))
 
@@ -151,7 +151,7 @@ class TestWilsonCowanModel:
         model.rI.value = jnp.ones((3, 2)) * 0.5
 
         # Reset should return to zeros
-        model.reset_state(batch_size=batch_size)
+        model.init_state(batch_size=batch_size)
         assert u.math.allclose(model.rE.value, np.zeros((3, 2)))
         assert u.math.allclose(model.rI.value, np.zeros((3, 2)))
 
@@ -514,16 +514,16 @@ class TestWilsonCowanNoSaturation:
         """Test basic WilsonCowanNoSaturationStep initialization with default parameters"""
         model = brainmass.WilsonCowanNoSaturationStep(1)
         assert model.in_size == (1,)
-        assert model.tau_E == 1. * u.ms
-        assert model.tau_I == 1. * u.ms
-        assert model.a_E == 1.2
-        assert model.a_I == 1.0
-        assert model.theta_E == 2.8
-        assert model.theta_I == 4.0
-        assert model.wEE == 12.
-        assert model.wIE == 4.
-        assert model.wEI == 13.
-        assert model.wII == 11.
+        assert model.tau_E.val == 1. * u.ms
+        assert model.tau_I.val == 1. * u.ms
+        assert model.a_E.val == 1.2
+        assert model.a_I.val == 1.0
+        assert model.theta_E.val == 2.8
+        assert model.theta_I.val == 4.0
+        assert model.wEE.val == 12.
+        assert model.wIE.val == 4.
+        assert model.wEI.val == 13.
+        assert model.wII.val == 11.
         # Verify r parameter does not exist
         assert not hasattr(model, 'r')
         assert model.noise_E is None
@@ -545,16 +545,16 @@ class TestWilsonCowanNoSaturation:
             wII=10.5
         )
         assert model.in_size == (5,)
-        assert model.tau_E == 2.0 * u.ms
-        assert model.tau_I == 1.5 * u.ms
-        assert model.a_E == 1.5
-        assert model.a_I == 1.1
-        assert model.theta_E == 3.0
-        assert model.theta_I == 4.5
-        assert model.wEE == 10.
-        assert model.wIE == 3.5
-        assert model.wEI == 12.
-        assert model.wII == 10.5
+        assert model.tau_E.val == 2.0 * u.ms
+        assert model.tau_I.val == 1.5 * u.ms
+        assert model.a_E.val == 1.5
+        assert model.a_I.val == 1.1
+        assert model.theta_E.val == 3.0
+        assert model.theta_I.val == 4.5
+        assert model.wEE.val == 10.
+        assert model.wIE.val == 3.5
+        assert model.wEI.val == 12.
+        assert model.wII.val == 10.5
 
     def test_initialization_multidimensional(self):
         """Test WilsonCowanNoSaturationStep initialization with multidimensional input"""
@@ -598,7 +598,7 @@ class TestWilsonCowanNoSaturation:
         drE_dt = model.drE(rE, rI, ext)
         # Check output has correct units (1/time)
         assert drE_dt.shape == (1,)
-        assert jnp.isfinite(drE_dt).all()
+        assert u.math.isfinite(drE_dt).all()
 
     def test_drI_differential_equation(self):
         """Test inhibitory population differential equation"""
@@ -608,7 +608,7 @@ class TestWilsonCowanNoSaturation:
         ext = 0.1
         drI_dt = model.drI(rI, rE, ext)
         assert drI_dt.shape == (1,)
-        assert jnp.isfinite(drI_dt).all()
+        assert u.math.isfinite(drI_dt).all()
 
     def test_update_returns_correct_shape(self):
         """Test that update returns correct shape"""
@@ -649,15 +649,15 @@ class TestWilsonCowanSymmetric:
         model = brainmass.WilsonCowanSymmetricStep(1)
         assert model.in_size == (1,)
         # Symmetric parameters
-        assert model.tau == 1. * u.ms
-        assert model.a == 1.1
-        assert model.theta == 3.4
+        assert model.tau.val == 1. * u.ms
+        assert model.a.val == 1.1
+        assert model.theta.val == 3.4
         # Connection weights
-        assert model.wEE == 12.
-        assert model.wIE == 4.
-        assert model.wEI == 13.
-        assert model.wII == 11.
-        assert model.r == 1.
+        assert model.wEE.val == 12.
+        assert model.wIE.val == 4.
+        assert model.wEI.val == 13.
+        assert model.wII.val == 11.
+        assert model.r.val == 1.
         assert model.noise_E is None
         assert model.noise_I is None
 
@@ -675,14 +675,14 @@ class TestWilsonCowanSymmetric:
             r=0.8
         )
         assert model.in_size == (5,)
-        assert model.tau == 2.0 * u.ms
-        assert model.a == 1.5
-        assert model.theta == 3.0
-        assert model.wEE == 10.
-        assert model.wIE == 3.5
-        assert model.wEI == 12.
-        assert model.wII == 10.5
-        assert model.r == 0.8
+        assert model.tau.val == 2.0 * u.ms
+        assert model.a.val == 1.5
+        assert model.theta.val == 3.0
+        assert model.wEE.val == 10.
+        assert model.wIE.val == 3.5
+        assert model.wEI.val == 12.
+        assert model.wII.val == 10.5
+        assert model.r.val == 0.8
 
     def test_initialization_multidimensional(self):
         """Test WilsonCowanSymmetricStep initialization with multidimensional input"""
@@ -736,16 +736,16 @@ class TestWilsonCowanSimplified:
         """Test basic WilsonCowanSimplifiedStep initialization with default parameters"""
         model = brainmass.WilsonCowanSimplifiedStep(1)
         assert model.in_size == (1,)
-        assert model.tau_E == 1. * u.ms
-        assert model.tau_I == 1. * u.ms
-        assert model.a_E == 1.2
-        assert model.a_I == 1.0
-        assert model.theta_E == 2.8
-        assert model.theta_I == 4.0
+        assert model.tau_E.val == 1. * u.ms
+        assert model.tau_I.val == 1. * u.ms
+        assert model.a_E.val == 1.2
+        assert model.a_I.val == 1.0
+        assert model.theta_E.val == 2.8
+        assert model.theta_I.val == 4.0
         # Simplified connectivity
-        assert model.w_exc == 8.
-        assert model.w_inh == 12.
-        assert model.r == 1.
+        assert model.w_exc.val == 8.
+        assert model.w_inh.val == 12.
+        assert model.r.val == 1.
         # Verify individual weights don't exist
         assert not hasattr(model, 'wEE')
         assert not hasattr(model, 'wIE')
@@ -767,15 +767,15 @@ class TestWilsonCowanSimplified:
             r=0.8
         )
         assert model.in_size == (5,)
-        assert model.tau_E == 2.0 * u.ms
-        assert model.tau_I == 1.5 * u.ms
-        assert model.a_E == 1.5
-        assert model.a_I == 1.1
-        assert model.theta_E == 3.0
-        assert model.theta_I == 4.5
-        assert model.w_exc == 10.
-        assert model.w_inh == 15.
-        assert model.r == 0.8
+        assert model.tau_E.val == 2.0 * u.ms
+        assert model.tau_I.val == 1.5 * u.ms
+        assert model.a_E.val == 1.5
+        assert model.a_I.val == 1.1
+        assert model.theta_E.val == 3.0
+        assert model.theta_I.val == 4.5
+        assert model.w_exc.val == 10.
+        assert model.w_inh.val == 15.
+        assert model.r.val == 0.8
 
     def test_simplified_connectivity(self):
         """Test that w_exc and w_inh are correctly applied"""
@@ -788,8 +788,8 @@ class TestWilsonCowanSimplified:
         ext = 0.1
         drE_dt = model.drE(rE, rI, ext)
         drI_dt = model.drI(rI, rE, ext)
-        assert jnp.isfinite(drE_dt).all()
-        assert jnp.isfinite(drI_dt).all()
+        assert u.math.isfinite(drE_dt).all()
+        assert u.math.isfinite(drI_dt).all()
 
     def test_state_initialization(self):
         """Test state initialization"""
@@ -824,14 +824,14 @@ class TestWilsonCowanLinear:
         """Test basic WilsonCowanLinearStep initialization with default parameters"""
         model = brainmass.WilsonCowanLinearStep(1)
         assert model.in_size == (1,)
-        assert model.tau_E == 1. * u.ms
-        assert model.tau_I == 1. * u.ms
+        assert model.tau_E.val == 1. * u.ms
+        assert model.tau_I.val == 1. * u.ms
         # Linear model has scaled down weights
-        assert model.wEE == 0.8
-        assert model.wIE == 0.3
-        assert model.wEI == 1.0
-        assert model.wII == 0.85
-        assert model.r == 1.
+        assert model.wEE.val == 0.8
+        assert model.wIE.val == 0.3
+        assert model.wEI.val == 1.0
+        assert model.wII.val == 0.85
+        assert model.r.val == 1.
         # Verify sigmoid parameters don't exist
         assert not hasattr(model, 'a_E')
         assert not hasattr(model, 'a_I')
@@ -851,13 +851,13 @@ class TestWilsonCowanLinear:
             r=0.8
         )
         assert model.in_size == (5,)
-        assert model.tau_E == 2.0 * u.ms
-        assert model.tau_I == 1.5 * u.ms
-        assert model.wEE == 1.0
-        assert model.wIE == 0.5
-        assert model.wEI == 1.2
-        assert model.wII == 1.0
-        assert model.r == 0.8
+        assert model.tau_E.val == 2.0 * u.ms
+        assert model.tau_I.val == 1.5 * u.ms
+        assert model.wEE.val == 1.0
+        assert model.wIE.val == 0.5
+        assert model.wEI.val == 1.2
+        assert model.wII.val == 1.0
+        assert model.r.val == 0.8
 
     def test_relu_behavior(self):
         """Test ReLU transfer function behavior"""
@@ -870,12 +870,12 @@ class TestWilsonCowanLinear:
         ext_negative = -10.0
         drE_dt = model.drE(rE, rI, ext_negative)
         # With ReLU, negative inputs should result in decay only
-        assert jnp.isfinite(drE_dt).all()
+        assert u.math.isfinite(drE_dt).all()
 
         # Test with positive input
         ext_positive = 10.0
         drE_dt_pos = model.drE(rE, rI, ext_positive)
-        assert jnp.isfinite(drE_dt_pos).all()
+        assert u.math.isfinite(drE_dt_pos).all()
 
     def test_no_sigmoid_function(self):
         """Test that F sigmoid function doesn't exist"""

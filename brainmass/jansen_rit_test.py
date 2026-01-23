@@ -30,18 +30,18 @@ class TestJansenRitModel:
         model = brainmass.JansenRitStep(in_size=10)
 
         # Check default parameter values
-        assert model.Ae == 3.25 * u.mV
-        assert model.Ai == 22. * u.mV
-        assert model.be == 100. / u.second
-        assert model.bi == 50. / u.second
-        assert model.C == 135.
-        assert model.a1 == 1.
-        assert model.a2 == 0.8
-        assert model.a3 == 0.25
-        assert model.a4 == 0.25
-        assert model.s_max == 5. / u.second
-        assert model.v0 == 6. * u.mV
-        assert model.r == 0.56
+        assert model.Ae.val == 3.25 * u.mV
+        assert model.Ai.val == 22. * u.mV
+        assert model.be.val == 100. / u.second
+        assert model.bi.val == 50. / u.second
+        assert model.C.val == 135.
+        assert model.a1.val == 1.
+        assert model.a2.val == 0.8
+        assert model.a3.val == 0.25
+        assert model.a4.val == 0.25
+        assert model.s_max.val == 5. / u.second
+        assert model.v0.val == 6. * u.mV
+        assert model.r.val == 0.56
 
         print("[PASS] Initialization test passed")
 
@@ -63,18 +63,18 @@ class TestJansenRitModel:
             r=0.7
         )
 
-        assert model.Ae == 5.0 * u.mV
-        assert model.Ai == 30.0 * u.mV
-        assert model.be == 80. / u.second
-        assert model.bi == 40. / u.second
-        assert model.C == 150.
-        assert model.a1 == 1.2
-        assert model.a2 == 0.9
-        assert model.a3 == 0.3
-        assert model.a4 == 0.3
-        assert model.s_max == 7. / u.second
-        assert model.v0 == 7. * u.mV
-        assert model.r == 0.7
+        assert model.Ae.val == 5.0 * u.mV
+        assert model.Ai.val == 30.0 * u.mV
+        assert model.be.val == 80. / u.second
+        assert model.bi.val == 40. / u.second
+        assert model.C.val == 150.
+        assert model.a1.val == 1.2
+        assert model.a2.val == 0.9
+        assert model.a3.val == 0.3
+        assert model.a4.val == 0.3
+        assert model.s_max.val == 7. / u.second
+        assert model.v0.val == 7. * u.mV
+        assert model.r.val == 0.7
 
         print("[PASS] Custom parameters test passed")
 
@@ -111,7 +111,7 @@ class TestJansenRitModel:
         # Test reset
         model.M.value = jnp.ones((3, 5)) * 0.5 * u.mV
         model.Mv.value = jnp.ones((3, 5)) * 0.1 * u.mV / u.second
-        model.reset_state(batch_size=3)
+        model.init_state(batch_size=3)
         assert u.math.allclose(model.M.value / u.mV, 0.)
         assert u.math.allclose(model.Mv.value / (u.mV / u.second), 0.)
 
@@ -123,7 +123,7 @@ class TestJansenRitModel:
 
         # Test different input values
         v_low = 0. * u.mV  # Below threshold
-        v_threshold = model.v0  # At threshold
+        v_threshold = model.v0.val  # At threshold
         v_high = 20. * u.mV  # Above threshold
 
         s_low = model.S(v_low)
@@ -133,13 +133,13 @@ class TestJansenRitModel:
         # Check sigmoid properties
         assert s_low < s_threshold < s_high
         assert s_low >= 0. / u.second
-        assert s_high <= model.s_max
-        assert s_threshold == model.s_max / 2.  # Should be halfway at v0
+        assert s_high <= model.s_max.val
+        assert s_threshold == model.s_max.val / 2.  # Should be halfway at v0
 
         # Test saturation
         v_very_high = 100. * u.mV
         s_saturated = model.S(v_very_high)
-        assert u.math.allclose(s_saturated / (1 / u.second), model.s_max / (1 / u.second), rtol=1e-2)
+        assert u.math.allclose(s_saturated / (1 / u.second), model.s_max.val / (1 / u.second), rtol=1e-2)
 
         print("[PASS] Sigmoid function test passed")
 
@@ -190,7 +190,7 @@ class TestJansenRitModel:
 
         # After one step, states should have evolved
         # The output should be the EEG proxy signal
-        expected_output = model.a2 * model.E.value - model.a4 * model.I.value
+        expected_output = model.a2.val * model.E.value - model.a4.val * model.I.value
         assert u.math.allclose(output, expected_output)
 
         print("[PASS] Single step update test passed")

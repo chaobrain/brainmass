@@ -25,10 +25,9 @@ class TestHopfModel:
     def test_initialization_basic(self):
         m = brainmass.HopfStep(in_size=1)
         assert m.in_size == (1,)
-        assert m.a == 0.25
-        assert m.w == 0.2
-        assert m.K_gl == 1.0
-        assert m.beta == 1.0
+        assert m.a.val == 0.25
+        assert m.w.val == 0.2
+        assert m.beta.val == 1.0
         assert m.noise_x is None
         assert m.noise_y is None
 
@@ -37,14 +36,12 @@ class TestHopfModel:
             in_size=(2, 3),
             a=0.1,
             w=1.5,
-            K_gl=0.8,
             beta=2.0,
         )
         assert m.in_size == (2, 3)
-        assert m.a == 0.1
-        assert m.w == 1.5
-        assert m.K_gl == 0.8
-        assert m.beta == 2.0
+        assert m.a.val == 0.1
+        assert m.w.val == 1.5
+        assert m.beta.val == 2.0
 
     def test_state_initialization_and_reset(self):
         m = brainmass.HopfStep(in_size=4)
@@ -66,7 +63,7 @@ class TestHopfModel:
         # Modify and reset
         m.x.value = jnp.ones((3, 4)) * 0.5
         m.y.value = jnp.ones((3, 4)) * -0.2
-        m.reset_state(batch_size=3)
+        m.init_state(batch_size=3)
         assert u.math.allclose(m.x.value, jnp.zeros((3, 4)))
         assert u.math.allclose(m.y.value, jnp.zeros((3, 4)))
 

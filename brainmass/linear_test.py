@@ -25,10 +25,10 @@ class TestThresholdLinearModel:
     def test_initialization_defaults(self):
         m = brainmass.ThresholdLinearStep(in_size=1)
         assert m.in_size == (1,)
-        assert m.tau_E == 2e-2 * u.second
-        assert m.tau_I == 1e-2 * u.second
-        assert m.beta_E == 0.066
-        assert m.beta_I == 0.351
+        assert m.tau_E.val == 2e-2 * u.second
+        assert m.tau_I.val == 1e-2 * u.second
+        assert m.beta_E.val == 0.066
+        assert m.beta_I.val == 0.351
         assert m.noise_E is None
         assert m.noise_I is None
 
@@ -54,7 +54,7 @@ class TestThresholdLinearModel:
         # Modify and reset
         m.E.value = jnp.ones((3, 4)) * 0.2
         m.I.value = -jnp.ones((3, 4)) * 0.3
-        m.reset_state(batch_size=3)
+        m.init_state(batch_size=3)
         assert u.math.allclose(m.E.value, jnp.zeros((3, 4)))
         assert u.math.allclose(m.I.value, jnp.zeros((3, 4)))
 

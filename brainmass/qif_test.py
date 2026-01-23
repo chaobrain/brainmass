@@ -25,10 +25,10 @@ class TestQIFModel:
     def test_initialization_basic(self):
         m = brainmass.MontbrioPazoRoxinStep(in_size=1)
         assert m.in_size == (1,)
-        assert m.tau == 1.0 * u.ms
-        assert m.eta == -5.0
-        assert m.delta == 1.0 * u.Hz
-        assert m.J == 15.0
+        assert m.tau.value() == 1.0 * u.ms
+        assert m.eta.val == -5.0
+        assert m.delta.val == 1.0 * u.Hz
+        assert m.J.val == 15.0
         assert m.noise_r is None
         assert m.noise_v is None
 
@@ -41,10 +41,10 @@ class TestQIFModel:
             J=12.0,
         )
         assert m.in_size == (2, 3)
-        assert m.tau == 2.0 * u.ms
-        assert m.eta == -3.0
-        assert m.delta == 0.5 * u.Hz
-        assert m.J == 12.0
+        assert m.tau.val == 2.0 * u.ms
+        assert m.eta.val == -3.0
+        assert m.delta.val == 0.5 * u.Hz
+        assert m.J.val == 12.0
 
     def test_state_initialization_and_reset(self):
         m = brainmass.MontbrioPazoRoxinStep(
@@ -72,7 +72,7 @@ class TestQIFModel:
         # modify and reset
         m.r.value = jnp.ones((3, 4)) * 0.1
         m.v.value = jnp.ones((3, 4)) * -0.2
-        m.reset_state(batch_size=3)
+        m.init_state(batch_size=3)
         assert u.math.allclose(m.r.value, jnp.zeros((3, 4)))
         assert u.math.allclose(m.v.value, jnp.zeros((3, 4)))
 
