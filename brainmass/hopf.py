@@ -16,20 +16,21 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
 
-from ._common import XY_Oscillator
-from ._typing import Initializer
+import brainstate
+from brainstate.nn import Param
 from .noise import Noise
+from .typing import Parameter
+from ._xy_model import XY_Oscillator
 
 __all__ = [
-    'HopfOscillator',
+    'HopfStep',
 ]
 
 
-class HopfOscillator(XY_Oscillator):
+class HopfStep(XY_Oscillator):
     r"""Normal-form Hopf oscillator (two-dimensional rate model).
 
     This model implements the supercritical Hopf normal form for a single node
@@ -54,18 +55,14 @@ class HopfOscillator(XY_Oscillator):
     ----------
     in_size : brainstate.typing.Size
         Spatial shape of the node. Can be an int or tuple of ints.
-    a : Initializer, optional
+    a : Parameter, optional
         Bifurcation parameter (dimensionless). For ``a > 0`` the system exhibits
         a stable limit cycle; for ``a < 0`` the origin is a stable focus.
         Broadcastable to ``in_size``. Default is ``0.25``.
-    w : Initializer, optional
+    w : Parameter, optional
         Angular frequency :math:`\omega` (dimensionless in this implementation).
         Broadcastable to ``in_size``. Default is ``0.2``.
-    K_gl : Initializer, optional
-        Global coupling gain (dimensionless), included for convenience when used
-        in networked settings. Not applied directly in the local node dynamics.
-        Broadcastable to ``in_size``. Default is ``1.0``.
-    beta : Initializer, optional
+    beta : Parameter, optional
         Nonlinear saturation coefficient (dimensionless) setting the limit-cycle
         amplitude (approximately :math:`\sqrt{a/\beta}` when ``a>0``).
         Broadcastable to ``in_size``. Default is ``1.0``.
@@ -95,10 +92,9 @@ class HopfOscillator(XY_Oscillator):
         self,
         in_size: brainstate.typing.Size,
 
-        a: Initializer = 0.25,  # Hopf bifurcation parameter
-        w: Initializer = 0.2,  # Oscillator frequency
-        K_gl: Initializer = 1.0,  # global coupling strength
-        beta: Initializer = 1.0,  # nonlinear saturation coefficient
+        a: Parameter = 0.25,  # Hopf bifurcation parameter
+        w: Parameter = 0.2,  # Oscillator frequency
+        beta: Parameter = 1.0,  # nonlinear saturation coefficient
 
         # noise
         noise_x: Noise = None,
@@ -118,10 +114,9 @@ class HopfOscillator(XY_Oscillator):
             method=method,
         )
 
-        self.a = braintools.init.param(a, self.varshape)
-        self.w = braintools.init.param(w, self.varshape)
-        self.K_gl = braintools.init.param(K_gl, self.varshape)
-        self.beta = braintools.init.param(beta, self.varshape)
+        self.a = Param.init(a, self.varshape)
+        self.w = Param.init(w, self.varshape)
+        self.beta = Param.init(beta, self.varshape)
 
     def dx(self, x, y, inp):
         """Right-hand side for ``x``.
@@ -140,8 +135,11 @@ class HopfOscillator(XY_Oscillator):
         array-like
             Time derivative ``dx/dt`` with unit ``1/ms``.
         """
+        a = self.a.value()
+        w = self.w.value()
+        beta = self.beta.value()
         r = x ** 2 + y ** 2
-        dx_dt = (self.a - self.beta * r) * x - self.w * y + inp
+        dx_dt = (a - beta * r) * x - w * y + inp
         return dx_dt / u.ms
 
     def dy(self, y, x, inp):
@@ -161,6 +159,9 @@ class HopfOscillator(XY_Oscillator):
         array-like
             Time derivative ``dy/dt`` with unit ``1/ms``.
         """
+        a = self.a.value()
+        beta = self.beta.value()
+        w = self.w.value()
         r = x ** 2 + y ** 2
-        dy_dt = (self.a - self.beta * r) * y + self.w * x + inp
+        dy_dt = (a - beta * r) * y + w * x + inp
         return dy_dt / u.ms

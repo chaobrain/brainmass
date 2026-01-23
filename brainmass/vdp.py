@@ -16,22 +16,23 @@
 from typing import Callable
 
 import braintools
-import brainstate
 import brainunit as u
 
-from ._common import XY_Oscillator
-from ._typing import Initializer
+import brainstate
+from brainstate.nn import Param
 from .noise import Noise
+from .typing import Parameter
+from ._xy_model import XY_Oscillator
 
 __all__ = [
-    'VanDerPolOscillator',
+    'VanDerPolStep',
 ]
 
 
-class VanDerPolOscillator(XY_Oscillator):
+class VanDerPolStep(XY_Oscillator):
     r"""Van der Pol oscillator (two-dimensional form).
 
-     In the study of dynamical systems, the van der Pol oscillator
+    In the study of dynamical systems, the van der Pol oscillator
     (named for Dutch physicist Balthasar van der Pol) is a non-conservative,
     oscillating system with non-linear damping. It evolves in time according
     to the second-order differential equation
@@ -75,7 +76,7 @@ class VanDerPolOscillator(XY_Oscillator):
     in_size : brainstate.typing.Size
         Spatial shape of the node/population. Can be an ``int`` or a tuple of
         ``int``. All parameters are broadcastable to this shape.
-    mu : Initializer, optional
+    mu : Parameter , optional
         Nonlinearity/damping parameter (dimensionless). Default is ``1.0``.
     noise_x : Noise or None, optional
         Additive noise process for the :math:`x`-equation. If provided, called
@@ -84,10 +85,10 @@ class VanDerPolOscillator(XY_Oscillator):
         Additive noise process for the :math:`y`-equation. If provided, called
         each update and added to ``y_inp``. Default is ``None``.
     init_x : Callable, optional
-        Initializer for the state ``x``. Default is
+        Parameter  for the state ``x``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     init_y : Callable, optional
-        Initializer for the state ``y``. Default is
+        Parameter  for the state ``y``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     method : str, optional
         Time stepping method. One of ``'exp_euler'`` (exponential Euler; default)
@@ -126,7 +127,7 @@ class VanDerPolOscillator(XY_Oscillator):
         in_size: brainstate.typing.Size,
 
         # parameters
-        mu: Initializer = 1.0,
+        mu: Parameter = 1.0,
 
         # noise parameters
         noise_x: Noise = None,
@@ -147,7 +148,7 @@ class VanDerPolOscillator(XY_Oscillator):
         )
 
         # model parameters
-        self.mu = braintools.init.param(mu, self.varshape)
+        self.mu = Param.init(mu, self.varshape)
 
     def dx(self, x, y, inp):
         """Right-hand side for the state ``x``.
@@ -166,7 +167,8 @@ class VanDerPolOscillator(XY_Oscillator):
         array-like
             Time derivative ``dx/dt`` with unit ``1/ms``.
         """
-        return self.mu * (x - x ** 3 / 3 - y) / u.ms + inp / u.ms
+        mu = self.mu.value()
+        return mu * (x - x ** 3 / 3 - y) / u.ms + inp / u.ms
 
     def dy(self, y, x, inp=0.):
         """Right-hand side for the state ``y``.
@@ -186,7 +188,8 @@ class VanDerPolOscillator(XY_Oscillator):
         array-like
             Time derivative ``dy/dt`` with unit ``1/ms``.
         """
-        return (x / self.mu + inp) / u.ms
+        mu = self.mu.value()
+        return (x / mu + inp) / u.ms
 
     def derivative(self, state, t, x_inp, y_inp):
         """Vector field for ODE integrators.

@@ -1,6 +1,8 @@
-# BrainMass
+# BrainMass: whole-brain modeling with differentiable neural mass models
 
-**Whole-brain modeling with differentiable neural mass models**
+<p align="center">
+  	<img alt="Header image of braintrace." src="https://raw.githubusercontent.com/chaobrain/brainmass/main/docs/_static/brainmass.png" width=40%>
+</p>
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI Version](https://img.shields.io/pypi/v/brainmass.svg)](https://pypi.org/project/brainmass/)
@@ -31,10 +33,11 @@ pip install -e .
 
 ### GPU Support
 
-For CUDA 12 support:
+For CUDA support:
 
 ```bash
 pip install brainmass[cuda12]
+pip install brainmass[cuda13]
 ```
 
 For TPU support:
@@ -52,33 +55,12 @@ pip install BrainX
 
 # GPU support
 pip install BrainX[cuda12]
+pip install BrainX[cuda13]
 
 # TPU support
 pip install BrainX[tpu]
 ```
 
-## Dependencies
-
-Core dependencies:
-
-- `jax`: High-performance computing and automatic differentiation
-- `numpy`: Numerical computations
-- `brainstate`: State management and neural dynamics
-- `brainunit`: Unit system for neuroscience
-- `brainscale`: Online learning support
-- `braintools`: Additional analysis tools
-
-  Optional dependencies:
-- `matplotlib`: Plotting and visualization
-- `nevergrad`: Parameter optimization
-
-## Documentation
-
-Full documentation is available at [brainmass.readthedocs.io](https://brainmass.readthedocs.io/).
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Citation
 
@@ -98,18 +80,6 @@ If you use BrainMass in your research, please cite:
 
 BrainMass is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
-## Support
+## See also the ecosystem
 
-- **Issues**: [GitHub Issues](https://github.com/chaobrain/brainmass/issues)
-- **Documentation**: [ReadTheDocs](https://brainmass.readthedocs.io/)
-- **Contact**: chao.brain@qq.com
-
-## Ehe brain modeling ecosystem
-
-See also the brain simulation ecosystem: https://brainmodeling.readthedocs.io/
-
-
-
----
-
-**Keywords**: neural mass model, brain modeling, computational neuroscience, JAX, differentiable programming
+[BrainMass](https://github.com/chaobrain/brainmass) is one of our brain simulation ecosystem: https://brainmodeling.readthedocs.io/

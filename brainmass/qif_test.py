@@ -14,26 +14,26 @@
 # ==============================================================================
 
 import brainstate
+import braintools
 import brainunit as u
 import jax.numpy as jnp
 
 import brainmass
-import braintools
 
 
 class TestQIFModel:
     def test_initialization_basic(self):
-        m = brainmass.QIF(in_size=1)
+        m = brainmass.MontbrioPazoRoxinStep(in_size=1)
         assert m.in_size == (1,)
-        assert m.tau == 1.0 * u.ms
-        assert m.eta == -5.0
-        assert m.delta == 1.0 * u.Hz
-        assert m.J == 15.0
+        assert m.tau.value() == 1.0 * u.ms
+        assert m.eta.val == -5.0
+        assert m.delta.val == 1.0 * u.Hz
+        assert m.J.val == 15.0
         assert m.noise_r is None
         assert m.noise_v is None
 
     def test_custom_parameters(self):
-        m = brainmass.QIF(
+        m = brainmass.MontbrioPazoRoxinStep(
             in_size=(2, 3),
             tau=2.0 * u.ms,
             eta=-3.0,
@@ -41,13 +41,13 @@ class TestQIFModel:
             J=12.0,
         )
         assert m.in_size == (2, 3)
-        assert m.tau == 2.0 * u.ms
-        assert m.eta == -3.0
-        assert m.delta == 0.5 * u.Hz
-        assert m.J == 12.0
+        assert m.tau.val == 2.0 * u.ms
+        assert m.eta.val == -3.0
+        assert m.delta.val == 0.5 * u.Hz
+        assert m.J.val == 12.0
 
     def test_state_initialization_and_reset(self):
-        m = brainmass.QIF(
+        m = brainmass.MontbrioPazoRoxinStep(
             in_size=4,
             init_r=braintools.init.ZeroInit(),
             init_v=braintools.init.ZeroInit(),
@@ -72,12 +72,12 @@ class TestQIFModel:
         # modify and reset
         m.r.value = jnp.ones((3, 4)) * 0.1
         m.v.value = jnp.ones((3, 4)) * -0.2
-        m.reset_state(batch_size=3)
+        m.init_state(batch_size=3)
         assert u.math.allclose(m.r.value, jnp.zeros((3, 4)))
         assert u.math.allclose(m.v.value, jnp.zeros((3, 4)))
 
     def test_derivative_units_and_finiteness(self):
-        m = brainmass.QIF(in_size=1)
+        m = brainmass.MontbrioPazoRoxinStep(in_size=1)
         r = jnp.array([0.05]) * u.Hz
         v = jnp.array([0.1])
         rex = jnp.array([0.0]) * u.Hz
@@ -92,7 +92,7 @@ class TestQIFModel:
         assert u.math.isfinite(dv_dt).item()
 
     def test_update_single_step_changes_state(self):
-        m = brainmass.QIF(
+        m = brainmass.MontbrioPazoRoxinStep(
             in_size=2,
             init_r=braintools.init.ZeroInit(unit=u.Hz),
             init_v=braintools.init.ZeroInit(),
@@ -113,7 +113,7 @@ class TestQIFModel:
 
     def test_batch_and_multidimensional_update_shapes(self):
         sz = (2, 3)
-        m = brainmass.QIF(
+        m = brainmass.MontbrioPazoRoxinStep(
             in_size=sz,
             init_r=braintools.init.ZeroInit(unit=u.Hz),
             init_v=braintools.init.ZeroInit(),
@@ -132,7 +132,7 @@ class TestQIFModel:
     def test_parameter_arrays(self):
         # Provide an array tau to ensure broadcasting works per element
         tau_arr = jnp.ones((3,)) * (2.0 * u.ms)
-        m = brainmass.QIF(in_size=3, tau=tau_arr)
+        m = brainmass.MontbrioPazoRoxinStep(in_size=3, tau=tau_arr)
         m.init_state()
         with brainstate.environ.context(dt=0.1 * u.ms):
             out = m.update()

@@ -27,27 +27,27 @@ class TestJansenRitModel:
 
     def test_initialization(self):
         """Test model initialization and parameter setting."""
-        model = brainmass.JansenRitModel(in_size=10)
+        model = brainmass.JansenRitStep(in_size=10)
 
         # Check default parameter values
-        assert model.Ae == 3.25 * u.mV
-        assert model.Ai == 22. * u.mV
-        assert model.be == 100. / u.second
-        assert model.bi == 50. / u.second
-        assert model.C == 135.
-        assert model.a1 == 1.
-        assert model.a2 == 0.8
-        assert model.a3 == 0.25
-        assert model.a4 == 0.25
-        assert model.s_max == 5. / u.second
-        assert model.v0 == 6. * u.mV
-        assert model.r == 0.56
+        assert model.Ae.val == 3.25 * u.mV
+        assert model.Ai.val == 22. * u.mV
+        assert model.be.val == 100. / u.second
+        assert model.bi.val == 50. / u.second
+        assert model.C.val == 135.
+        assert model.a1.val == 1.
+        assert model.a2.val == 0.8
+        assert model.a3.val == 0.25
+        assert model.a4.val == 0.25
+        assert model.s_max.val == 5. / u.second
+        assert model.v0.val == 6. * u.mV
+        assert model.r.val == 0.56
 
         print("[PASS] Initialization test passed")
 
     def test_custom_parameters(self):
         """Test model with custom parameters."""
-        model = brainmass.JansenRitModel(
+        model = brainmass.JansenRitStep(
             in_size=5,
             Ae=5.0 * u.mV,
             Ai=30.0 * u.mV,
@@ -63,24 +63,24 @@ class TestJansenRitModel:
             r=0.7
         )
 
-        assert model.Ae == 5.0 * u.mV
-        assert model.Ai == 30.0 * u.mV
-        assert model.be == 80. / u.second
-        assert model.bi == 40. / u.second
-        assert model.C == 150.
-        assert model.a1 == 1.2
-        assert model.a2 == 0.9
-        assert model.a3 == 0.3
-        assert model.a4 == 0.3
-        assert model.s_max == 7. / u.second
-        assert model.v0 == 7. * u.mV
-        assert model.r == 0.7
+        assert model.Ae.val == 5.0 * u.mV
+        assert model.Ai.val == 30.0 * u.mV
+        assert model.be.val == 80. / u.second
+        assert model.bi.val == 40. / u.second
+        assert model.C.val == 150.
+        assert model.a1.val == 1.2
+        assert model.a2.val == 0.9
+        assert model.a3.val == 0.3
+        assert model.a4.val == 0.3
+        assert model.s_max.val == 7. / u.second
+        assert model.v0.val == 7. * u.mV
+        assert model.r.val == 0.7
 
         print("[PASS] Custom parameters test passed")
 
     def test_state_initialization(self):
         """Test state initialization and reset."""
-        model = brainmass.JansenRitModel(in_size=5)
+        model = brainmass.JansenRitStep(in_size=5)
 
         # Test single instance initialization
         model.init_state()
@@ -111,7 +111,7 @@ class TestJansenRitModel:
         # Test reset
         model.M.value = jnp.ones((3, 5)) * 0.5 * u.mV
         model.Mv.value = jnp.ones((3, 5)) * 0.1 * u.mV / u.second
-        model.reset_state(batch_size=3)
+        model.init_state(batch_size=3)
         assert u.math.allclose(model.M.value / u.mV, 0.)
         assert u.math.allclose(model.Mv.value / (u.mV / u.second), 0.)
 
@@ -119,11 +119,11 @@ class TestJansenRitModel:
 
     def test_sigmoid_function(self):
         """Test the sigmoid activation function."""
-        model = brainmass.JansenRitModel(in_size=1)
+        model = brainmass.JansenRitStep(in_size=1)
 
         # Test different input values
         v_low = 0. * u.mV  # Below threshold
-        v_threshold = model.v0  # At threshold
+        v_threshold = model.v0.val  # At threshold
         v_high = 20. * u.mV  # Above threshold
 
         s_low = model.S(v_low)
@@ -133,19 +133,19 @@ class TestJansenRitModel:
         # Check sigmoid properties
         assert s_low < s_threshold < s_high
         assert s_low >= 0. / u.second
-        assert s_high <= model.s_max
-        assert s_threshold == model.s_max / 2.  # Should be halfway at v0
+        assert s_high <= model.s_max.val
+        assert s_threshold == model.s_max.val / 2.  # Should be halfway at v0
 
         # Test saturation
         v_very_high = 100. * u.mV
         s_saturated = model.S(v_very_high)
-        assert u.math.allclose(s_saturated / (1 / u.second), model.s_max / (1 / u.second), rtol=1e-2)
+        assert u.math.allclose(s_saturated / (1 / u.second), model.s_max.val / (1 / u.second), rtol=1e-2)
 
         print("[PASS] Sigmoid function test passed")
 
     def test_derivative_functions(self):
         """Test the derivative computation functions."""
-        model = brainmass.JansenRitModel(in_size=1)
+        model = brainmass.JansenRitStep(in_size=1)
         model.init_state()
 
         # Set some test values
@@ -176,7 +176,7 @@ class TestJansenRitModel:
         """Test single time step update."""
         brainstate.environ.set(dt=0.0001 * u.second)  # 0.1 ms timestep
 
-        model = brainmass.JansenRitModel(in_size=1)
+        model = brainmass.JansenRitStep(in_size=1)
         model.init_state()
 
         # Initial state should be zero
@@ -190,14 +190,14 @@ class TestJansenRitModel:
 
         # After one step, states should have evolved
         # The output should be the EEG proxy signal
-        expected_output = model.a2 * model.E.value - model.a4 * model.I.value
+        expected_output = model.a2.val * model.E.value - model.a4.val * model.I.value
         assert u.math.allclose(output, expected_output)
 
         print("[PASS] Single step update test passed")
 
     def test_eeg_output_signal(self):
         """Test EEG output signal computation."""
-        model = brainmass.JansenRitModel(in_size=1)
+        model = brainmass.JansenRitStep(in_size=1)
         model.init_state()
 
         # Set specific state values
@@ -216,7 +216,7 @@ class TestJansenRitModel:
         """Test oscillatory behavior with appropriate parameters."""
         brainstate.environ.set(dt=0.0001 * u.second)  # 0.1 ms
 
-        model = brainmass.JansenRitModel(in_size=1)
+        model = brainmass.JansenRitStep(in_size=1)
         model.init_state()
 
         # Run simulation with constant input
@@ -245,7 +245,7 @@ class TestJansenRitModel:
         """Test response to different input levels."""
         brainstate.environ.set(dt=0.0001 * u.second)
 
-        model = brainmass.JansenRitModel(in_size=1)
+        model = brainmass.JansenRitStep(in_size=1)
 
         input_levels = [0., 1., 3., 5., 10.] * u.mV
         final_outputs = []
@@ -278,7 +278,7 @@ class TestJansenRitModel:
         outputs = []
 
         for Ae in Ae_values:
-            model = brainmass.JansenRitModel(in_size=1, Ae=Ae)
+            model = brainmass.JansenRitStep(in_size=1, Ae=Ae)
             model.init_state()
 
             def step_run(i, Ip):
@@ -300,7 +300,7 @@ class TestJansenRitModel:
         brainstate.environ.set(dt=0.0001 * u.second)
 
         batch_size = 4
-        model = brainmass.JansenRitModel(in_size=2)
+        model = brainmass.JansenRitStep(in_size=2)
         model.init_state(batch_size=batch_size)
 
         # Update with same input for all batches
@@ -323,7 +323,7 @@ class TestJansenRitModel:
         """Test numerical stability over long simulation."""
         brainstate.environ.set(dt=0.0001 * u.second)
 
-        model = brainmass.JansenRitModel(in_size=1)
+        model = brainmass.JansenRitStep(in_size=1)
         model.init_state()
 
         # Long simulation
@@ -351,7 +351,7 @@ class TestJansenRitModel:
 
     def run_all_tests(self):
         """Run all tests."""
-        print("Running JansenRitModel tests...")
+        print("Running JansenRit2Window tests...")
         print("=" * 40)
 
         self.test_initialization()
@@ -368,14 +368,14 @@ class TestJansenRitModel:
         self.test_stability()
 
         print("=" * 40)
-        print("All JansenRitModel tests passed! [PASS]")
+        print("All JansenRit2Window tests passed! [PASS]")
 
     def test_demo_alpha_rhythm(self, plot=True):
         """Demonstrate alpha rhythm generation."""
         brainstate.environ.set(dt=0.0001 * u.second)  # 0.1 ms
 
         # Parameters for alpha rhythm generation
-        model = brainmass.JansenRitModel(
+        model = brainmass.JansenRitStep(
             in_size=1,
             Ae=3.25 * u.mV,
             Ai=22. * u.mV,
@@ -434,7 +434,7 @@ class TestJansenRitModel:
         brainstate.environ.set(dt=0.0001 * u.second)  # 0.1 ms
 
         # Parameters for seizure-like activity (increased connectivity)
-        model = brainmass.JansenRitModel(
+        model = brainmass.JansenRitStep(
             in_size=1,
             Ae=5. * u.mV,  # Increased excitatory gain
             Ai=15. * u.mV,  # Reduced inhibitory gain

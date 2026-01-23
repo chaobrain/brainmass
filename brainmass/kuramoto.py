@@ -16,11 +16,12 @@
 from typing import Callable, Optional
 
 import braintools
-import brainstate
 import brainunit as u
 
-from ._typing import Initializer
+import brainstate
+from brainstate.nn import Param
 from .noise import Noise
+from .typing import Parameter
 
 __all__ = [
     'KuramotoNetwork',
@@ -50,14 +51,14 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
     in_size : brainstate.typing.Size
         Spatial shape for the oscillator array. For network coupling, the last
         dimension is treated as the node index :math:`N`.
-    omega : Initializer, optional
+    omega : Parameter, optional
         Natural frequency for each oscillator (dimensionless here; overall
         derivative has unit ``1/ms`` due to division by ``u.ms``). Broadcastable
         to ``in_size``. Default is ``0.0``.
-    K : Initializer, optional
+    K : Parameter, optional
         Global coupling strength (dimensionless). Broadcastable to ``in_size``
         when used without explicit ``conn``. Default is ``0.0``.
-    alpha : Initializer, optional
+    alpha : Parameter, optional
         Phase lag :math:`\alpha` (dimensionless, radians). Broadcastable to
         ``in_size``. Default is ``0.0``.
     conn : array-like or None, optional
@@ -72,7 +73,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         Additive noise process for the phase dynamics. If provided, its output
         is added to ``theta_inp`` each update. Default is ``None``.
     init_theta : Callable, optional
-        Initializer for the phase state ``theta`` (dimensionless, radians).
+        Parameter for the phase state ``theta`` (dimensionless, radians).
         Default is ``braintools.init.Uniform(0.0, 2 * u.math.pi)``.
 
     Attributes
@@ -106,9 +107,9 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         self,
         in_size: brainstate.typing.Size,
 
-        omega: Initializer = 0.0,
-        K: Initializer = 0.0,
-        alpha: Initializer = 0.0,
+        omega: Parameter = 0.0,
+        K: Parameter = 0.0,
+        alpha: Parameter = 0.0,
         conn: Optional[brainstate.typing.ArrayLike] = None,
         normalize_by_n: bool = True,
         exclude_self: bool = True,
@@ -119,9 +120,9 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         super().__init__(in_size=in_size)
 
         # parameters
-        self.omega = braintools.init.param(omega, self.varshape)
-        self.K = braintools.init.param(K, self.varshape)
-        self.alpha = braintools.init.param(alpha, self.varshape)
+        self.omega = Param.init(omega, self.varshape)
+        self.K = Param.init(K, self.varshape)
+        self.alpha = Param.init(alpha, self.varshape)
 
         # coupling configuration
         self.conn = None if conn is None else u.math.asarray(conn)
@@ -144,23 +145,10 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.theta = brainstate.HiddenState(
-            braintools.init.param(self.init_theta, self.varshape, batch_size)
-        )
-
-    def reset_state(self, batch_size=None, **kwargs):
-        """Reset phase state ``theta`` using the initializer.
-
-        Parameters
-        ----------
-        batch_size : int or None, optional
-            Optional batch dimension for reinitialization. If ``None``, keeps
-            current batch shape but resets values. Default is ``None``.
-        """
-        self.theta.value = braintools.init.param(self.init_theta, self.varshape, batch_size)
+        self.theta = brainstate.HiddenState.init(self.init_theta, self.varshape, batch_size)
 
     def _pairwise_coupling(self, theta):
-        """Compute coupling term for each oscillator.
+        r"""Compute coupling term for each oscillator.
 
         Parameters
         ----------
@@ -187,10 +175,10 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         n = theta.shape[-1]
 
         # Broadcast pairwise differences: (..., N_out, N_in)
-        theta_i = u.math.expand_dims(theta, axis=-1)      # (..., N, 1)
-        theta_j = u.math.expand_dims(theta, axis=-2)      # (..., 1, N)
-        delta = theta_j - theta_i - self.alpha  # broadcast alpha
-        s_mat = u.math.sin(delta)               # (..., N, N)
+        theta_i = u.math.expand_dims(theta, axis=-1)  # (..., N, 1)
+        theta_j = u.math.expand_dims(theta, axis=-2)  # (..., 1, N)
+        delta = theta_j - theta_i - self.alpha.value()  # broadcast alpha
+        s_mat = u.math.sin(delta)  # (..., N, N)
 
         if self.exclude_self:
             # Zero out diagonal terms to remove self-coupling.
@@ -213,7 +201,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
             elif conn.ndim == 2:
                 if conn.shape != (n, n):
                     raise ValueError(
-                        f'Connectivity must be square (N,N)={(n,n)}; got {conn.shape}.'
+                        f'Connectivity must be square (N,N)={(n, n)}; got {conn.shape}.'
                     )
                 conn2d = conn
             else:
@@ -227,7 +215,7 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         if self.normalize_by_n and n > 0:
             coupling = coupling / n
 
-        return self.K * coupling
+        return self.K.value() * coupling
 
     def dtheta(self, theta, drive):
         """Phase dynamics right-hand side.
@@ -245,7 +233,8 @@ class KuramotoNetwork(brainstate.nn.Dynamics):
         array-like
             Time derivative ``dtheta/dt`` with unit ``1/ms``.
         """
-        return (self.omega + drive) / u.ms
+        omega = self.omega.value()
+        return (omega + drive) / u.ms
 
     def update(self, theta_inp=None):
         """Advance the system by one time step.

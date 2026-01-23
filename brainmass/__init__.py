@@ -15,48 +15,169 @@
 
 
 __version__ = "0.0.5"
-__version_info__ = (0, 0, 5)
+__version_info__ = tuple(map(int, __version__.split(".")))
 
-from .coupling import *
-from .coupling import __all__ as coupling_all
-from .fhn import *
-from .fhn import __all__ as fhn_all
-from .forward_model import *
-from .forward_model import __all__ as forward_model_all
-from .hopf import *
-from .hopf import __all__ as hopf_all
-from .jansen_rit import *
-from .jansen_rit import __all__ as jansen_rit_all
-from .linear import *
-from .linear import __all__ as linear_all
-from .noise import *
-from .noise import __all__ as noise_all
-from .qif import *
-from .qif import __all__ as qif_all
-from .sl import *
-from .sl import __all__ as sl_all
-from .vdp import *
-from .vdp import __all__ as vdp_all
-from .wilson_cowan import *
-from .wilson_cowan import __all__ as wilson_cowan_all
-from .wong_wang import *
-from .wong_wang import __all__ as wong_wang_all
+from ._xy_model import (
+    XY_Oscillator,
+)
+# Coupling mechanisms
+from .coupling import (
+    DiffusiveCoupling,
+    AdditiveCoupling,
+    diffusive_coupling,
+    additive_coupling,
+    laplacian_connectivity,
+    LaplacianConnParam,
+)
+# Neural mass models
+from .fhn import FitzHughNagumoStep
+# Forward models and lead field
+from .forward_model import (
+    BOLDSignal,
+    LeadFieldModel,
+    EEGLeadFieldModel,
+    MEGLeadFieldModel,
+)
+from .hopf import HopfStep
+# HORN models
+from .horn import (
+    HORNStep,
+    HORNSeqLayer,
+    HORNSeqNetwork,
+)
+from .jansen_rit import (
+    JansenRitStep,
+    JansenRitTR,
+)
+from .kuramoto import KuramotoNetwork
+from .leadfield import LeadfieldReadout
+from .linear import ThresholdLinearStep
+# Noise processes
+from .noise import (
+    Noise,
+    OUProcess,
+    GaussianNoise,
+    WhiteNoise,
+    ColoredNoise,
+    BrownianNoise,
+    PinkNoise,
+    BlueNoise,
+    VioletNoise,
+)
+from .qif import MontbrioPazoRoxinStep
+from .sl import StuartLandauStep
+# Type aliases
+from .typing import (
+    Initializer,
+    Array,
+    Parameter,
+)
+# Common utilities
+from .utils import (
+    sys2nd,
+    sigmoid,
+    bounded_input,
+    process_sequence,
+    delay_index,
+)
+from .vdp import VanDerPolStep
+from .wilson_cowan import (
+    WilsonCowanStep,
+    WilsonCowanNoSaturationStep,
+    WilsonCowanSymmetricStep,
+    WilsonCowanSimplifiedStep,
+    WilsonCowanLinearStep,
+    WilsonCowanDivisiveStep,
+    WilsonCowanDivisiveInputStep,
+    WilsonCowanDelayedStep,
+    WilsonCowanAdaptiveStep,
+    WilsonCowanThreePopBase,
+    WilsonCowanThreePopulationStep,
+)
+from .wong_wang import WongWangStep
 
-__all__ = forward_model_all + coupling_all + jansen_rit_all + noise_all + wilson_cowan_all + wong_wang_all + hopf_all
-__all__ = __all__ + fhn_all + linear_all + vdp_all + qif_all + sl_all + ['ArrayParam']
-del forward_model_all, coupling_all, jansen_rit_all, noise_all, wilson_cowan_all, wong_wang_all, hopf_all
-del fhn_all, linear_all, vdp_all, qif_all, sl_all
+__all__ = [
+    # Common utilities
+    'XY_Oscillator',
+    'sys2nd',
+    'sigmoid',
+    'bounded_input',
+    'process_sequence',
+    'delay_index',
+
+    # Type aliases
+    'Initializer',
+    'Array',
+    'Parameter',
+
+    # Noise processes
+    'Noise',
+    'OUProcess',
+    'GaussianNoise',
+    'WhiteNoise',
+    'ColoredNoise',
+    'BrownianNoise',
+    'PinkNoise',
+    'BlueNoise',
+    'VioletNoise',
+
+    # Neural mass models
+    'FitzHughNagumoStep',
+    'HopfStep',
+    'WilsonCowanStep',
+    'WilsonCowanNoSaturationStep',
+    'WilsonCowanSymmetricStep',
+    'WilsonCowanSimplifiedStep',
+    'WilsonCowanLinearStep',
+    'WilsonCowanDivisiveStep',
+    'WilsonCowanDivisiveInputStep',
+    'WilsonCowanDelayedStep',
+    'WilsonCowanAdaptiveStep',
+    'WilsonCowanThreePopBase',
+    'WilsonCowanThreePopulationStep',
+    'WongWangStep',
+    'VanDerPolStep',
+    'MontbrioPazoRoxinStep',
+    'ThresholdLinearStep',
+    'LeadfieldReadout',
+    'KuramotoNetwork',
+    'StuartLandauStep',
+
+    # Jansen-Rit model
+    'JansenRitStep',
+    'JansenRitTR',
+
+    # Forward models and lead field
+    'BOLDSignal',
+    'LeadFieldModel',
+    'EEGLeadFieldModel',
+    'MEGLeadFieldModel',
+
+    # Coupling mechanisms
+    'DiffusiveCoupling',
+    'AdditiveCoupling',
+    'diffusive_coupling',
+    'additive_coupling',
+    'laplacian_connectivity',
+    'LaplacianConnParam',
+
+    # HORN models
+    'HORNStep',
+    'HORNSeqLayer',
+    'HORNSeqNetwork',
+]
 
 
-def __getattr__(name):
-    if name == 'ArrayParam':
+def __getattr__(old_name):
+    name = old_name.replace('Model', 'Step')
+    if name in __all__:
         import warnings
-        import brainstate
+        from . import __name__ as module_name
+        module = __import__(module_name, fromlist=[name])
         warnings.warn(
-            "brainmass.ArrayParam is deprecated and will be removed in a future version. "
-            "Please use brainstate.ArrayParam instead.",
-            DeprecationWarning,
-            stacklevel=2
+            f"{module_name}.{name} is deprecated, use {module_name}.{old_name} instead.",
+            DeprecationWarning
         )
-        return brainstate.ArrayParam
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+        return getattr(module, name)
+    else:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

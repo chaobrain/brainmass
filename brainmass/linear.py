@@ -15,19 +15,20 @@
 
 from typing import Callable
 
-import braintools
 import brainstate
+import braintools
 import brainunit as u
+from brainstate.nn import Dynamics, Param
 
-from ._typing import Initializer
 from .noise import Noise
+from .typing import Parameter
 
 __all__ = [
-    'ThresholdLinearModel',
+    'ThresholdLinearStep',
 ]
 
 
-class ThresholdLinearModel(brainstate.nn.Dynamics):
+class ThresholdLinearStep(Dynamics):
     r"""Threshold-linear two-population rate model.
 
     This model describes excitatory (E) and inhibitory (I) population rates
@@ -51,21 +52,21 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
     in_size : brainstate.typing.Size
         Spatial shape for the E and I populations. Can be an ``int`` or a
         tuple of ``int``. All parameters are broadcastable to this shape.
-    tau_E : Initializer, optional
+    tau_E : Parameter , optional
         Excitatory time constant with unit of time (e.g., ``2e-2 * u.second``).
         Default is ``2e-2 * u.second``.
-    tau_I : Initializer, optional
+    tau_I : Parameter , optional
         Inhibitory time constant with unit of time (e.g., ``1e-2 * u.second``).
         Default is ``1e-2 * u.second``.
-    beta_E : Initializer, optional
+    beta_E : Parameter , optional
         Excitatory gain (dimensionless). Default is ``0.066``.
-    beta_I : Initializer, optional
+    beta_I : Parameter , optional
         Inhibitory gain (dimensionless). Default is ``0.351``.
     init_E : Callable, optional
-        Initializer for the excitatory rate state ``E``. Default is
+        Parameter  for the excitatory rate state ``E``. Default is
         ``braintools.init.ZeroInit()``.
     init_I : Callable, optional
-        Initializer for the inhibitory rate state ``I``. Default is
+        Parameter  for the inhibitory rate state ``I``. Default is
         ``braintools.init.ZeroInit()``.
     noise_E : Noise or None, optional
         Additive noise process for the E population. If provided, called each
@@ -101,10 +102,10 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
-        tau_E: Initializer = 2e-2 * u.second,
-        tau_I: Initializer = 1e-2 * u.second,
-        beta_E: Initializer = .066,
-        beta_I: Initializer = .351,
+        tau_E: Parameter  = 2e-2 * u.second,
+        tau_I: Parameter  = 1e-2 * u.second,
+        beta_E: Parameter  = .066,
+        beta_I: Parameter  = .351,
         init_E: Callable = braintools.init.ZeroInit(),
         init_I: Callable = braintools.init.ZeroInit(),
         noise_E: Noise = None,
@@ -113,10 +114,10 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
         super().__init__(in_size)
 
         # parameters
-        self.tau_E = braintools.init.param(tau_E, self.varshape)
-        self.tau_I = braintools.init.param(tau_I, self.varshape)
-        self.beta_E = braintools.init.param(beta_E, self.varshape)
-        self.beta_I = braintools.init.param(beta_I, self.varshape)
+        self.tau_E = Param.init(tau_E, self.varshape)
+        self.tau_I = Param.init(tau_I, self.varshape)
+        self.beta_E = Param.init(beta_E, self.varshape)
+        self.beta_I = Param.init(beta_I, self.varshape)
 
         # initializers and noise processes
         assert callable(init_E), "init_E must be a callable function"
@@ -137,20 +138,8 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.E = brainstate.HiddenState(braintools.init.param(self.init_E, self.varshape, batch_size))
-        self.I = brainstate.HiddenState(braintools.init.param(self.init_I, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        """Reset E and I states using the configured initializers.
-
-        Parameters
-        ----------
-        batch_size : int or None, optional
-            Optional batch dimension for reinitialization. If ``None``, keeps
-            current batch shape but resets values. Default is ``None``.
-        """
-        self.E.value = braintools.init.param(self.init_E, self.varshape, batch_size)
-        self.I.value = braintools.init.param(self.init_I, self.varshape, batch_size)
+        self.E = brainstate.HiddenState.init(self.init_E, self.varshape, batch_size)
+        self.I = brainstate.HiddenState.init(self.init_I, self.varshape, batch_size)
 
     def update(self, E_inp=None, I_inp=None):
         """Advance the system by one time step.
@@ -175,6 +164,11 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
         Uses exponential-Euler updates via ``brainstate.nn.exp_euler_step`` with
         rectification applied to inputs and non-negativity enforced on states.
         """
+        tau_E = self.tau_E.value()
+        tau_I = self.tau_I.value()
+        beta_E = self.beta_E.value()
+        beta_I = self.beta_I.value()
+
         E_inp = 0. if E_inp is None else E_inp
         if self.noise_E is not None:
             E_inp = E_inp + self.noise_E()
@@ -182,11 +176,11 @@ class ThresholdLinearModel(brainstate.nn.Dynamics):
         if self.noise_I is not None:
             I_inp = I_inp + self.noise_I()
 
-        dE = lambda E: (-E + self.beta_E * u.math.maximum(E_inp, 0.)) / self.tau_E
+        dE = lambda E: (-E + beta_E * u.math.maximum(E_inp, 0.)) / tau_E
         E = brainstate.nn.exp_euler_step(dE, self.E.value)
         self.E.value = u.math.maximum(E, 0.)
 
-        dI = lambda I: (I - self.beta_I * u.math.maximum(I_inp, 0.)) / self.tau_I
+        dI = lambda I: (I - beta_I * u.math.maximum(I_inp, 0.)) / tau_I
         I = brainstate.nn.exp_euler_step(dI, self.I.value)
         self.I.value = u.math.maximum(I, 0.)
         return self.E.value

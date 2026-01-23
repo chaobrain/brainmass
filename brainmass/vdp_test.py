@@ -13,11 +13,10 @@
 # limitations under the License.
 # ==============================================================================
 
-import jax.numpy as jnp
-
-import braintools
 import brainstate
+import braintools
 import brainunit as u
+import jax.numpy as jnp
 
 import brainmass
 
@@ -27,16 +26,16 @@ class TestVanDerPolOscillator:
         # XY_Oscillator asserts noise callability even if None; pass Noise
         nx = brainmass.OUProcess(1, sigma=0.0)
         ny = brainmass.OUProcess(1, sigma=0.0)
-        m = brainmass.VanDerPolOscillator(in_size=1, mu=2.0, noise_x=nx, noise_y=ny)
+        m = brainmass.VanDerPolStep(in_size=1, mu=2.0, noise_x=nx, noise_y=ny)
         assert m.in_size == (1,)
-        assert m.mu == 2.0
+        assert m.mu.val == 2.0
         assert m.noise_x is nx
         assert m.noise_y is ny
 
     def test_state_initialization_and_reset(self):
         nx = brainmass.OUProcess(4, sigma=0.0)
         ny = brainmass.OUProcess(4, sigma=0.0)
-        m = brainmass.VanDerPolOscillator(
+        m = brainmass.VanDerPolStep(
             in_size=4,
             init_x=braintools.init.ZeroInit(),
             init_y=braintools.init.ZeroInit(),
@@ -59,14 +58,14 @@ class TestVanDerPolOscillator:
         # reset back to zero
         m.x.value = jnp.ones((3, 4))
         m.y.value = -jnp.ones((3, 4))
-        m.reset_state(batch_size=3)
+        m.init_state(batch_size=3)
         assert u.math.allclose(m.x.value, jnp.zeros((3, 4)))
         assert u.math.allclose(m.y.value, jnp.zeros((3, 4)))
 
     def test_dx_dy_units_and_finiteness(self):
         nx = brainmass.OUProcess(1, sigma=0.0)
         ny = brainmass.OUProcess(1, sigma=0.0)
-        m = brainmass.VanDerPolOscillator(in_size=1, mu=1.5, noise_x=nx, noise_y=ny)
+        m = brainmass.VanDerPolStep(in_size=1, mu=1.5, noise_x=nx, noise_y=ny)
         x = jnp.array([0.1])
         y = jnp.array([0.2])
         inp = jnp.array([0.3])
@@ -80,7 +79,7 @@ class TestVanDerPolOscillator:
     def test_update_exp_euler_changes_state(self):
         nx = brainmass.OUProcess(2, sigma=0.0)
         ny = brainmass.OUProcess(2, sigma=0.0)
-        m = brainmass.VanDerPolOscillator(
+        m = brainmass.VanDerPolStep(
             in_size=2,
             init_x=braintools.init.ZeroInit(),
             init_y=braintools.init.ZeroInit(),
@@ -102,7 +101,7 @@ class TestVanDerPolOscillator:
         # Exercise non-exp_euler integrator path
         nx = brainmass.OUProcess(2, sigma=0.0)
         ny = brainmass.OUProcess(2, sigma=0.0)
-        m = brainmass.VanDerPolOscillator(
+        m = brainmass.VanDerPolStep(
             in_size=2,
             init_x=braintools.init.ZeroInit(),
             init_y=braintools.init.ZeroInit(),
@@ -120,7 +119,7 @@ class TestVanDerPolOscillator:
     def test_derivative_wrapper(self):
         nx = brainmass.OUProcess(1, sigma=0.0)
         ny = brainmass.OUProcess(1, sigma=0.0)
-        m = brainmass.VanDerPolOscillator(in_size=1, noise_x=nx, noise_y=ny)
+        m = brainmass.VanDerPolStep(in_size=1, noise_x=nx, noise_y=ny)
         x = jnp.array([0.1])
         y = jnp.array([0.0])
         dx, dy = m.derivative((x, y), 0.0, 0.0, 0.0)
@@ -128,4 +127,3 @@ class TestVanDerPolOscillator:
         assert dy.shape == (1,)
         assert u.get_unit(dx).dim == (1 / u.ms).dim
         assert u.get_unit(dy).dim == (1 / u.ms).dim
-

@@ -20,8 +20,9 @@ import braintools
 import brainunit as u
 import jax
 import jax.numpy as jnp
+from brainstate import nn
 
-from ._typing import Initializer
+from .typing import Parameter
 
 Array = jax.Array
 Quantity = u.Quantity
@@ -34,7 +35,7 @@ __all__ = [
 ]
 
 
-class BOLDSignal(brainstate.nn.Dynamics):
+class BOLDSignal(nn.Dynamics):
     r"""
     Balloon-Windkessel hemodynamic model of Friston et al. (2003) [1]_.
 
@@ -97,11 +98,11 @@ class BOLDSignal(brainstate.nn.Dynamics):
     def __init__(
         self,
         in_size,
-        gamma: Initializer = 0.41,
-        k: Initializer = 0.65,
-        alpha: Initializer = 0.32,
-        tau: Initializer = 0.98,
-        rho: Initializer = 0.34,
+        gamma: Parameter = 0.41,
+        k: Parameter = 0.65,
+        alpha: Parameter = 0.32,
+        tau: Parameter = 0.98,
+        rho: Parameter = 0.34,
         V0: float = 0.02,
         init: Callable = braintools.init.Constant(1.),
     ):
@@ -126,12 +127,6 @@ class BOLDSignal(brainstate.nn.Dynamics):
         self.v = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
         self.q = brainstate.HiddenState(braintools.init.param(self.init, self.varshape, batch_size))
 
-    def reset_state(self, batch_size=None, **kwargs):
-        self.x.value = braintools.init.param(self.init, self.varshape, batch_size)
-        self.f.value = braintools.init.param(self.init, self.varshape, batch_size)
-        self.v.value = braintools.init.param(self.init, self.varshape, batch_size)
-        self.q.value = braintools.init.param(self.init, self.varshape, batch_size)
-
     def derivative(self, y, t, z):
         x, f, v, q = y
         dx = z - self.k * x - self.gamma * (f - 1)
@@ -151,12 +146,14 @@ class BOLDSignal(brainstate.nn.Dynamics):
         self.q.value = q
 
     def bold(self):
-        return self.V0 * (self.k1 * (1 - self.q.value) +
-                          self.k2 * (1 - self.q.value / self.rho) +
-                          self.k3 * (1 - self.v.value))
+        return self.V0 * (
+            self.k1 * (1 - self.q.value) +
+            self.k2 * (1 - self.q.value / self.rho) +
+            self.k3 * (1 - self.v.value)
+        )
 
 
-class LeadFieldModel(brainstate.nn.Module):
+class LeadFieldModel(nn.Module):
     r"""
     Lead-field model.
 

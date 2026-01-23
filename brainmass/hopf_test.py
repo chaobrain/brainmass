@@ -13,42 +13,38 @@
 # limitations under the License.
 # ==============================================================================
 
-import numpy as np
-import jax.numpy as jnp
-
 import brainstate
 import brainunit as u
+import jax.numpy as jnp
+import numpy as np
 
 import brainmass
 
 
 class TestHopfModel:
     def test_initialization_basic(self):
-        m = brainmass.HopfOscillator(in_size=1)
+        m = brainmass.HopfStep(in_size=1)
         assert m.in_size == (1,)
-        assert m.a == 0.25
-        assert m.w == 0.2
-        assert m.K_gl == 1.0
-        assert m.beta == 1.0
+        assert m.a.val == 0.25
+        assert m.w.val == 0.2
+        assert m.beta.val == 1.0
         assert m.noise_x is None
         assert m.noise_y is None
 
     def test_initialization_custom(self):
-        m = brainmass.HopfOscillator(
+        m = brainmass.HopfStep(
             in_size=(2, 3),
             a=0.1,
             w=1.5,
-            K_gl=0.8,
             beta=2.0,
         )
         assert m.in_size == (2, 3)
-        assert m.a == 0.1
-        assert m.w == 1.5
-        assert m.K_gl == 0.8
-        assert m.beta == 2.0
+        assert m.a.val == 0.1
+        assert m.w.val == 1.5
+        assert m.beta.val == 2.0
 
     def test_state_initialization_and_reset(self):
-        m = brainmass.HopfOscillator(in_size=4)
+        m = brainmass.HopfStep(in_size=4)
         m.init_state()
         assert isinstance(m.x, brainstate.HiddenState)
         assert isinstance(m.y, brainstate.HiddenState)
@@ -67,12 +63,12 @@ class TestHopfModel:
         # Modify and reset
         m.x.value = jnp.ones((3, 4)) * 0.5
         m.y.value = jnp.ones((3, 4)) * -0.2
-        m.reset_state(batch_size=3)
+        m.init_state(batch_size=3)
         assert u.math.allclose(m.x.value, jnp.zeros((3, 4)))
         assert u.math.allclose(m.y.value, jnp.zeros((3, 4)))
 
     def test_dx_dy_units_and_finiteness(self):
-        m = brainmass.HopfOscillator(in_size=1)
+        m = brainmass.HopfStep(in_size=1)
         x = jnp.array([0.1])
         y = jnp.array([0.2])
         inp = jnp.array([0.3])
@@ -87,7 +83,7 @@ class TestHopfModel:
         assert u.math.isfinite(dy_dt).item()
 
     def test_update_single_step_changes_state(self):
-        m = brainmass.HopfOscillator(in_size=2)
+        m = brainmass.HopfStep(in_size=2)
         m.init_state()
 
         # Finite external drive to x only
@@ -104,7 +100,7 @@ class TestHopfModel:
 
     def test_growth_and_decay_regimes(self):
         # Growth for a > 0
-        m1 = brainmass.HopfOscillator(in_size=1, a=0.2, beta=1.0, w=0.8)
+        m1 = brainmass.HopfStep(in_size=1, a=0.2, beta=1.0, w=0.8)
         m1.init_state()
         m1.x.value = jnp.array([1e-2])
         m1.y.value = jnp.array([0.0])
@@ -112,14 +108,14 @@ class TestHopfModel:
         def step1(i):
             with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
                 _ = m1.update(0.0, 0.0)
-                return jnp.sqrt(m1.x.value**2 + m1.y.value**2)
+                return jnp.sqrt(m1.x.value ** 2 + m1.y.value ** 2)
 
         brainstate.environ.set(dt=0.1 * u.ms)
         r_series1 = brainstate.transform.for_loop(step1, np.arange(2000))
         assert jnp.all(r_series1[-1] > r_series1[0])
 
         # Decay for a < 0
-        m2 = brainmass.HopfOscillator(in_size=1, a=-0.2, beta=1.0, w=0.8)
+        m2 = brainmass.HopfStep(in_size=1, a=-0.2, beta=1.0, w=0.8)
         m2.init_state()
         m2.x.value = jnp.array([0.2])
         m2.y.value = jnp.array([0.0])
@@ -127,13 +123,13 @@ class TestHopfModel:
         def step2(i):
             with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
                 _ = m2.update(0.0, 0.0)
-                return jnp.sqrt(m2.x.value**2 + m2.y.value**2)
+                return jnp.sqrt(m2.x.value ** 2 + m2.y.value ** 2)
 
         r_series2 = brainstate.transform.for_loop(step2, np.arange(2000))
         assert jnp.all(r_series2[-1] < r_series2[0])
 
     def test_batch_and_multidimensional_update_shapes(self):
-        m = brainmass.HopfOscillator(in_size=(2, 3))
+        m = brainmass.HopfStep(in_size=(2, 3))
         m.init_state(batch_size=4)
 
         cx = jnp.zeros((4, 2, 3))
@@ -149,7 +145,7 @@ class TestHopfModel:
         # Only one noise provided should raise when updating
         n = brainmass.OUProcess(1, sigma=1.0)
 
-        m_x = brainmass.HopfOscillator(in_size=1, noise_x=n, noise_y=None)
+        m_x = brainmass.HopfStep(in_size=1, noise_x=n, noise_y=None)
         brainstate.nn.init_all_states(m_x)
         with brainstate.environ.context(dt=0.1 * u.ms):
             try:
@@ -157,4 +153,3 @@ class TestHopfModel:
                 assert False, "Expected assertion when only noise_x is provided"
             except AssertionError:
                 pass
-

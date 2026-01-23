@@ -16,19 +16,20 @@
 from typing import Callable
 
 import braintools
-import brainstate
 import brainunit as u
 
-from ._common import XY_Oscillator
-from ._typing import Initializer
+import brainstate
+from brainstate.nn import Param
 from .noise import Noise
+from .typing import Parameter
+from ._xy_model import XY_Oscillator
 
 __all__ = [
-    'StuartLandauOscillator',
+    'StuartLandauStep',
 ]
 
 
-class StuartLandauOscillator(XY_Oscillator):
+class StuartLandauStep(XY_Oscillator):
     r"""Stuart–Landau oscillator (Hopf normal form).
 
     Implements the real two-dimensional Stuart–Landau equations that describe
@@ -50,9 +51,9 @@ class StuartLandauOscillator(XY_Oscillator):
     in_size : brainstate.typing.Size
         Spatial shape of the node/population. Can be an ``int`` or a tuple of
         ``int``. All parameters are broadcastable to this shape.
-    a : Initializer, optional
+    a : Parameter , optional
         Bifurcation parameter (dimensionless). Default is ``0.25``.
-    w : Initializer, optional
+    w : Parameter , optional
         Angular frequency :math:`\omega` (dimensionless). Default is ``0.2``.
     noise_x : Noise or None, optional
         Additive noise process for the ``x`` component. If provided, called at
@@ -61,10 +62,10 @@ class StuartLandauOscillator(XY_Oscillator):
         Additive noise process for the ``y`` component. If provided, called at
         each update and added to ``y_inp``. Default is ``None``.
     init_x : Callable, optional
-        Initializer for the state ``x``. Default is
+        Parameter  for the state ``x``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     init_y : Callable, optional
-        Initializer for the state ``y``. Default is
+        Parameter  for the state ``y``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     method : str, optional
         Time stepping method. One of ``'exp_euler'`` (default; uses
@@ -97,8 +98,8 @@ class StuartLandauOscillator(XY_Oscillator):
         in_size: brainstate.typing.Size,
 
         # model parameters
-        a: Initializer = 0.25,
-        w: Initializer = 0.2,
+        a: Parameter = 0.25,
+        w: Parameter = 0.2,
 
         # noise parameters
         noise_x: Noise = None,
@@ -119,8 +120,8 @@ class StuartLandauOscillator(XY_Oscillator):
         )
 
         # model parameters
-        self.a = braintools.init.param(a, self.varshape, allow_none=False)
-        self.w = braintools.init.param(w, self.varshape, allow_none=False)
+        self.a = Param.init(a, self.varshape)
+        self.w = Param.init(w, self.varshape)
 
     def dx(self, x, y, x_ext):
         """Right-hand side for the ``x`` component.
@@ -139,7 +140,10 @@ class StuartLandauOscillator(XY_Oscillator):
         array-like
             Time derivative ``dx/dt`` with unit ``1/ms``.
         """
-        return ((self.a - x * x - y * y) * x - self.w * y + x_ext) / u.ms
+        a = self.a.value()
+        w = self.w.value()
+        r2 = x * x + y * y
+        return ((a - r2) * x - w * y + x_ext) / u.ms
 
     def dy(self, y, x, y_ext):
         """Right-hand side for the ``y`` component.
@@ -158,4 +162,7 @@ class StuartLandauOscillator(XY_Oscillator):
         array-like
             Time derivative ``dy/dt`` with unit ``1/ms``.
         """
-        return ((self.a - x * x - y * y) * y - self.w * y + y_ext) / u.ms
+        a = self.a.value()
+        w = self.w.value()
+        r2 = x * x + y * y
+        return ((a - r2) * y + w * x + y_ext) / u.ms

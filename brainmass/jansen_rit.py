@@ -13,18 +13,36 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Callable
+from typing import Callable, Union, Optional, Tuple
 
 import brainstate
 import braintools
 import brainunit as u
-from brainstate.nn import exp_euler_step
+import jax.nn
+import numpy as np
+from brainstate import HiddenState
+from brainstate.nn import (
+    exp_euler_step, Param, Dynamics, Module, init_maybe_prefetch, Delay,
+)
 
-from ._typing import Initializer
-from .noise import Noise
+import brainmass
+from .coupling import additive_coupling
+from .noise import Noise, GaussianNoise
+from .typing import Parameter, Initializer
+from .utils import delay_index
 
 __all__ = [
-    'JansenRitModel',
+    'JansenRitStep',
+    "JansenRitTR",
+]
+
+Array = brainstate.typing.ArrayLike
+Size = brainstate.typing.Size
+Prefetch = Union[
+    brainstate.nn.PrefetchDelayAt,
+    brainstate.nn.PrefetchDelay,
+    brainstate.nn.Prefetch,
+    Callable,
 ]
 
 
@@ -33,7 +51,7 @@ class Identity:
         return x
 
 
-class JansenRitModel(brainstate.nn.Dynamics):
+class JansenRitStep(brainstate.nn.Dynamics):
     r"""
     Jansen-Rit neural mass model.
 
@@ -185,18 +203,18 @@ class JansenRitModel(brainstate.nn.Dynamics):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
-        Ae: Initializer = 3.25 * u.mV,  # Excitatory gain
-        Ai: Initializer = 22. * u.mV,  # Inhibitory gain
-        be: Initializer = 100. * u.Hz,  # Excit. time const
-        bi: Initializer = 50. * u.Hz,  # Inhib. time const.
-        C: Initializer = 135.,  # Connect. const.
-        a1: Initializer = 1.,  # Connect. param.
-        a2: Initializer = 0.8,  # Connect. param.
-        a3: Initializer = 0.25,  # Connect. param
-        a4: Initializer = 0.25,  # Connect. param.
-        s_max: Initializer = 5.0 * u.Hz,  # Max firing rate
-        v0: Initializer = 6. * u.mV,  # Firing threshold
-        r: Initializer = 0.56,  # Sigmoid steepness
+        Ae: Parameter = 3.25 * u.mV,  # Excitatory gain
+        Ai: Parameter = 22. * u.mV,  # Inhibitory gain
+        be: Parameter = 100. * u.Hz,  # Excit. time const
+        bi: Parameter = 50. * u.Hz,  # Inhib. time const.
+        C: Parameter = 135.,  # Connect. const.
+        a1: Parameter = 1.,  # Connect. param.
+        a2: Parameter = 0.8,  # Connect. param.
+        a3: Parameter = 0.25,  # Connect. param
+        a4: Parameter = 0.25,  # Connect. param.
+        s_max: Parameter = 5.0 * u.Hz,  # Max firing rate
+        v0: Parameter = 6. * u.mV,  # Firing threshold
+        r: Parameter = 0.56,  # Sigmoid steepness
         M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
         E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
         I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
@@ -211,20 +229,21 @@ class JansenRitModel(brainstate.nn.Dynamics):
     ):
         super().__init__(in_size)
 
-        self.Ae = braintools.init.param(Ae, self.varshape)
-        self.Ai = braintools.init.param(Ai, self.varshape)
-        self.be = braintools.init.param(be, self.varshape)
-        self.bi = braintools.init.param(bi, self.varshape)
-        self.a1 = braintools.init.param(a1, self.varshape)
-        self.a2 = braintools.init.param(a2, self.varshape)
-        self.a3 = braintools.init.param(a3, self.varshape)
-        self.a4 = braintools.init.param(a4, self.varshape)
-        self.v0 = braintools.init.param(v0, self.varshape)
-        self.C = braintools.init.param(C, self.varshape)
-        self.r = braintools.init.param(r, self.varshape)
-        self.s_max = braintools.init.param(s_max, self.varshape)
+        # parameters
+        self.Ae = Param.init(Ae, self.varshape)
+        self.Ai = Param.init(Ai, self.varshape)
+        self.be = Param.init(be, self.varshape)
+        self.bi = Param.init(bi, self.varshape)
+        self.a1 = Param.init(a1, self.varshape)
+        self.a2 = Param.init(a2, self.varshape)
+        self.a3 = Param.init(a3, self.varshape)
+        self.a4 = Param.init(a4, self.varshape)
+        self.v0 = Param.init(v0, self.varshape)
+        self.C = Param.init(C, self.varshape)
+        self.r = Param.init(r, self.varshape)
+        self.s_max = Param.init(s_max, self.varshape)
 
-        assert callable(fr_scale), 'fr_scale must be a callable function'
+        # initialization
         assert callable(M_init), 'M_init must be a callable function'
         assert callable(E_init), 'E_init must be a callable function'
         assert callable(I_init), 'I_init must be a callable function'
@@ -237,48 +256,59 @@ class JansenRitModel(brainstate.nn.Dynamics):
         self.Mv_init = Mv_init
         self.Ev_init = Ev_init
         self.Iv_init = Iv_init
-        self.fr_scale = fr_scale
+
+        # noise
         self.noise_E = noise_E
         self.noise_I = noise_I
         self.noise_M = noise_M
+
+        assert callable(fr_scale), 'fr_scale must be a callable function'
+        self.fr_scale = fr_scale
         self.method = method
 
     def init_state(self, batch_size=None, **kwargs):
-        self.M = brainstate.HiddenState(braintools.init.param(self.M_init, self.varshape, batch_size))
-        self.E = brainstate.HiddenState(braintools.init.param(self.E_init, self.varshape, batch_size))
-        self.I = brainstate.HiddenState(braintools.init.param(self.I_init, self.varshape, batch_size))
-        self.Mv = brainstate.HiddenState(braintools.init.param(self.Mv_init, self.varshape, batch_size))
-        self.Ev = brainstate.HiddenState(braintools.init.param(self.Ev_init, self.varshape, batch_size))
-        self.Iv = brainstate.HiddenState(braintools.init.param(self.Iv_init, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        self.M.value = braintools.init.param(self.M_init, self.varshape, batch_size)
-        self.E.value = braintools.init.param(self.E_init, self.varshape, batch_size)
-        self.I.value = braintools.init.param(self.I_init, self.varshape, batch_size)
-        self.Mv.value = braintools.init.param(self.Mv_init, self.varshape, batch_size)
-        self.Ev.value = braintools.init.param(self.Ev_init, self.varshape, batch_size)
-        self.Iv.value = braintools.init.param(self.Iv_init, self.varshape, batch_size)
+        self.M = HiddenState.init(self.M_init, self.varshape, batch_size)
+        self.E = HiddenState.init(self.E_init, self.varshape, batch_size)
+        self.I = HiddenState.init(self.I_init, self.varshape, batch_size)
+        self.Mv = HiddenState.init(self.Mv_init, self.varshape, batch_size)
+        self.Ev = HiddenState.init(self.Ev_init, self.varshape, batch_size)
+        self.Iv = HiddenState.init(self.Iv_init, self.varshape, batch_size)
 
     def S(self, v):
         # Sigmoid ranges from 0 to s_max, centered at v0
-        return self.s_max / (1 + u.math.exp(self.r * (self.v0 - v) / u.mV))
+        s_max = self.s_max.value()
+        v0 = self.v0.value()
+        r = self.r.value()
+        return s_max * jax.nn.sigmoid(-r * (v0 - v) / u.mV)
 
     def dMv(self, Mv, M, E, I, inp):
         # Pyramidal population driven by the difference of PSPs (no extra C here)
+        be = self.be.value()
+        Ae = self.Ae.value()
         fr = self.S(E - I + inp)
-        return self.Ae * self.be * self.fr_scale(fr) - 2 * self.be * Mv - self.be ** 2 * M
+        return Ae * be * self.fr_scale(fr) - 2 * be * Mv - be ** 2 * M
 
     def dEv(self, Ev, M, E, inp=0. * u.Hz):
         # Excitatory interneuron population: A*a*(p + C2*S(C1*M)) - 2*a*y' - a^2*y
-        s_M = self.C * self.a2 * self.S(self.C * self.a1 * M)
+        C = self.C.value()
+        a2 = self.a2.value()
+        a1 = self.a1.value()
+        Ae = self.Ae.value()
+        be = self.be.value()
+        s_M = C * a2 * self.S(C * a1 * M)
         fr_total = self.fr_scale(inp + s_M)
-        return self.Ae * self.be * fr_total - 2 * self.be * Ev - self.be ** 2 * E
+        return Ae * be * fr_total - 2 * be * Ev - be ** 2 * E
 
     def dIv(self, Iv, M, I, inp):
         # Inhibitory interneuron population: B*b*(C4*S(C3*M)) - 2*b*y' - b^2*y
-        s_M = self.C * self.a4 * self.S(self.C * self.a3 * M + inp)
+        C = self.C.value()
+        a3 = self.a3.value()
+        a4 = self.a4.value()
+        Ai = self.Ai.value()
+        bi = self.bi.value()
+        s_M = C * a4 * self.S(C * a3 * M + inp)
         fr_total = self.fr_scale(s_M)
-        return self.Ai * self.bi * fr_total - 2 * self.bi * Iv - self.bi ** 2 * I
+        return Ai * bi * fr_total - 2 * bi * Iv - bi ** 2 * I
 
     def derivative(self, state, t, M_inp, E_inp, I_inp):
         M, E, I, Mv, Ev, Iv = state
@@ -322,3 +352,676 @@ class JansenRitModel(brainstate.nn.Dynamics):
     def eeg(self):
         # EEG-like proxy: difference between excitatory and inhibitory PSPs at pyramidal
         return self.E.value - self.I.value
+
+
+class LaplacianConnectivity(Module):
+    r"""
+    Laplacian connectivity for multi-region Jansen-Rit neural mass models.
+
+    This class implements a three-pathway graph Laplacian coupling mechanism
+    designed for spatially-extended Jansen-Rit neural mass networks. It computes
+    coupling inputs for the pyramidal (M), excitatory (E), and inhibitory (I)
+    populations based on delayed activity from connected regions.
+
+    Mathematical Model
+    ------------------
+
+    The connectivity implements three distinct coupling pathways:
+
+    1. **Lateral pathway (l)**: Symmetric coupling to pyramidal population
+    2. **Feedforward pathway (f)**: Directed coupling to excitatory interneurons
+    3. **Feedback pathway (b)**: Directed coupling to inhibitory interneurons
+
+    For each pathway :math:`p \in \{l, f, b\}`, normalized weights are computed as:
+
+    .. math::
+
+        W_p = \text{normalize}(\exp(w_p) \odot SC)
+
+    where :math:`w_p` are trainable log-weights, :math:`SC` is the structural
+    connectivity matrix (fixed), and :math:`\odot` denotes element-wise multiplication.
+
+    The Laplacian-based coupling consists of two terms:
+
+    .. math::
+
+        \text{LE}_p(i) = g_p \sum_j W_p^{(ij)} \cdot x^D_j
+
+    .. math::
+
+        \text{dg}_p(i) = -g_p \left(\sum_j W_p^{(ij)}\right) \cdot y_i
+
+    where :math:`x^D` is the delayed inter-regional signal, :math:`y` is the local
+    state, and :math:`g_p` are global pathway gains.
+
+    The outputs are combined as:
+
+    .. math::
+
+        \begin{aligned}
+        \text{inp}_M &= \text{LE}_l + \text{dg}_l \\
+        \text{inp}_E &= \text{LE}_f + \text{dg}_f \\
+        \text{inp}_I &= -(\text{LE}_b + \text{dg}_b)
+        \end{aligned}
+
+    where:
+
+    - For lateral pathway: :math:`y_i = \text{EEG}_i = E_i - I_i` (difference of
+      excitatory and inhibitory PSPs)
+    - For feedforward pathway: :math:`y_i = M_i` (pyramidal membrane potential)
+    - For feedback pathway: :math:`y_i = \text{EEG}_i = E_i - I_i`
+
+    Parameters
+    ----------
+    delayed_x : Prefetch
+        Delayed inter-regional signal accessor, typically returning the delayed
+        EEG-like proxy (:math:`E - I`) with shape ``(n_regions,)`` or batched.
+    M : Prefetch
+        Accessor for pyramidal population membrane potential with shape ``(n_regions,)``.
+    E : Prefetch
+        Accessor for excitatory interneuron postsynaptic potential with shape ``(n_regions,)``.
+    I : Prefetch
+        Accessor for inhibitory interneuron postsynaptic potential with shape ``(n_regions,)``.
+    sc : ArrayLike
+        Structural connectivity matrix with shape ``(n_regions, n_regions)``. This
+        is a fixed, non-trainable template that scales the learned weights.
+    w_ll : Initializer
+        Initializer for lateral pathway log-weights. Will be exponentiated and
+        normalized with symmetric normalization during precompute.
+    w_ff : Initializer
+        Initializer for feedforward pathway log-weights. Will be exponentiated
+        and normalized during precompute.
+    w_bb : Initializer
+        Initializer for feedback pathway log-weights. Will be exponentiated
+        and normalized during precompute.
+    g_l : Parameter, default 1.0
+        Global gain for lateral pathway.
+    g_f : Parameter, default 1.0
+        Global gain for feedforward pathway.
+    g_b : Parameter, default 1.0
+        Global gain for feedback pathway.
+    mask : ArrayLike, optional
+        Optional binary mask with shape ``(n_regions, n_regions)`` applied to
+        normalized weights. Default is ``None`` (no masking).
+
+    Notes
+    -----
+    - The lateral pathway uses symmetric normalization: :math:`W_l = 0.5(W + W^T)`
+    - The feedforward and feedback pathways use standard L2 normalization
+    - All trainable weights (:math:`w_*`) are stored in log-space for numerical stability
+    - The precompute mechanism ensures normalized weights are cached during forward pass
+    - LE terms represent long-range excitation from delayed inter-regional signals
+    - dg terms represent local inhibition from the diagonal Laplacian
+
+    References
+    ----------
+    .. [1] Jansen, B. H., & Rit, V. G. (1995). Electroencephalogram and visual
+           evoked potential generation in a mathematical model of coupled cortical
+           columns. *Biological Cybernetics*, 73(4), 357-366.
+    .. [2] David, O., & Friston, K. J. (2003). A neural mass model for MEG/EEG:
+           coupling and neuronal dynamics. *NeuroImage*, 20(3), 1743-1755.
+    .. [3] Momi, D., Wang, Z., & Griffiths, J. D. (2023). TMS-evoked responses are
+           driven by recurrent large-scale network dynamics. *eLife*, 12, e83232.
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        delayed_x: Prefetch,
+        M: Prefetch,
+        E: Prefetch,
+        I: Prefetch,
+        sc: Array,
+        w_ll: Initializer,
+        w_ff: Initializer,
+        w_bb: Initializer,
+        g_l: Parameter = 1.0,
+        g_f: Parameter = 1.0,
+        g_b: Parameter = 1.0,
+        mask: Optional[Array] = None,
+    ):
+        super().__init__()
+
+        self.delayed_x = delayed_x
+        self.M = M
+        self.E = E
+        self.I = I
+
+        # Structural connectivity matrix (non-trainable)
+        self.sc = sc
+        shape = sc.shape
+
+        # Optional binary mask (non-trainable, applied after weight normalization)
+        self.mask = braintools.init.param(mask, shape)
+        self.w_ff = Param.init(w_ff, shape)
+        self.w_ff.precompute = self._normalize
+        self.w_bb = Param.init(w_bb, shape)
+        self.w_bb.precompute = self._normalize
+        self.w_ll = Param.init(w_ll, shape)
+        self.w_ll.precompute = self._symmetric_normalize
+        self.g_l = Param.init(g_l)
+        self.g_f = Param.init(g_f)
+        self.g_b = Param.init(g_b)
+
+    @brainstate.nn.call_order(2)
+    def init_state(self, *args, **kwargs):
+        init_maybe_prefetch(self.delayed_x)
+        init_maybe_prefetch(self.M)
+        init_maybe_prefetch(self.E)
+        init_maybe_prefetch(self.I)
+
+    def _normalize(self, w: Array) -> Tuple[Array, Array]:
+        """Normalize weights with standard L2 normalization."""
+        w_b = u.math.exp(w) * self.sc
+        w_n = w_b / u.math.linalg.norm(w_b)
+        if self.mask is not None:
+            w_n = w_n * self.mask
+        diag = -u.math.sum(w_n, axis=1)
+        return w_n, diag
+
+    def _symmetric_normalize(self, w: Array) -> Tuple[Array, Array]:
+        """Normalize weights with symmetric normalization (for lateral pathway)."""
+        w = u.math.exp(w) * self.sc
+        w = 0.5 * (w + u.math.transpose(w, (0, 1)))
+        w_n = w / u.linalg.norm(w)
+        if self.mask is not None:
+            w_n = w_n * self.mask
+        diag = -u.math.sum(w_n, axis=1)
+        return w_n, diag
+
+    def update_tr(self, *args, **kwargs):
+        # Get pathway gains
+        g_l = self.g_l.value()
+        g_f = self.g_f.value()
+        g_b = self.g_b.value()
+
+        # Get delayed inter-regional signal and normalized weights
+        delay_x = u.get_magnitude(self.delayed_x())
+        w_n_b, dg_b = self.w_bb.value()  # feedback pathway weights (normalized via precompute)
+        w_n_f, dg_f = self.w_ff.value()  # feedforward pathway weights (normalized via precompute)
+        w_n_l, dg_l = self.w_ll.value()  # lateral pathway weights (symmetric normalized via precompute)
+
+        # Long-range excitation (LE) terms from delayed inter-regional signal
+        LEd_b = u.math.sum(w_n_b * delay_x, axis=1)
+        LEd_f = u.math.sum(w_n_f * delay_x, axis=1)
+        LEd_l = u.math.sum(w_n_l * delay_x, axis=1)
+
+        return g_l * LEd_l, g_f * LEd_f, -g_b * LEd_b
+
+    def update(self, *args, **kwargs) -> Tuple[Array, Array, Array]:
+        """
+        Compute Laplacian coupling inputs for pyramidal, excitatory, and inhibitory populations.
+        """
+        # Get pathway gains
+        g_l = self.g_l.value()
+        g_f = self.g_f.value()
+        g_b = self.g_b.value()
+
+        # Get delayed inter-regional signal and normalized weights
+        w_n_b, dg_b = self.w_bb.value()  # feedback pathway weights (normalized via precompute)
+        w_n_f, dg_f = self.w_ff.value()  # feedforward pathway weights (normalized via precompute)
+        w_n_l, dg_l = self.w_ll.value()  # lateral pathway weights (symmetric normalized via precompute)
+
+        # Get local population states
+        M = u.get_magnitude(self.M())
+        E = u.get_magnitude(self.E())
+        I = u.get_magnitude(self.I())
+        eeg = E - I  # EEG-like proxy (difference of excitatory and inhibitory PSPs)
+
+        # Combine LE and dg terms for each population
+        inp_M = g_l * dg_l * M  # pyramidal population (lateral pathway)
+        inp_E = g_f * dg_f * eeg  # excitatory interneurons (feedforward pathway)
+        inp_I = -g_b * dg_b * eeg  # inhibitory interneurons (feedback pathway)
+
+        # Return inputs for pyramidal, excitatory, and inhibitory populations
+        return inp_M, inp_E, inp_I
+
+
+class JansenRitTR(Dynamics):
+    def __init__(
+        self,
+        in_size: Size,
+
+        # distance parameters
+        delay: Array,
+
+        # structural connectivity parameters
+        sc: Array,
+        k: Parameter,
+        w_ll: Parameter,
+        w_ff: Parameter,
+        w_bb: Parameter,
+        g_l: Parameter,
+        g_f: Parameter,
+        g_b: Parameter,
+
+        # other parameters
+        std_in: Parameter = None,
+        mask: Optional[Array] = None,
+        state_saturation: bool = True,
+        input_saturation: bool = True,
+        state_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.ZeroInit(),
+        tr: u.Quantity = 1e-3 * u.second
+    ):
+        super().__init__(in_size)
+
+        self.k = Param.init(k)
+        self.tr = tr
+
+        # single step dynamics
+        self.step = JansenRitStep(
+            in_size=in_size,
+            Mv_init=lambda *args: state_init(*args) * u.mV / u.second,
+            Ev_init=lambda *args: state_init(*args) * u.mV / u.second,
+            Iv_init=lambda *args: state_init(*args) * u.mV / u.second,
+            M_init=lambda *args: state_init(*args) * u.mV,
+            E_init=lambda *args: state_init(*args) * u.mV,
+            I_init=lambda *args: state_init(*args) * u.mV,
+            noise_M=GaussianNoise(in_size, sigma=std_in) if std_in is not None else None,
+            noise_E=GaussianNoise(in_size, sigma=std_in) if std_in is not None else None,
+            noise_I=GaussianNoise(in_size, sigma=std_in) if std_in is not None else None,
+        )
+
+        # delay
+        n_hidden = self.varshape[0]
+        dt = brainstate.environ.get_dt()
+        self.delay = Delay(self.step.M_init(self.varshape), init=delay_init)
+        self.delay_access = self.delay.access('delay', delay * dt, brainmass.delay_index(n_hidden))
+
+        # connectivity
+        self.conn = LaplacianConnectivity(
+            self.delay_access,
+            self.step.prefetch('M'),
+            self.step.prefetch('E'),
+            self.step.prefetch('I'),
+            sc=sc,
+            w_ll=w_ll,
+            w_ff=w_ff,
+            w_bb=w_bb,
+            g_l=g_l,
+            g_f=g_f,
+            g_b=g_b,
+            mask=mask,
+        )
+
+    def update(
+        self,
+        input: Array,
+        record_state: bool = False,
+        iter_input: bool = False
+    ):
+        def step(inp):
+            ext = inp if iter_input else input
+            inp_M_step, inp_E_step, inp_I_step = self.conn.update()
+            inp_M = (inp_M_tr + inp_M_step + ext) * u.mV
+            inp_E = (inp_E_tr + inp_E_step) * u.Hz
+            inp_I = (inp_I_tr + inp_I_step) * u.mV
+            self.step.update(inp_M, inp_E, inp_I)
+
+        n_step = int(self.tr / brainstate.environ.get_dt())
+        if iter_input:
+            assert input.shape[0] == n_step, f'Input length {input.shape[0]} does not match number of steps {n_step}'
+
+        input = self.k.value() * input
+        inp_M_tr, inp_E_tr, inp_I_tr = self.conn.update_tr()
+        brainstate.transform.for_loop(step, input if iter_input else np.arange(n_step))
+        self.delay.update(self.step.M.value)
+        activity = self.step.E.value - self.step.I.value
+        activity = u.get_magnitude(activity)
+
+        if record_state:
+            state = dict(M=self.step.M.value, E=self.step.E.value, I=self.step.I.value)
+            return activity, state
+        return activity
+
+
+class AdditiveConn(Module):
+    def __init__(
+        self,
+        model: Module,
+        w_init: Callable = braintools.init.KaimingNormal(),
+        b_init: Callable = braintools.init.ZeroInit(),
+    ):
+        super().__init__()
+
+        self.model = model
+        self.linear = brainstate.nn.Linear(self.model.in_size, self.model.out_size, w_init=w_init, b_init=b_init)
+
+    def update(self, *args, **kwargs):
+        inp = u.get_magnitude(self.model.M.value)
+        return self.linear(inp)
+
+
+class DelayedAdditiveConn(Module):
+    def __init__(
+        self,
+        model: Dynamics,
+        delay_time: Initializer,
+        delay_init: Initializer = braintools.init.ZeroInit(),
+        w_init: Callable = braintools.init.KaimingNormal(),
+        k: Parameter = 1.0,
+    ):
+        super().__init__()
+
+        n_hidden = model.varshape[0]
+        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
+        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
+        self.prefetch = model.prefetch_delay('M', delay_time, neuron_idx, init=delay_init)
+        self.weights = Param(braintools.init.param(w_init, (n_hidden, n_hidden)))
+        self.k = Param.init(k)
+
+    def update(self, *args, **kwargs):
+        delayed = u.get_magnitude(self.prefetch())
+        return additive_coupling(delayed, self.weights.value(), self.k.value())
+
+
+class JansenRitLayer(Module):
+    def __init__(
+        self,
+        n_input: int,
+        n_hidden: int,
+        Ae: Parameter = 3.25 * u.mV,  # Excitatory gain
+        Ai: Parameter = 22. * u.mV,  # Inhibitory gain
+        be: Parameter = 100. * u.Hz,  # Excit. time const
+        bi: Parameter = 50. * u.Hz,  # Inhib. time const.
+        C: Parameter = 135.,  # Connect. const.
+        a1: Parameter = 1.,  # Connect. param.
+        a2: Parameter = 0.8,  # Connect. param.
+        a3: Parameter = 0.25,  # Connect. param
+        a4: Parameter = 0.25,  # Connect. param.
+        s_max: Parameter = 5.0 * u.Hz,  # Max firing rate
+        v0: Parameter = 6. * u.mV,  # Firing threshold
+        r: Parameter = 0.56,  # Sigmoid steepness
+        # initialization
+        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        # noise
+        noise_E: Noise = None,
+        noise_I: Noise = None,
+        noise_M: Noise = None,
+        # distance parameters
+        delay: Array = None,
+        delay_init: Callable = braintools.init.ZeroInit(),
+        # initialization
+        rec_w_init: Initializer = braintools.init.KaimingNormal(),
+        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_w_init: Initializer = braintools.init.KaimingNormal(),
+        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        # other parameters
+        method: str = 'exp_euler',
+    ):
+        super().__init__()
+
+        self.dynamics = JansenRitStep(
+            n_hidden,
+            Ae=Ae,
+            Ai=Ai,
+            be=be,
+            bi=bi,
+            C=C,
+            a1=a1,
+            a2=a2,
+            a3=a3,
+            a4=a4,
+            s_max=s_max,
+            v0=v0,
+            r=r,
+            Mv_init=Mv_init,
+            Ev_init=Ev_init,
+            Iv_init=Iv_init,
+            M_init=M_init,
+            E_init=E_init,
+            I_init=I_init,
+            noise_M=noise_M,
+            noise_E=noise_E,
+            noise_I=noise_I,
+            method=method,
+        )
+        self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
+        if delay is None:
+            self.h2h = AdditiveConn(self.dynamics, w_init=rec_w_init, b_init=rec_b_init)
+        else:
+            self.h2h = DelayedAdditiveConn(self.dynamics, delay, delay_init=delay_init, w_init=rec_w_init)
+
+    def update(self, inputs, record_state: bool = False):
+        def step(inp):
+            rec = self.h2h()
+            out = self.dynamics(E_inp=(inp + rec) * u.Hz)
+            st = dict(
+                M=self.dynamics.M.value,
+                E=self.dynamics.E.value,
+                I=self.dynamics.I.value,
+            )
+            return (st, out) if record_state else out
+
+        assert inputs.ndim == 2, 'Inputs must be 2D (time, features)'
+        output = brainstate.transform.for_loop(step, self.i2h(inputs))
+        return output
+
+
+class LaplacianConnV2(Module):
+    def __init__(
+        self,
+        dynamics: Dynamics,
+        delays: Array,
+        delay_init: Callable = braintools.init.ZeroInit(),
+        weight: Initializer = braintools.init.KaimingNormal(),
+    ):
+        super().__init__()
+
+        n_hidden = dynamics.varshape[0]
+        self.dynamics = dynamics
+        delays = braintools.init.param(delays, (n_hidden, n_hidden))
+        self.delay_prefetch = self.dynamics.prefetch_delay('M', delays, delay_index(n_hidden), init=delay_init)
+        self.w_b = brainstate.ParamState.init(weight, (n_hidden, n_hidden))
+        self.w_f = brainstate.ParamState.init(weight, (n_hidden, n_hidden))
+        self.w_l = brainstate.ParamState.init(weight, (n_hidden, n_hidden))
+
+    def update(self, *args, **kwargs) -> Tuple[Array, Array, Array]:
+        """
+        Compute Laplacian coupling inputs for pyramidal, excitatory, and inhibitory populations.
+        """
+        E = self.dynamics.E.value / u.mV
+        I = self.dynamics.I.value / u.mV
+        eeg = u.get_magnitude(E - I)
+
+        # Combine LE and dg terms for each population
+        inp_M = additive_coupling(u.get_magnitude(self.delay_prefetch()), self.w_b.value)
+        inp_E = self.w_f.value @ eeg
+        inp_I = - self.w_l.value @ eeg
+
+        # Return inputs for pyramidal, excitatory, and inhibitory populations
+        return inp_M, inp_E, inp_I
+
+
+class JansenRit2Layer(Module):
+    def __init__(
+        self,
+        n_input: int,
+        n_hidden: int,
+        Ae: Parameter = 3.25 * u.mV,  # Excitatory gain
+        Ai: Parameter = 22. * u.mV,  # Inhibitory gain
+        be: Parameter = 100. * u.Hz,  # Excit. time const
+        bi: Parameter = 50. * u.Hz,  # Inhib. time const.
+        C: Parameter = 135.,  # Connect. const.
+        a1: Parameter = 1.,  # Connect. param.
+        a2: Parameter = 0.8,  # Connect. param.
+        a3: Parameter = 0.25,  # Connect. param
+        a4: Parameter = 0.25,  # Connect. param.
+        s_max: Parameter = 5.0 * u.Hz,  # Max firing rate
+        v0: Parameter = 6. * u.mV,  # Firing threshold
+        r: Parameter = 0.56,  # Sigmoid steepness
+        # initialization
+        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        # noise
+        noise_E: Noise = None,
+        noise_I: Noise = None,
+        noise_M: Noise = None,
+        # structural parameters
+        delay: Array = None,
+        delay_init: Callable = braintools.init.ZeroInit(),
+        # initialization
+        rec_w_init: Initializer = braintools.init.KaimingNormal(),
+        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_w_init: Initializer = braintools.init.KaimingNormal(),
+        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        # other parameters
+        method: str = 'exp_euler',
+    ):
+        super().__init__()
+
+        self.dynamics = JansenRitStep(
+            n_hidden,
+            Ae=Ae,
+            Ai=Ai,
+            be=be,
+            bi=bi,
+            C=C,
+            a1=a1,
+            a2=a2,
+            a3=a3,
+            a4=a4,
+            s_max=s_max,
+            v0=v0,
+            r=r,
+            Mv_init=Mv_init,
+            Ev_init=Ev_init,
+            Iv_init=Iv_init,
+            M_init=M_init,
+            E_init=E_init,
+            I_init=I_init,
+            noise_M=noise_M,
+            noise_E=noise_E,
+            noise_I=noise_I,
+            method=method,
+        )
+        self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
+        assert delay is not None, 'Delay must be provided for JansenRit2Layer'
+        self.conn = LaplacianConnV2(
+            self.dynamics,
+            delay,
+            delay_init=delay_init,
+            weight=rec_w_init,
+        )
+
+    def update(self, inputs, record_state: bool = False):
+        def step(inp):
+            inp_M, inp_E, inp_I = self.conn()
+            out = self.dynamics(
+                M_inp=(inp + inp_M) * u.mV,
+                E_inp=inp_E * u.Hz,
+                I_inp=inp_I * u.mV,
+            )
+            st = dict(
+                M=self.dynamics.M.value,
+                E=self.dynamics.E.value,
+                I=self.dynamics.I.value,
+            )
+            return (st, out) if record_state else out
+
+        assert inputs.ndim == 2, 'Inputs must be 2D (time, features)'
+        output = brainstate.transform.for_loop(step, self.i2h(inputs))
+        return output
+
+
+class JansenRitNetwork(Module):
+    def __init__(
+        self,
+        n_input: int,
+        n_hidden: Union[int, Tuple[int]],
+        n_output: int,
+        Ae: Parameter = 3.25 * u.mV,  # Excitatory gain
+        Ai: Parameter = 22. * u.mV,  # Inhibitory gain
+        be: Parameter = 100. * u.Hz,  # Excit. time const
+        bi: Parameter = 50. * u.Hz,  # Inhib. time const.
+        C: Parameter = 135.,  # Connect. const.
+        a1: Parameter = 1.,  # Connect. param.
+        a2: Parameter = 0.8,  # Connect. param.
+        a3: Parameter = 0.25,  # Connect. param
+        a4: Parameter = 0.25,  # Connect. param.
+        s_max: Parameter = 5.0 * u.Hz,  # Max firing rate
+        v0: Parameter = 6. * u.mV,  # Firing threshold
+        r: Parameter = 0.56,  # Sigmoid steepness
+        # initialization
+        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
+        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        # noise
+        noise_E: Noise = None,
+        noise_I: Noise = None,
+        noise_M: Noise = None,
+        # distance parameters
+        delay: Array = None,
+        delay_init: Callable = braintools.init.ZeroInit(),
+        # initialization
+        rec_w_init: Initializer = braintools.init.KaimingNormal(),
+        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_w_init: Initializer = braintools.init.KaimingNormal(),
+        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        # other parameters
+        method: str = 'exp_euler',
+    ):
+        super().__init__()
+
+        if isinstance(n_hidden, int):
+            n_hidden = [n_hidden]
+        assert isinstance(n_hidden, (list, tuple)), 'n_hidden must be int or sequence of int.'
+
+        self.layers = []
+        for hidden in n_hidden:
+            layer = JansenRit2Layer(
+                n_input,
+                hidden,
+                Ae=Ae,
+                Ai=Ai,
+                be=be,
+                bi=bi,
+                C=C,
+                a1=a1,
+                a2=a2,
+                a3=a3,
+                a4=a4,
+                s_max=s_max,
+                v0=v0,
+                r=r,
+                Mv_init=Mv_init,
+                Ev_init=Ev_init,
+                Iv_init=Iv_init,
+                M_init=M_init,
+                E_init=E_init,
+                I_init=I_init,
+                noise_M=noise_M,
+                noise_E=noise_E,
+                noise_I=noise_I,
+                method=method,
+                delay=delay,
+                delay_init=delay_init,
+                rec_w_init=rec_w_init,
+                rec_b_init=rec_b_init,
+                inp_w_init=inp_w_init,
+                inp_b_init=inp_b_init,
+            )
+            self.layers.append(layer)
+            n_input = hidden  # next layer input size is current layer hidden size
+        self.h2o = brainstate.nn.Linear(n_input, n_output, w_init=inp_w_init, b_init=inp_b_init)
+
+    def update(self, inputs, record_state: bool = False):
+        x = inputs
+        for layer in self.layers:
+            x = layer(x)
+        eeg = u.get_magnitude(self.layers[-1].dynamics.eeg())
+        output = self.h2o(eeg)
+        return output

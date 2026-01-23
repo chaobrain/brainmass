@@ -16,20 +16,21 @@
 
 from typing import Callable
 
-import brainstate
 import braintools
 import brainunit as u
 
-from ._typing import Initializer
+import brainstate
+from brainstate.nn import Param
 from .noise import Noise
+from .typing import Parameter
 
 __all__ = [
-    'QIF',
+    'MontbrioPazoRoxinStep',
 ]
 
 
-class QIF(brainstate.nn.Dynamics):
-    r"""Quadratic integrate-and-fire mean-field model (Montbrió–Pazó–Roxin).
+class MontbrioPazoRoxinStep(brainstate.nn.Dynamics):
+    r"""Montbrio-Pazo-Roxin infinite theta neuron population model.
 
     Implements the exact mean-field reduction of a population of all-to-all
     coupled QIF neurons with a Lorentzian distribution of background
@@ -53,22 +54,22 @@ class QIF(brainstate.nn.Dynamics):
     in_size : brainstate.typing.Size
         Spatial shape of the population. Can be an ``int`` or a tuple of
         ``int``. All parameters are broadcastable to this shape.
-    tau : Initializer, optional
+    tau : Parameter , optional
         Population time constant with unit of time (e.g., ``1. * u.ms``).
         Default is ``1. * u.ms``.
-    eta : Initializer, optional
+    eta : Parameter , optional
         Mean of the Lorentzian excitability distribution (dimensionless).
         Default is ``-5.0``.
-    delta : Initializer, optional
+    delta : Parameter , optional
         HWHM of the Lorentzian excitability distribution.
         Default is ``1.0 * u.Hz``.
-    J : Initializer, optional
+    J : Parameter , optional
         Recurrent coupling strength (dimensionless). Default is ``15.``.
     init_r : Callable, optional
-        Initializer for the firing-rate state ``r``. Default is
+        Parameter  for the firing-rate state ``r``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     init_v : Callable, optional
-        Initializer for the mean-membrane-potential state ``v``. Default is
+        Parameter  for the mean-membrane-potential state ``v``. Default is
         ``braintools.init.Uniform(0, 0.05)``.
     noise_r : Noise or None, optional
         Additive noise process for the rate dynamics. If provided, its output
@@ -121,10 +122,10 @@ class QIF(brainstate.nn.Dynamics):
         in_size: brainstate.typing.Size,
 
         # model parameters
-        tau: Initializer = 1. * u.ms,
-        eta: Initializer = -5.0,
-        delta: Initializer = 1.0 * u.Hz,
-        J: Initializer = 15.,
+        tau: Parameter = 1. * u.ms,
+        eta: Parameter = -5.0,
+        delta: Parameter = 1.0 * u.Hz,
+        J: Parameter = 15.,
 
         # initializers
         init_r: Callable = braintools.init.Uniform(0, 0.05, unit=u.Hz),
@@ -136,16 +137,16 @@ class QIF(brainstate.nn.Dynamics):
         super().__init__(in_size)
 
         # time integration method
-        self.tau = braintools.init.param(tau, self.varshape, allow_none=False)
+        self.tau = Param.init(tau, self.varshape)
 
         # the mean of a Lorenzian distribution over the neural excitability in the population
-        self.eta = braintools.init.param(eta, self.varshape, allow_none=False)
+        self.eta = Param.init(eta, self.varshape)
 
         # the half-width at half maximum of the Lorenzian distribution over the neural excitability
-        self.delta = braintools.init.param(delta, self.varshape, allow_none=False)
+        self.delta = Param.init(delta, self.varshape)
 
         # the strength of the recurrent coupling inside the population
-        self.J = braintools.init.param(J, self.varshape, allow_none=False)
+        self.J = Param.init(J, self.varshape)
 
         # noise and initializers
         assert callable(init_r), 'init_r must be callable'
@@ -167,20 +168,8 @@ class QIF(brainstate.nn.Dynamics):
             Optional leading batch dimension. If ``None``, no batch dimension is
             used. Default is ``None``.
         """
-        self.r = brainstate.HiddenState(braintools.init.param(self.init_r, self.varshape, batch_size))
-        self.v = brainstate.HiddenState(braintools.init.param(self.init_v, self.varshape, batch_size))
-
-    def reset_state(self, batch_size=None, **kwargs):
-        """Reset states ``r`` and ``v`` using the configured initializers.
-
-        Parameters
-        ----------
-        batch_size : int or None, optional
-            Optional batch dimension for reinitialization. If ``None``, keeps
-            current batch shape but resets values. Default is ``None``.
-        """
-        self.r.value = braintools.init.param(self.init_r, self.varshape, batch_size)
-        self.v.value = braintools.init.param(self.init_v, self.varshape, batch_size)
+        self.r = brainstate.HiddenState.init(self.init_r, self.varshape, batch_size)
+        self.v = brainstate.HiddenState.init(self.init_v, self.varshape, batch_size)
 
     def dr(self, r, v, r_ext):
         """Right-hand side for the firing rate ``r``.
@@ -199,7 +188,9 @@ class QIF(brainstate.nn.Dynamics):
         array-like
             Time derivative ``dr/dt`` with unit ``1/ms``.
         """
-        return self.delta / u.math.pi / self.tau + (2. * v * r + r_ext) / u.ms
+        delta = self.delta.value()
+        tau = self.tau.value()
+        return delta / u.math.pi / tau + (2. * v * r + r_ext) / u.ms
 
     def dv(self, v, r, v_ext):
         """Right-hand side for the mean membrane potential ``v``.
@@ -218,8 +209,13 @@ class QIF(brainstate.nn.Dynamics):
         array-like
             Time derivative ``dv/dt`` with unit ``1/ms``.
         """
-        return (v ** 2 + self.eta + v_ext + self.J * r * self.tau -
-                (u.math.pi * r * self.tau) ** 2) / self.tau
+        eta = self.eta.value()
+        J = self.J.value()
+        tau = self.tau.value()
+        return (
+            v ** 2 + eta + v_ext + J * r * tau -
+            (u.math.pi * r * tau) ** 2
+        ) / tau
 
     def derivative(self, state, t, r_ext, v_ext):
         r, v = state

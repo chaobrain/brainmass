@@ -14,13 +14,14 @@
 # ==============================================================================
 
 
-from typing import Union, Tuple, Callable
+from typing import Union, Tuple, Callable, Literal, Optional
 
 import brainstate
 import brainunit as u
-from brainstate.nn._dynamics import maybe_init_prefetch
+from brainstate.nn import Param, Module, init_maybe_prefetch
 
-from ._common import set_module_as
+from .typing import Parameter
+from .utils import set_module_as
 
 # Typing alias for static type hints
 Prefetch = Union[
@@ -35,12 +36,15 @@ _PREFETCH_TYPES: Tuple[type, ...] = (
     brainstate.nn.PrefetchDelay,
     brainstate.nn.Prefetch,
 )
+Array = brainstate.typing.ArrayLike
 
 __all__ = [
     'DiffusiveCoupling',
     'AdditiveCoupling',
     'diffusive_coupling',
     'additive_coupling',
+    'laplacian_connectivity',
+    'LaplacianConnParam',
 ]
 
 
@@ -52,10 +56,10 @@ def _check_type(x):
 
 @set_module_as('brainmass')
 def diffusive_coupling(
-    delayed_x: Callable | brainstate.typing.ArrayLike,
-    y: Callable | brainstate.typing.ArrayLike,
-    conn: brainstate.typing.ArrayLike,
-    k: brainstate.typing.ArrayLike,
+    delayed_x: Callable | Array,
+    y: Callable | Array,
+    conn: Array,
+    k: Array,
 ):
     r"""
     Diffusive coupling kernel (function form).
@@ -135,11 +139,73 @@ def diffusive_coupling(
     return k * diffusive.sum(axis=-1)  # (..., N_out)
 
 
+class DiffusiveCoupling(Module):
+    r"""
+    Diffusive coupling.
+
+    This class implements a diffusive coupling mechanism for neural network modules.
+    It simulates the following model:
+
+    $$
+    \mathrm{current}_i = k * \sum_j g_{ij} * (x_{D_{ij}} - y_i)
+    $$
+
+    where:
+        - $\mathrm{current}_i$: the output current for neuron $i$
+        - $g_{ij}$: the connection strength between neuron $i$ and neuron $j$
+        - $x_{D_{ij}}$: the delayed state variable for neuron $j$, as seen by neuron $i$
+        - $y_i$: the state variable for neuron i
+
+    Parameters
+    ----------
+    x : Prefetch
+        The delayed state variable for the source units.
+    y : Prefetch
+        The delayed state variable for the target units.
+    conn : Param, array_like
+        The connection matrix (1D or 2D array) specifying the coupling strengths between units.
+    k: Param, array_like
+        The global coupling strength. Default is 1.0.
+
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        x: Prefetch,
+        y: Prefetch,
+        conn: Parameter,
+        k: Parameter = 1.0
+    ):
+        super().__init__()
+        self.x = _check_type(x)
+        self.y = _check_type(y)
+
+        # global coupling strength
+        self.k = Param.init(k)
+
+        # Connection matrix (support 1D flattened (N_out*N_in,) or 2D (N_out, N_in))
+        self.conn = Param.init(conn)
+        ndim = self.conn.value().ndim
+        if ndim not in (1, 2):
+            raise ValueError(
+                f'Connection must be 1D (flattened) or 2D matrix; got {ndim}D.'
+            )
+
+    @brainstate.nn.call_order(2)
+    def init_state(self, *args, **kwargs):
+        init_maybe_prefetch(self.x)
+        init_maybe_prefetch(self.y)
+
+    def update(self, *args, **kwargs):
+        return diffusive_coupling(self.x, self.y, self.conn.value(), self.k.value())
+
+
 @set_module_as('brainmass')
 def additive_coupling(
-    delayed_x: Callable | brainstate.typing.ArrayLike,
-    conn: brainstate.typing.ArrayLike,
-    k: brainstate.typing.ArrayLike
+    delayed_x: Callable | Array,
+    conn: Array,
+    k: Array = 1.0
 ):
     r"""
     Additive coupling kernel (function form).
@@ -189,74 +255,7 @@ def additive_coupling(
     return k * additive.sum(axis=-1)  # (..., N_out)
 
 
-class DiffusiveCoupling(brainstate.nn.Module):
-    r"""
-    Diffusive coupling.
-
-    This class implements a diffusive coupling mechanism for neural network modules.
-    It simulates the following model:
-
-    $$
-    \mathrm{current}_i = k * \sum_j g_{ij} * (x_{D_{ij}} - y_i)
-    $$
-
-    where:
-        - $\mathrm{current}_i$: the output current for neuron $i$
-        - $g_{ij}$: the connection strength between neuron $i$ and neuron $j$
-        - $x_{D_{ij}}$: the delayed state variable for neuron $j$, as seen by neuron $i$
-        - $y_i$: the state variable for neuron i
-
-    Parameters
-    ----------
-    x : Prefetch
-        The delayed state variable for the source units.
-    y : Prefetch
-        The delayed state variable for the target units.
-    conn : brainstate.typing.Array
-        The connection matrix (1D or 2D array) specifying the coupling strengths between units.
-    k: float
-        The global coupling strength. Default is 1.0.
-
-    Attributes
-    ----------
-    x : Prefetch
-        The delayed state variable for the source units.
-    y : Prefetch
-        The delayed state variable for the target units.
-    conn : Array
-        The connection matrix.
-    """
-    __module__ = 'brainmass'
-
-    def __init__(
-        self,
-        x: Prefetch,
-        y: Prefetch,
-        conn: brainstate.typing.Array,
-        k: float = 1.0
-    ):
-        super().__init__()
-        self.x = _check_type(x)
-        self.y = _check_type(y)
-        self.k = k
-
-        # Connection matrix (support 1D flattened (N_out*N_in,) or 2D (N_out, N_in))
-        self.conn = u.math.asarray(conn)
-        if self.conn.ndim not in (1, 2):
-            raise ValueError(
-                f'Connection must be 1D (flattened) or 2D matrix; got {self.conn.ndim}D.'
-            )
-
-    @brainstate.nn.call_order(2)
-    def init_state(self, *args, **kwargs):
-        maybe_init_prefetch(self.x)
-        maybe_init_prefetch(self.y)
-
-    def update(self):
-        return diffusive_coupling(self.x, self.y, self.conn, self.k)
-
-
-class AdditiveCoupling(brainstate.nn.Module):
+class AdditiveCoupling(Module):
     r"""
     Additive coupling.
 
@@ -276,38 +275,225 @@ class AdditiveCoupling(brainstate.nn.Module):
     ----------
     x : Prefetch, Callable
         The delayed state variable for the source units.
-    conn : brainstate.typing.Array
+    conn : Param, array_like
         The connection matrix (1D or 2D array) specifying the coupling strengths between units.
-    k: float
+    k: Param, array_like
         The global coupling strength. Default is 1.0.
 
-    Attributes
-    ----------
-    x : Prefetch
-        The delayed state variable for the source units.
-    conn : Array
-        The connection matrix.
     """
     __module__ = 'brainmass'
 
     def __init__(
         self,
         x: Prefetch,
-        conn: brainstate.typing.Array,
-        k: float = 1.0
+        conn: Parameter,
+        k: Parameter = 1.0
     ):
         super().__init__()
         self.x = _check_type(x)
-        self.k = k
+
+        # global coupling strength
+        self.k = Param.init(k)
 
         # Connection matrix
-        self.conn = u.math.asarray(conn)
-        if self.conn.ndim != 2:
-            raise ValueError(f'Only support 2D connection matrix; got {self.conn.ndim}D.')
+        self.conn = Param.init(conn)
+        ndim = self.conn.value().ndim
+        if ndim != 2:
+            raise ValueError(f'Only support 2D connection matrix; got {ndim}D.')
 
     @brainstate.nn.call_order(2)
     def init_state(self, *args, **kwargs):
-        maybe_init_prefetch(self.x)
+        init_maybe_prefetch(self.x)
 
-    def update(self):
-        return additive_coupling(self.x, self.conn, self.k)
+    def update(self, *args, **kwargs):
+        return additive_coupling(self.x, self.conn.value(), self.k.value())
+
+
+@set_module_as('brainmass')
+def laplacian_connectivity(
+    W: Array,
+    *,
+    normalize: Optional[Literal["rw", "sym"]] = None,
+    eps: float = 1e-12,
+    return_diag: bool = False,
+) -> Union[Array, Tuple[Array, Array]]:
+    r"""
+    Build graph Laplacian matrix from adjacency/connectivity matrix.
+
+    The graph Laplacian is a fundamental matrix representation used in spectral graph
+    theory, graph signal processing, and network analysis. Given an adjacency matrix W
+    and degree matrix D = diag(sum_j W_ij), this function computes one of three standard
+    Laplacian forms.
+
+    **Unnormalized Laplacian** (``normalize=None``):
+
+    $$
+    L = W - D
+    $$
+
+    **Random Walk Normalized Laplacian** (``normalize="rw"``):
+
+    $$
+    L_{\mathrm{rw}} = D^{-1} W = D^{-1} L - I
+    $$
+
+    This form is asymmetric and commonly used in diffusion processes and random walks on graphs.
+
+    **Symmetric Normalized Laplacian** (``normalize="sym"``):
+
+    $$
+    L_{\mathrm{sym}} = D^{-1/2} W D^{-1/2} = D^{-1/2} L D^{-1/2} - I
+    $$
+
+    This form is symmetric, preserves spectral properties, and is widely used in spectral clustering
+    and graph neural networks.
+
+    Parameters
+    ----------
+    W : ArrayLike
+        Adjacency or connectivity matrix with shape ``(N, N)`` representing weighted edges
+        between N nodes. Should contain non-negative weights. For directed graphs, W[i, j]
+        represents edge weight from node j to node i.
+    normalize : {None, "rw", "sym"}, optional
+        Normalization mode for the Laplacian:
+
+        - ``None`` (default): Returns unnormalized Laplacian L = W - D
+        - ``"rw"``: Returns random walk normalized Laplacian L_rw = D^{-1}W - I
+        - ``"sym"``: Returns symmetric normalized Laplacian L_sym = D^{-1/2}W D^{-1/2} - I
+    eps : float, default=1e-12
+        Small constant added for numerical stability when computing D^{-1} or D^{-1/2},
+        preventing division by zero for isolated nodes (zero degree).
+    return_diag : bool, default=False
+        If True, return a tuple ``(L, d)`` where ``L`` is the Laplacian matrix and ``d`` is
+        the degree vector (row sums of W). If False (default), return only the Laplacian matrix.
+
+    Returns
+    -------
+    ArrayLike or tuple of ArrayLike
+        If ``return_diag=False`` (default): Returns the graph Laplacian matrix with shape ``(N, N)``
+        and dtype as input W.
+        If ``return_diag=True``: Returns a tuple ``(L, d)`` where ``L`` is the Laplacian matrix
+        with shape ``(N, N)`` and ``d`` is the degree vector with shape ``(N,)``.
+        If W carries units via `brainunit`, the output preserves unit consistency.
+
+    Raises
+    ------
+    ValueError
+        If ``normalize`` is not one of {None, "rw", "sym"}.
+
+    Notes
+    -----
+    - **Assumptions**: This function assumes non-negative edge weights. For directed graphs,
+      interpretation requires care as the degree matrix D uses row sums.
+    - **Numerical stability**: The ``eps`` parameter prevents division-by-zero errors for
+      isolated nodes with degree zero. Nodes with degree < eps will be treated as having
+      degree = eps.
+    - **Unit safety**: Fully compatible with `brainunit` for unit-safe array operations.
+    - **Use cases**:
+        - Unnormalized: Best for preserving absolute connectivity structure and scale
+        - Random walk: Suitable for diffusion analysis and probabilistic processes
+        - Symmetric: Preferred for spectral analysis, clustering, and eigendecomposition
+
+    Examples
+    --------
+    Compute unnormalized Laplacian for a simple 3-node graph:
+
+    >>> import brainunit as u
+    >>> W = u.math.asarray([[0., 1., 1.],
+    ...                      [1., 0., 1.],
+    ...                      [1., 1., 0.]])
+    >>> L = laplacian_connectivity(W)
+    >>> # L = [[ 2, -1, -1],
+    >>> #      [-1,  2, -1],
+    >>> #      [-1, -1,  2]]
+
+    Compute symmetric normalized Laplacian:
+
+    >>> L_sym = laplacian_connectivity(W, normalize="sym")
+    >>> # L_sym = [[ 1.0, -0.5, -0.5],
+    >>> #          [-0.5,  1.0, -0.5],
+    >>> #          [-0.5, -0.5,  1.0]]
+    """
+    W = u.math.asarray(W)
+    d = u.math.sum(W, axis=-1)  # (N,)
+    if normalize is None:
+        L = W - u.math.diag(d)
+        return (L, d) if return_diag else L
+
+    n = W.shape[-1]
+    I = u.math.eye(n, dtype=W.dtype, unit=u.get_unit(W))
+
+    if normalize == "rw":
+        inv_d = 1.0 / u.math.maximum(d, eps)
+        DinvW = W * inv_d[:, None]
+        L = DinvW - I
+        return (L, d) if return_diag else L
+
+    if normalize == "sym":
+        inv_sqrt_d = 1.0 / u.math.sqrt(u.math.maximum(d, eps))
+        Wn = (W * inv_sqrt_d[:, None]) * inv_sqrt_d[None, :]
+        L = Wn - I
+        return (L, d) if return_diag else L
+
+    raise ValueError(
+        f"Unknown normalize={normalize}, "
+        f"only None, 'rw', 'sym' are supported."
+    )
+
+
+class LaplacianConnParam(Param):
+    r"""
+    Graph Laplacian connectivity module.
+
+    This module computes the graph Laplacian matrix from a given adjacency/connectivity
+    matrix using one of three standard forms: unnormalized, random walk normalized,
+    or symmetric normalized.
+
+    Parameters
+    ----------
+    W : Param, array_like
+        Adjacency or connectivity matrix with shape ``(N, N)`` representing weighted edges
+        between N nodes.
+    normalize : {None, "rw", "sym"}, optional
+        Normalization mode for the Laplacian:
+
+        - ``None`` (default): Returns unnormalized Laplacian L = W - D
+        - ``"rw"``: Returns random walk normalized Laplacian L_rw = D^{-1}W - I
+        - ``"sym"``: Returns symmetric normalized Laplacian L_sym = D^{-1/2}W D^{-1/2} - I
+    eps : float, default=1e-12
+        Small constant added for numerical stability when computing D^{-1} or D^{-1/2}.
+
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        W: Array,
+        mask: Optional[Array] = None,
+        fit: bool = True,
+        normalize: Optional[Literal["rw", "sym"]] = None,
+        eps: float = 1e-12,
+        return_diag: bool = False,
+    ):
+        super().__init__(W, fit=fit, precompute=self.normalize)
+        self.mask = mask
+        self.original_W = W
+        self.normalize = normalize
+        self.return_diag = return_diag
+        self.eps = eps
+        if mask is not None:
+            if mask.shape != W.shape:
+                raise ValueError(
+                    f'Mask shape {mask.shape} must match W shape {W.shape}.'
+                )
+
+    def normalize(self, weight):
+        weight = u.math.exp(u.get_magnitude(weight)) * self.original_W
+        if self.mask is not None:
+            weight = weight * self.mask
+        return laplacian_connectivity(
+            weight,
+            normalize=self.normalize,
+            eps=self.eps,
+            return_diag=self.return_diag,
+        )
