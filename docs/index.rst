@@ -144,7 +144,7 @@ Documentation Structure
 BrainX Ecosystem
 ^^^^^^^^^^^^^^^^
 
-``brainmass`` is one part of our `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_:
+``brainmass`` is one part of our `brain modeling ecosystem <https://brainmodeling.readthedocs.io/>`_.
 
 
 
