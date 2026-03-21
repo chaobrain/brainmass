@@ -361,7 +361,7 @@ Next Steps
 
 - :doc:`parameter_fitting` - Optimize parameters to match empirical data
 - :doc:`../api/forward` - Complete forward model API
-- :doc:`../examples/applications/index` - Real data examples
+- :doc:`../examples/index` - Real data examples
 
 
 See Also

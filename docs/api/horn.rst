@@ -340,5 +340,5 @@ See Also
 --------
 
 - :doc:`models` - Neural mass models also use oscillator dynamics
-- :doc:`../examples/basic/index` - Example notebooks with HORN models
+- :doc:`../examples/index` - Example notebooks with HORN models
 - :doc:`../developer/creating_models` - Creating custom dynamical models

@@ -397,4 +397,4 @@ See Also
 
 - :doc:`models` - Neural mass models as inputs to forward models
 - :doc:`../tutorials/forward_modeling` - Complete forward modeling tutorial
-- :doc:`../examples/applications/index` - MEG/fMRI modeling examples
+- :doc:`../examples/examples/index` - MEG/fMRI modeling examples

@@ -455,13 +455,12 @@ Next Steps
 - Try parameter fitting on your own data
 - Explore different loss functions
 - Compare optimization methods
-- :doc:`../examples/advanced/index` for advanced optimization examples
+- :doc:`../examples/index` for advanced optimization examples
 
 
 See Also
 --------
 
 - :doc:`forward_modeling` - Getting observable data from models
-- :doc:`../api/types` - ArrayParam for constrained optimization
 - Nevergrad documentation
 - Optax documentation
