@@ -258,13 +258,19 @@ Proper initialization is important for oscillator-based networks:
 
 .. code-block:: python
 
-   horn_net.init_all_states(batch_size=32)  # for batched training
+   import braintools.init
 
-   # Custom initialization of oscillator states
-   for layer in horn_net.layers:
-       # Initialize positions and velocities
-       layer.x.value = jax.random.normal(key, layer.x.value.shape) * 0.1
-       layer.v.value = jax.random.normal(key, layer.v.value.shape) * 0.01
+   # Custom initialization of position and velocity states
+   horn_net = brainmass.HORNSeqNetwork(
+       in_size=5,
+       hidden_sizes=[20, 20, 10],
+       out_size=3,
+       omega=1.0,
+       zeta=0.1,
+       x_init=braintools.init.Normal(scale=0.1),  # position state initializer
+       y_init=braintools.init.Normal(scale=0.01),  # velocity state initializer
+   )
+   horn_net.init_all_states(batch_size=32)  # for batched training
 
 
 **Gradient Clipping:**
