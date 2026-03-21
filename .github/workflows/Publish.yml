@@ -34,7 +34,7 @@ jobs:
           from pathlib import Path
           import re
           init = Path('brainmass/__init__.py').read_text(encoding='utf-8')
-          m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", init)
+          m = re.search(r"__version__\s*=\s*['"]([^'"]+)['"]", init)
           print(m.group(1) if m else '')
           PY
           )

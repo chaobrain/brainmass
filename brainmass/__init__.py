@@ -14,9 +14,10 @@
 # ==============================================================================
 
 
-__version__ = "0.0.5"
-__version_info__ = tuple(map(int, __version__.split(".")))
-
+from ._version import (
+    __version__,
+    __version_info__,
+)
 from ._xy_model import (
     XY_Oscillator,
 )
@@ -97,6 +98,9 @@ from .wilson_cowan import (
 from .wong_wang import WongWangStep
 
 __all__ = [
+    '__version__',
+    '__version_info__',
+
     # Common utilities
     'XY_Oscillator',
     'sys2nd',

@@ -28,7 +28,7 @@ Most common for fMRI data:
    import jax.numpy as jnp
 
    def fc_loss(params, SC, FC_empirical):
-       \"\"\"Loss based on functional connectivity matching\"\"\"
+       """Loss based on functional connectivity matching"""
 
        # Run simulation with params
        bold_sim = simulate_network(params, SC)
@@ -55,7 +55,7 @@ For EEG/MEG or other time-domain data:
 .. code-block:: python
 
    def timeseries_loss(params, data_empirical):
-       \"\"\"Direct time series matching\"\"\"
+       """Direct time series matching"""
 
        # Simulate
        data_sim = simulate_eeg(params)
@@ -76,7 +76,7 @@ Match frequency content:
    from scipy import signal
 
    def psd_loss(params, psd_empirical, freqs_empirical):
-       \"\"\"Match power spectral density\"\"\"
+       """Match power spectral density"""
 
        # Simulate and compute PSD
        ts_sim = simulate(params)
