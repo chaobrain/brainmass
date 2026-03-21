@@ -272,7 +272,7 @@ Network Synchrony
 
    # Kuramoto order parameter
    def kuramoto_order(phases):
-       \"\"\"Measure global synchronization\"\"\"
+       """Measure global synchronization"""
        z = jnp.mean(jnp.exp(1j * phases))
        return jnp.abs(z)  # R ∈ [0, 1]
 

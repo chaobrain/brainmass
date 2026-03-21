@@ -268,7 +268,7 @@ Implement custom observation functions:
 .. code-block:: python
 
    def custom_bold_observation(neural_activity):
-       \"\"\"Custom BOLD observation model\"\"\"
+       """Custom BOLD observation model"""
        # Apply nonlinear transformation
        transformed = jnp.tanh(neural_activity / 10.0)
        return transformed
@@ -361,7 +361,7 @@ Next Steps
 
 - :doc:`parameter_fitting` - Optimize parameters to match empirical data
 - :doc:`../api/forward` - Complete forward model API
-- :doc:`../examples/applications/index` - Real data examples
+- :doc:`../examples/index` - Real data examples
 
 
 See Also

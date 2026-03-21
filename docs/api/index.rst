@@ -41,8 +41,6 @@ The ``brainmass`` package provides the following components:
      - Harmonic Oscillator Recurrent Networks (HORN) for sequence learning
    * - :doc:`utilities`
      - Utility functions for common operations
-   * - :doc:`types`
-     - Type aliases and parameter wrapper classes
 
 
 Quick Navigation

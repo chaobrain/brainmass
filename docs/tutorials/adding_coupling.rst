@@ -177,7 +177,7 @@ Implement custom coupling rules:
 .. code-block:: python
 
    def nonlinear_coupling(source, target, conn, k, threshold=0.5):
-       \"\"\"Only couple if source activity exceeds threshold\"\"\"
+       """Only couple if source activity exceeds threshold"""
        active_source = jnp.where(source > threshold, source, 0.)
        return k * (conn.T @ active_source)
 

@@ -99,8 +99,11 @@ class HORNStep(Dynamics):
         Amplitude feedback coefficient (dimensionless). Provides position-based
         self-feedback in the recurrent input. Broadcastable to ``in_size``.
         Default is ``0.0`` (no amplitude feedback).
-    state_init : Initializer, optional
-        Initializer for both position and velocity states :math:`\mathbf{x}` and :math:`\mathbf{y}`.
+    x_init : Initializer, optional
+        Initializer for the position state :math:`\mathbf{x}`.
+        Default is ``braintools.init.ZeroInit()``.
+    y_init : Initializer, optional
+        Initializer for the velocity state :math:`\mathbf{y}`.
         Default is ``braintools.init.ZeroInit()``.
 
     Attributes
@@ -149,7 +152,8 @@ class HORNStep(Dynamics):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # Amplitude feedback
-        state_init: Initializer = braintools.init.ZeroInit(),
+        x_init: Initializer = braintools.init.ZeroInit(),
+        y_init: Initializer = braintools.init.ZeroInit(),
     ):
         super().__init__(in_size)
 
@@ -157,16 +161,17 @@ class HORNStep(Dynamics):
         self.omega = Param.init(omega, self.in_size)
         self.gamma = Param.init(gamma, self.in_size)
         self.v = Param.init(v, self.in_size)
-        self.state_init = state_init
+        self.x_init = x_init
+        self.y_init = y_init
 
     def init_state(self, *args, **kwargs):
         """Initialize position and velocity states for the HORN oscillators.
 
-        Creates ``HiddenState`` containers for both the position (``x``) and
-        velocity (``y``) states using the initializer specified during construction.
+        Creates ``HiddenState`` containers for the position (``x``) and
+        velocity (``y``) states using their respective initializers.
         """
-        self.x = brainstate.HiddenState(self.state_init(self.in_size))
-        self.y = brainstate.HiddenState(self.state_init(self.in_size))
+        self.x = brainstate.HiddenState(self.x_init(self.in_size))
+        self.y = brainstate.HiddenState(self.y_init(self.in_size))
 
     def update(self, inputs):
         """Perform one step of HORN dynamics using symplectic Euler integration.
@@ -364,7 +369,8 @@ class HORN_TR(Module):
         v: Parameter = 0.0,  # feedback
 
         # state initialization
-        state_init: Callable = braintools.init.ZeroInit(),
+        x_init: Initializer = braintools.init.ZeroInit(),
+        y_init: Initializer = braintools.init.ZeroInit(),
 
         # time resolution
         tr: u.Quantity = 1. * u.ms,
@@ -386,7 +392,7 @@ class HORN_TR(Module):
         self.n_hidden = n_hidden
 
         # dynamics
-        self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
+        self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, x_init=x_init, y_init=y_init)
 
         # input-to-hidden
         self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
@@ -456,8 +462,11 @@ class HORNSeqLayer(Module):
         Default is ``0.01``.
     v : Parameter, optional
         Amplitude feedback coefficient (dimensionless). Default is ``0.0``.
-    state_init : Callable, optional
-        Initializer for HORN state variables (position and velocity).
+    x_init : Callable, optional
+        Initializer for HORN position state :math:`\mathbf{x}`.
+        Default is ``braintools.init.ZeroInit()``.
+    y_init : Callable, optional
+        Initializer for HORN velocity state :math:`\mathbf{y}`.
         Default is ``braintools.init.ZeroInit()``.
     delay : Initializer, optional
         Synaptic delay configuration for recurrent connections. If provided,
@@ -523,7 +532,8 @@ class HORNSeqLayer(Module):
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
         delay_init: Callable = braintools.init.ZeroInit(),
-        state_init: Callable = braintools.init.ZeroInit(),
+        x_init: Initializer = braintools.init.ZeroInit(),
+        y_init: Initializer = braintools.init.ZeroInit(),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
         rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
@@ -539,7 +549,7 @@ class HORNSeqLayer(Module):
         self.inp_w_init = inp_w_init
         self.inp_b_init = inp_b_init
 
-        self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, state_init=state_init)
+        self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, x_init=x_init, y_init=y_init)
         self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
         if delay is None:
             self.h2h = AdditiveConn(self.horn, w_init=rec_w_init, b_init=rec_b_init)
@@ -603,8 +613,11 @@ class HORNSeqNetwork(Module):
     v : Parameter, optional
         Amplitude feedback coefficient (dimensionless), shared across all layers.
         Default is ``0.0``.
-    state_init : Callable, optional
-        Initializer for HORN state variables in all layers.
+    x_init : Callable, optional
+        Initializer for HORN position state :math:`\mathbf{x}` in all layers.
+        Default is ``braintools.init.ZeroInit()``.
+    y_init : Callable, optional
+        Initializer for HORN velocity state :math:`\mathbf{y}` in all layers.
         Default is ``braintools.init.ZeroInit()``.
     delay : Initializer, optional
         Synaptic delay configuration for recurrent connections in all layers.
@@ -685,7 +698,8 @@ class HORNSeqNetwork(Module):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
-        state_init: Callable = braintools.init.ZeroInit(),
+        x_init: Initializer = braintools.init.ZeroInit(),
+        y_init: Initializer = braintools.init.ZeroInit(),
         delay_init: Callable = braintools.init.ZeroInit(),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
@@ -709,7 +723,8 @@ class HORNSeqNetwork(Module):
                 gamma=gamma,
                 v=v,
                 delay=delay,
-                state_init=state_init,
+                x_init=x_init,
+                y_init=y_init,
                 delay_init=delay_init,
                 rec_w_init=rec_w_init,
                 rec_b_init=rec_b_init,
