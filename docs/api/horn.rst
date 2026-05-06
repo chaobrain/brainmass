@@ -232,11 +232,13 @@ Parameter Selection
 -------------------
 
 **Natural Frequency (ω):**
+
 - Should match the characteristic frequency of the data
 - For data with dominant frequency :math:`f`, set :math:`\omega \approx 2\pi f`
 - Multiple oscillators can have different frequencies to capture multi-scale dynamics
 
 **Damping (ζ):**
+
 - Controls oscillation decay
 - :math:`\zeta < 1`: Underdamped (oscillatory)
 - :math:`\zeta = 1`: Critically damped
@@ -244,6 +246,7 @@ Parameter Selection
 - Typical values: 0.05 - 0.5 for learning temporal patterns
 
 **Number of Oscillators:**
+
 - More oscillators increase capacity but also parameters
 - Start with 50-100 oscillators per layer
 - Scale based on sequence complexity
@@ -297,12 +300,14 @@ Advantages and Limitations
 ---------------------------
 
 **Advantages:**
+
 - Natural temporal dynamics without gating mechanisms
 - Interpretable oscillator-based representation
 - Effective for periodic and quasi-periodic patterns
 - Differentiable and trainable with standard optimizers
 
 **Limitations:**
+
 - More parameters than vanilla RNNs for same hidden size
 - Requires tuning of oscillator parameters (ω, ζ)
 - May not outperform LSTMs/GRUs on all sequence tasks

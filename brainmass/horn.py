@@ -361,7 +361,6 @@ class DelayedLaplacianConnTR(Module):
 class HORN_TR(Module):
     def __init__(
         self,
-        n_input: int,
         n_hidden: int,
         alpha: Parameter = 0.04,  # excitability
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
@@ -375,10 +374,6 @@ class HORN_TR(Module):
         # time resolution
         tr: u.Quantity = 1. * u.ms,
 
-        # input connections
-        inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
-
         # recurrent connections
         delay: Optional[Initializer] = None,
         rec_type: str = 'additive',
@@ -388,14 +383,10 @@ class HORN_TR(Module):
     ):
         super().__init__()
 
-        self.n_input = n_input
         self.n_hidden = n_hidden
 
         # dynamics
         self.horn = HORNStep(n_hidden, alpha=alpha, omega=omega, gamma=gamma, v=v, x_init=x_init, y_init=y_init)
-
-        # input-to-hidden
-        self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
 
         # hidden-to-hidden
         if delay is None:
@@ -420,7 +411,7 @@ class HORN_TR(Module):
             st = dict(x=self.horn.x.value, y=self.horn.y.value)
             return (st, out) if record_state else out
 
-        return brainstate.transform.for_loop(step, self.i2h(inputs))
+        return brainstate.transform.for_loop(step, inputs)
 
 
 class HORNSeqLayer(Module):

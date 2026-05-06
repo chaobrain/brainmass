@@ -18,7 +18,7 @@ from typing import Union, Tuple, Callable, Literal, Optional
 
 import brainstate
 import brainunit as u
-from brainstate.nn import Param, Module, init_maybe_prefetch
+from brainstate.nn import Param, Module, init_maybe_prefetch, Transform, IdentityT, Regularization
 
 from .typing import Parameter
 from .utils import set_module_as
@@ -462,6 +462,11 @@ class LaplacianConnParam(Param):
         - ``"sym"``: Returns symmetric normalized Laplacian L_sym = D^{-1/2}W D^{-1/2} - I
     eps : float, default=1e-12
         Small constant added for numerical stability when computing D^{-1} or D^{-1/2}.
+    t : Transform, optional
+        Optional transform applied to W before computing the Laplacian. Default is IdentityT (no transform).
+    return_diag : bool, default=False
+        If True, the module's value will be a tuple (L, d) where L is the Laplacian matrix
+        and d is the degree vector. If False (default), the module's value will be just the Laplacian matrix L.
 
     """
     __module__ = 'brainmass'
@@ -469,13 +474,15 @@ class LaplacianConnParam(Param):
     def __init__(
         self,
         W: Array,
+        t: Transform = IdentityT(),
+        reg: Regularization = None,
         mask: Optional[Array] = None,
         fit: bool = True,
         normalize: Optional[Literal["rw", "sym"]] = None,
         eps: float = 1e-12,
         return_diag: bool = False,
     ):
-        super().__init__(W, fit=fit, precompute=self.normalize)
+        super().__init__(W, fit=fit, precompute=self.normalize, t=t, reg=reg)
         self.mask = mask
         self.original_W = W
         self.normalize = normalize
