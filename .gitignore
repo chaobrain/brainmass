@@ -232,3 +232,8 @@ cython_debug/
 /examples/data/
 /docs/api/generated/
 /examples/results/
+
+# brainx-sphinx-header build artifacts
+docs/_brand/
+docs/_static/css/brainx-header.css
+docs/_static/js/brainx-header.js
