@@ -65,7 +65,7 @@ name = "brainmass"
 [project.urls]
 homepage = 'https://github.com/chaobrain/brainmass'
 repository = 'https://github.com/chaobrain/brainmass'
-documentation = 'https://brainmass.readthedocs.io/'
+documentation = 'https://brainx.chaobrain.com/brainmass/'
 "Bug Tracker" = 'https://github.com/chaobrain/brainmass/issues'
 "Source Code" = 'https://github.com/chaobrain/brainmass'
 

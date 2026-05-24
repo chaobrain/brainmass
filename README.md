@@ -9,7 +9,7 @@
 [![PyPI Downloads](https://img.shields.io/pypi/dm/brainmass.svg)](https://pypi.org/project/brainmass/)
 [![CI](https://github.com/chaobrain/brainmass/actions/workflows/CI.yml/badge.svg)](https://github.com/chaobrain/brainmass/actions/workflows/CI.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Docs](https://readthedocs.org/projects/brainmass/badge/?version=latest)](https://brainmass.readthedocs.io/)
+[![Docs](https://readthedocs.org/projects/brainmass/badge/?version=latest)](https://brainx.chaobrain.com/brainmass/)
 
 BrainMass is a Python library for whole-brain computational modeling using differentiable neural mass models. Built on
 JAX for high-performance computing, it provides tools for simulating brain dynamics, fitting neural signal data, and
@@ -82,4 +82,4 @@ BrainMass is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for d
 
 ## See also the ecosystem
 
-[BrainMass](https://github.com/chaobrain/brainmass) is one of our brain simulation ecosystem: https://brainmodeling.readthedocs.io/
+[BrainMass](https://github.com/chaobrain/brainmass) is one of our brain simulation ecosystem: https://brainx.chaobrain.com/
