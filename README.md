@@ -1,7 +1,7 @@
 # BrainMass: whole-brain modeling with differentiable neural mass models
 
 <p align="center">
-  	<img alt="Header image of braintrace." src="https://raw.githubusercontent.com/chaobrain/brainmass/main/docs/_static/brainmass.png" width=40%>
+  	<img alt="Header image of braintrace." src="https://brainx.chaobrain.com/images/brainmass.webp" width=40%>
 </p>
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
