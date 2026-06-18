@@ -10,9 +10,11 @@ Covers:
 
 import brainunit as u
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import brainmass
+import brainstate
 
 
 class TestLeadFieldModel:
@@ -174,3 +176,76 @@ class TestBOLDSignal:
         dx, df, dv, dq = bold.derivative((x, f, v, q), 0.0, z)
         for arr in (dx, df, dv, dq):
             assert arr.shape == (R,)
+
+
+class TestLeadFieldModelNoise:
+    """Exercise the optional sensor-noise (noise_cov) path / _sample_noise."""
+
+    def test_noise_cov_forward_shape_and_unit(self):
+        R, M, T = 2, 3, 4
+        L = jnp.ones((R, M), dtype=jnp.float32) * (u.mV / (u.nA * u.meter))
+        nmm = jnp.ones((T, R), dtype=jnp.float32) * (1.0 * u.mV)
+        cov = jnp.eye(M, dtype=jnp.float32) * (0.5 * u.mV ** 2)
+        brainstate.random.seed(0)
+        model = brainmass.LeadFieldModel(
+            in_size=(R,), out_size=(M,), L=L, sensor_unit=u.mV, noise_cov=cov)
+        y = model.update(nmm)
+        assert y.shape == (T, M)
+        assert u.get_unit(y).has_same_dim(u.mV)
+
+    def test_sample_noise_shape_unit_and_determinism(self):
+        R, M = 2, 5
+        L = jnp.ones((R, M), dtype=jnp.float32) * (u.mV / (u.nA * u.meter))
+        cov = jnp.eye(M, dtype=jnp.float32) * (1.0 * u.mV ** 2)
+        model = brainmass.LeadFieldModel(
+            in_size=(R,), out_size=(M,), L=L, sensor_unit=u.mV, noise_cov=cov)
+        brainstate.random.seed(1)
+        e1 = model._sample_noise(7)
+        brainstate.random.seed(1)
+        e2 = model._sample_noise(7)
+        assert e1.shape == (7, M)  # (T, M), not (M, T)
+        assert u.get_unit(e1).has_same_dim(u.mV)
+        assert u.math.allclose(e1, e2)
+
+
+class TestBOLDSignalLifecycle:
+    """Exercise BOLDSignal.init_state / update / bold (the hemodynamic readout)."""
+
+    def test_update_and_bold(self):
+        R = 4
+        brainstate.environ.set(dt=0.01)  # BOLDSignal is dimensionless; dt must be unitless
+        bold = brainmass.BOLDSignal(in_size=(R,))
+        brainstate.nn.init_all_states(bold)
+        # Drive with a small neural input for several steps.
+        z = 0.1 * jnp.ones((R,), dtype=jnp.float32)
+        for _ in range(5):
+            bold.update(z)
+        out = bold.bold()
+        assert out.shape == (R,)
+        assert np.all(np.isfinite(np.asarray(out)))
+
+
+class TestLeadFieldModelExtras:
+    def test_R_and_M_properties(self):
+        R, M = 2, 3
+        L = jnp.ones((R, M), dtype=jnp.float32) * (u.mV / (u.nA * u.meter))
+        model = brainmass.LeadFieldModel(in_size=(R,), out_size=(M,), L=L, sensor_unit=u.mV)
+        assert model.R == R
+        assert model.M == M
+
+    def test_compress_vertex_leadfield_unitless(self):
+        # Unitless inputs exercise the non-Quantity return branch.
+        M, V, R = 3, 2, 4
+        L_vertex = jnp.arange(M * 3 * V, dtype=jnp.float32).reshape(M, 3 * V)
+        W = jnp.ones((3 * V, R), dtype=jnp.float32)
+        L_region = brainmass.LeadFieldModel.compress_vertex_leadfield(L_vertex, W)
+        assert L_region.shape == (M, R)
+        assert not isinstance(L_region, u.Quantity)
+
+    def test_build_fixed_orientation_weights_default_area(self):
+        # Omitting area_weights_V exercises the area=None default branch.
+        V, R = 3, 2
+        normals = jnp.eye(3, dtype=jnp.float32)
+        parcel = jnp.ones((V, R), dtype=jnp.float32)
+        W = brainmass.LeadFieldModel.build_fixed_orientation_weights(normals, parcel)
+        assert W.shape == (3 * V, R)

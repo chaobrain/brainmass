@@ -16,6 +16,7 @@
 import brainstate
 import brainunit as u
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import brainmass
@@ -212,3 +213,89 @@ class TestAdditiveCoupling:
         coup.init_state()
         with pytest.raises(ValueError):
             _ = coup.update()
+
+
+class TestLaplacianConnParam:
+    """LaplacianConnParam: precompute method must not collide with the mode attr."""
+
+    @staticmethod
+    def _W():
+        return jnp.array([[0., 1., 1.],
+                          [1., 0., 1.],
+                          [1., 1., 0.]])
+
+    def test_normalization_method_renamed_no_collision(self):
+        # The precompute callback was renamed to ``_laplacian``; ``normalize`` is
+        # the mode string. On the buggy version ``_laplacian`` does not exist.
+        p = brainmass.LaplacianConnParam(self._W(), normalize='sym')
+        assert callable(getattr(p, '_laplacian', None))
+        assert p.normalize == 'sym'
+
+    @pytest.mark.parametrize('mode', [None, 'rw', 'sym'])
+    def test_value_matches_reference(self, mode):
+        W = self._W()
+        p = brainmass.LaplacianConnParam(W, normalize=mode)
+        got = p.value()
+        exp = brainmass.laplacian_connectivity(u.math.exp(W) * W, normalize=mode)
+        assert u.math.allclose(got, exp)
+
+    def test_value_with_mask(self):
+        W = self._W()
+        mask = jnp.array([[0., 1., 0.],
+                          [1., 0., 1.],
+                          [0., 1., 0.]])
+        p = brainmass.LaplacianConnParam(W, normalize='sym', mask=mask)
+        got = p.value()
+        exp = brainmass.laplacian_connectivity(u.math.exp(W) * W * mask, normalize='sym')
+        assert u.math.allclose(got, exp)
+
+    def test_return_diag_returns_tuple(self):
+        W = self._W()
+        p = brainmass.LaplacianConnParam(W, normalize='rw', return_diag=True)
+        L, d = p.value()
+        expL, expd = brainmass.laplacian_connectivity(
+            u.math.exp(W) * W, normalize='rw', return_diag=True)
+        assert u.math.allclose(L, expL)
+        assert u.math.allclose(d, expd)
+
+    def test_mask_shape_mismatch_raises(self):
+        W = self._W()
+        with pytest.raises(ValueError):
+            brainmass.LaplacianConnParam(W, mask=jnp.ones((2, 2)))
+
+
+class TestSharedRecurrentConn:
+    """Direct tests for the deduplicated AdditiveConn / DelayedAdditiveConn.
+
+    These classes were unified into coupling.py from horn.py + jansen_rit.py.
+    They read a named state via ``u.get_magnitude`` so they work both on a
+    unitless state (HORN 'y') and a unit-carrying state (Jansen 'M').
+    """
+
+    def test_additive_conn_reads_named_state_and_update_tr_zero(self):
+        import brainstate
+        from brainmass.coupling import AdditiveConn
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.HORNStep(4)
+        brainstate.nn.init_all_states(model)
+        conn = AdditiveConn(model, state='y')
+        brainstate.nn.init_all_states(conn)
+        out = conn.update()
+        assert out.shape == (4,)
+        assert np.all(np.isfinite(np.asarray(out)))
+        # update_tr is a no-op contributing zero for the non-delayed conn.
+        assert float(np.asarray(conn.update_tr())) == 0.0
+
+    def test_delayed_additive_conn_update_tr_zero(self):
+        import brainstate
+        from brainmass.coupling import DelayedAdditiveConn
+        brainstate.environ.set(dt=0.1 * u.ms)
+        model = brainmass.HORNStep(4)
+        brainstate.nn.init_all_states(model)
+        delay = jnp.asarray(np.random.randint(1, 4, size=(4, 4)).astype('float32')) * u.ms
+        conn = DelayedAdditiveConn(model, delay_time=delay, state='y')
+        brainstate.nn.init_all_states(conn)
+        assert float(np.asarray(conn.update_tr())) == 0.0
+        out = conn.update()
+        assert out.shape == (4,)
+        assert np.all(np.isfinite(np.asarray(out)))

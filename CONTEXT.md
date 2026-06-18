@@ -86,3 +86,51 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   behind** local `main` — `docs/roadmap.md` (added in unpushed commit `3ca0bfa`) was absent
   from the worktree. Read it via `git show main:docs/roadmap.md`. If a future goal needs the
   roadmap and it's missing, check whether the roadmap commit has reached `origin/main` yet.
+
+### 2026-06-18 · goal-01 code-correctness
+- **Bugs fixed (TDD red→green):**
+  - `coupling.py` `LaplacianConnParam`: method/attr name collision — renamed the
+    method `normalize`→`_laplacian`, passed as `precompute=self._laplacian`; the
+    `normalize` mode string attribute now stands alone. (precompute is *lazy* — only
+    called in `Param.value()`/`cache()` — so attr ordering after `super().__init__` is fine.)
+  - `jansen_rit.py` `JansenRitTR.update`: `inp_*_tr` were referenced inside the sub-step
+    closure before assignment; moved the `conn.update_tr()` + `k*input` lines above `def step`.
+  - `noise.py` `BrownianNoise.update`: increment now `sigma*sqrt(dt)*noise` (variance scales
+    with dt). Unit-safe form: `sigma * u.math.sqrt(dt/u.ms) * noise` (raw `nA + nA*sqrt(ms)` raises).
+  - `noise.py` colored noise: `BlueNoise` beta -1→-2 (PSD∝f²), `VioletNoise` -2→-4 (PSD∝f⁴).
+  - `forward_model.py` `LeadFieldModel`: fixed docstring/shape drift and the dangling
+    `self._noise_cov_q` ref in `_sample_noise` (it's the Cholesky factor `_noise_conv_Lc`).
+  - `jansen_rit.py` `s_max`: docstring said 2.5 Hz, code default 5.0 Hz. Literature value is
+    `2·e0 = 5 s⁻¹` (Jansen & Rit 1995) → code was right, fixed the **docstring** only.
+- **Low-risk debt:** deduped `AdditiveConn`/`DelayedAdditiveConn` into `coupling.py` (single
+  source; both read state via `u.get_magnitude` → no-op on unitless HORN `'y'`, strips units
+  from Jansen `'M'`; HORN/Jansen call sites pass `state=`). Replaced `brainmass.delay_index`
+  self-import in `jansen_rit.py` with the local `delay_index`. Converted Google→NumPy docstrings
+  in `utils.py`, `leadfield.py`, `wong_wang.py`.
+- **Leadfield overlap decision:** keep BOTH. `LeadFieldModel` (forward_model.py) = unit-aware
+  physical forward operator (units, vertex→region aggregation, noise cov). `LeadfieldReadout`
+  (leadfield.py) = lightweight *trainable* EEG head on unitless arrays. Added reciprocal
+  "use X when" + `See Also` notes to each.
+- **New latent findings (NOT fixed — out of scope; flagged for maintainer):**
+  - `LeadfieldReadout.normalize_leadfield` is labelled "L2" but computes `sum(sqrt(w²))=sum(|w|)`
+    = **L1** norm. Left numerics unchanged; corrected the docstring/comment to say L1 and tested L1.
+    Decide whether L2 (`sqrt(sum(w²))`) was intended.
+  - `JansenRitNetwork` multi-layer is broken: a layer emits an mV `Quantity`, the next layer
+    re-multiplies its input by `u.mV` → `UnitMismatchError`. Single-layer works. Marked the
+    multi-layer test `xfail(strict)`; construction is still exercised.
+- **Infra:** root `conftest.py` forces matplotlib `Agg` + autouse `plt.close("all")` so the
+  `test_demo_*` (`plot=True`, `plt.show()`) no longer block pytest. Added test files:
+  `horn_test.py`, `leadfield_test.py`, `utils_test.py` (HORN had none before).
+- **Coverage:** all 8 changed source files ≥95% (forward_model/jansen_rit/leadfield/utils/
+  wong_wang = 100%); suite 229 passed, 1 xfailed.
+- **Gotchas for next goal:**
+  - **`/mnt/d` (drvfs) + coverage's C/sysmon/pytrace tracer aborts (SIGABRT) on the `saiunit`
+    C-extension import.** Workaround: a driver that imports `jax/brainunit/brainstate/braintools`
+    FIRST (loads the C-ext uninstrumented), THEN `cov.start()` + `pytest.main([...])`. See the
+    pattern used this goal.
+  - **File-tool absolute paths go where you point them.** The session CWD is the worktree, but
+    an absolute path to `/mnt/d/.../brainmass/brainmass/utils.py` writes to **main**, not the
+    worktree (`.../.claude/worktrees/<wt>/brainmass/...`). Use the worktree path or relative-
+    from-CWD. (Recovered with `git -C <main> checkout HEAD -- <file>`.)
+  - Bumpy `Edit`-tool persistence was observed on drvfs earlier; `Write` (whole-file) and
+    Bash read-modify-write (`.count()==1` guard) are reliable.

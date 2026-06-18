@@ -103,8 +103,11 @@ class BrownianNoise(Noise):
         mean = self.mean.value()
         sigma = self.sigma.value()
         noise = brainstate.random.randn(*self.varshape)
-        dt_sqrt = u.math.sqrt(brainstate.environ.get_dt())
-        self.x.value = self.x.value + sigma / dt_sqrt * dt_sqrt * noise
+        # Wiener increment dx = sigma * sqrt(dt) * N(0, 1). dt is normalised by a
+        # fixed time unit (ms) so the increment keeps sigma's unit and the
+        # per-step variance scales with dt (same dt/u.ms idiom as HORNStep).
+        dt = brainstate.environ.get_dt()
+        self.x.value = self.x.value + sigma * u.math.sqrt(dt / u.ms) * noise
         return mean + self.x.value
 
 
@@ -177,22 +180,30 @@ class PinkNoise(ColoredNoise):
 
 class BlueNoise(ColoredNoise):
     """
-    Blue (1/f^2) noise.
-    """
-    __module__ = 'brainmass'
+    Blue noise.
 
-    def __init__(self, in_size, mean=None, sigma=1. * u.nA):
-        super().__init__(in_size=in_size, beta=-1.0, mean=mean, sigma=sigma)
-
-
-class VioletNoise(ColoredNoise):
-    """
-    Violet (1/f^3) noise.
+    Power spectral density rises with frequency as ``PSD(f) ∝ f**2`` (i.e.
+    ``beta = -2`` in the ``1/f**beta`` convention, giving the amplitude shaping
+    ``f**(-beta/2) = f``).
     """
     __module__ = 'brainmass'
 
     def __init__(self, in_size, mean=None, sigma=1. * u.nA):
         super().__init__(in_size=in_size, beta=-2.0, mean=mean, sigma=sigma)
+
+
+class VioletNoise(ColoredNoise):
+    """
+    Violet (purple) noise.
+
+    Power spectral density rises with frequency as ``PSD(f) ∝ f**4`` (i.e.
+    ``beta = -4`` in the ``1/f**beta`` convention, giving the amplitude shaping
+    ``f**(-beta/2) = f**2``).
+    """
+    __module__ = 'brainmass'
+
+    def __init__(self, in_size, mean=None, sigma=1. * u.nA):
+        super().__init__(in_size=in_size, beta=-4.0, mean=mean, sigma=sigma)
 
 
 class OUProcess(Noise):

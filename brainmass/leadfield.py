@@ -1,7 +1,21 @@
-"""
-EEG readout modules using leadfield matrix.
+# Copyright 2025 BrainX Ecosystem Limited. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
 
-Transforms neural mass model source activity to sensor-space EEG signals.
+"""EEG readout modules using a leadfield matrix.
+
+Transforms neural-mass-model source activity to sensor-space EEG signals.
 """
 
 import brainunit as u
@@ -16,21 +30,48 @@ __all__ = [
 
 
 class LeadfieldReadout(Module):
+    r"""Trainable leadfield-matrix EEG readout.
+
+    Transforms a source-activity vector (e.g. ``E - I``) to EEG sensor space
+    using a leadfield matrix:
+
+    .. math::
+
+        \mathrm{EEG} = c_{y0}\, (\hat{L}\, x) - y_0 ,
+
+    where :math:`\hat{L}` is the (optionally row-normalised, demeaned) leadfield
+    matrix and ``x`` is the source-activity vector.
+
+    Parameters
+    ----------
+    lm : Array
+        Leadfield matrix of shape ``(output_size, node_size)``. Wrapped in a
+        trainable :class:`~brainstate.nn.Param`.
+    y0 : Parameter
+        Output bias parameter, subtracted from every channel.
+    cy0 : Parameter
+        Global scaling coefficient applied to the projected activity.
+    normalize : bool, default True
+        If ``True``, scale each leadfield row by its L1 norm (``sum(|w|)``,
+        the sum of absolute values). Note: historically labelled "L2".
+    demean : bool, default True
+        If ``True``, remove the per-channel mean across sensors (columns).
+
+    See Also
+    --------
+    brainmass.forward_model.LeadFieldModel
+        The heavier, unit-aware forward operator.
+
+    Notes
+    -----
+    Use :class:`LeadfieldReadout` when you want a lightweight, *trainable* EEG
+    readout head — the leadfield is a fitted parameter with optional row
+    normalisation / demeaning, and inputs/outputs are plain (unitless) arrays.
+    Use :class:`brainmass.forward_model.LeadFieldModel` instead when you need a
+    physically faithful forward model: explicit physical units, vertex→region
+    aggregation, and additive measurement noise with a configurable covariance.
     """
-    Leadfield matrix EEG readout.
-
-    Transforms source activity (E - I) to EEG sensor space using
-    a leadfield matrix.
-
-    EEG = cy0 * lm_normalized @ (E - I) - y0
-
-    Args:
-        lm: Leadfield matrix parameter (output_size, node_size).
-        y0: Output bias parameter.
-        cy0: Scaling coefficient parameter.
-        normalize: Whether to L2-normalize leadfield rows.
-        demean: Whether to remove mean across channels.
-    """
+    __module__ = 'brainmass'
 
     def __init__(
         self,
@@ -50,18 +91,27 @@ class LeadfieldReadout(Module):
         self.demean = demean
 
     def normalize_leadfield(self, lm: Array) -> Array:
-        """
-        Normalize leadfield matrix.
+        """Row-normalise and/or demean the leadfield matrix.
 
-        Args:
-            lm: (output_size, node_size) leadfield matrix.
+        Applied lazily as the ``precompute`` hook of ``self.lm`` whenever the
+        parameter value is read.
 
-        Returns:
-            Normalized leadfield matrix.
+        Parameters
+        ----------
+        lm : Array
+            Leadfield matrix of shape ``(output_size, node_size)``.
+
+        Returns
+        -------
+        Array
+            The leadfield matrix after optional L1 row normalisation
+            (``normalize``; scales each row by ``sum(|w|)``) and optional
+            per-channel demeaning (``demean``).
         """
 
         if self.normalize:
-            # L2 normalize each row (each sensor's weights)
+            # Scale each row by its L1 norm: sum(|w|). (Comment historically
+            # said "L2"; the code computes sum(sqrt(w**2)) == sum(|w|).)
             row_norms = u.math.sum(u.math.sqrt(lm ** 2), axis=1, keepdims=True)
             lm = lm / row_norms
 
@@ -72,6 +122,19 @@ class LeadfieldReadout(Module):
         return lm
 
     def update(self, x: Array):
+        """Project source activity to EEG sensor space.
+
+        Parameters
+        ----------
+        x : Array
+            Source-activity array whose last axis has length ``node_size``.
+            Leading axes (batch/time) are mapped over automatically.
+
+        Returns
+        -------
+        Array
+            EEG signals with the last axis replaced by ``output_size``.
+        """
         lm = self.lm.value()
         y0 = self.y0.value()
         cy0 = self.cy0.value()

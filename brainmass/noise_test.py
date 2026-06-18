@@ -305,3 +305,93 @@ class TestColoredNoise:
             y = n.update()
             assert y.shape == (2, 256)
             assert u.get_unit(y) == u.nA
+
+
+class TestBrownianNoiseScaling:
+    """Brownian (Wiener) increment must scale as ``sigma * sqrt(dt)``."""
+
+    @staticmethod
+    def _first_increment(dt, seed=123, n=50000, sigma=2.0 * u.nA):
+        # First update from a zero initial state equals the per-step increment.
+        brainstate.random.seed(seed)
+        proc = brainmass.BrownianNoise(in_size=n, sigma=sigma)
+        proc.init_state()
+        with brainstate.environ.context(dt=dt):
+            out = proc.update()
+        return np.asarray(u.get_magnitude(out))
+
+    def test_increment_variance_scales_with_dt(self):
+        # Same seed => identical N(0,1) draw, so Var ratio == dt ratio exactly.
+        inc1 = self._first_increment(0.1 * u.ms)
+        inc2 = self._first_increment(0.4 * u.ms)
+        ratio = float(np.var(inc2)) / float(np.var(inc1))
+        # Buggy code (increment == sigma) gives ratio ~ 1; correct gives ~ 4.
+        assert 3.8 < ratio < 4.2, f'variance ratio {ratio} should be ~4 (dt 0.4/0.1)'
+
+    def test_increment_magnitude_matches_sigma_sqrt_dt(self):
+        # At dt == 1 ms the increment std equals sigma (sqrt(dt/ms) == 1).
+        inc = self._first_increment(1.0 * u.ms, sigma=2.0 * u.nA)
+        assert abs(float(np.std(inc)) - 2.0) < 0.1
+
+    def test_zero_sigma_is_deterministic(self):
+        proc = brainmass.BrownianNoise(in_size=10, sigma=0.0 * u.nA)
+        proc.init_state()
+        with brainstate.environ.context(dt=0.1 * u.ms):
+            out = proc.update()
+        assert u.math.allclose(out, 0. * u.nA)
+
+    def test_seed_determinism(self):
+        a = self._first_increment(0.1 * u.ms, seed=7, n=200)
+        b = self._first_increment(0.1 * u.ms, seed=7, n=200)
+        assert np.allclose(a, b)
+
+    def test_update_is_unit_safe_and_finite(self):
+        brainstate.random.seed(0)
+        proc = brainmass.BrownianNoise(in_size=4, sigma=1.5 * u.nA)
+        proc.init_state()
+        with brainstate.environ.context(dt=0.1 * u.ms):
+            out = proc.update()
+        assert u.get_unit(out) == u.nA
+        assert u.math.all(u.math.isfinite(out))
+
+
+class TestColoredNoiseSpectralSlope:
+    """Colored-noise PSD slope: PSD(f) ~ f**(-beta) so log-log slope == -beta."""
+
+    @staticmethod
+    def _psd_slope(noise, seed=0):
+        brainstate.random.seed(seed)
+        y = np.asarray(u.get_magnitude(noise.update()))  # (reps, n)
+        n = y.shape[-1]
+        psd = np.mean(np.abs(np.fft.rfft(y, axis=-1)) ** 2, axis=0)
+        freqs = np.fft.rfftfreq(n)
+        lo, hi = 1, len(freqs)  # exclude DC only
+        f, p = freqs[lo:hi], psd[lo:hi]
+        mask = p > 0
+        return float(np.polyfit(np.log(f[mask]), np.log(p[mask]), 1)[0])
+
+    def _make(self, cls=None, beta=None, in_size=(256, 2048)):
+        n = (cls(in_size=in_size, sigma=1.0 * u.nA) if cls is not None
+             else brainmass.ColoredNoise(in_size=in_size, beta=beta, sigma=1.0 * u.nA))
+        n.init_state()
+        return n
+
+    def test_blue_slope_is_two(self):
+        slope = self._psd_slope(self._make(cls=brainmass.BlueNoise))
+        assert abs(slope - 2.0) < 0.5, f'blue slope {slope} should be ~ +2'
+
+    def test_violet_slope_is_four(self):
+        slope = self._psd_slope(self._make(cls=brainmass.VioletNoise))
+        assert abs(slope - 4.0) < 0.8, f'violet slope {slope} should be ~ +4'
+
+    def test_pink_slope_is_minus_one(self):
+        slope = self._psd_slope(self._make(cls=brainmass.PinkNoise))
+        assert abs(slope + 1.0) < 0.5, f'pink slope {slope} should be ~ -1'
+
+    def test_slope_ordering_vs_white_and_pink(self):
+        s_pink = self._psd_slope(self._make(cls=brainmass.PinkNoise), seed=1)
+        s_white = self._psd_slope(self._make(beta=0.0), seed=2)
+        s_blue = self._psd_slope(self._make(cls=brainmass.BlueNoise), seed=3)
+        s_violet = self._psd_slope(self._make(cls=brainmass.VioletNoise), seed=4)
+        assert s_pink < s_white < s_blue < s_violet
+        assert s_pink < 0 < s_blue

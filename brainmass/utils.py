@@ -39,26 +39,38 @@ def sys2nd(
     x: Array,
     v: Array
 ) -> Array:
-    """
-    Second-order system dynamics.
+    r"""Compute the acceleration of a second-order linear system.
 
-    Implements the derivative of a second-order linear system:
-        d²x/dt² + 2a·dx/dt + a²·x = A·a·u
+    Implements the canonical second-order kinetic block used by neural-mass
+    models (e.g. Jansen-Rit). The system
 
-    Which can be written as:
-        dv/dt = A·a·u - 2·a·v - a²·x
+    .. math::
 
-    where v = dx/dt
+        \frac{d^2 x}{dt^2} + 2 a \frac{dx}{dt} + a^2 x = A\,a\,u
 
-    Args:
-        A: Amplitude gain parameter.
-        a: Time constant parameter (1/time).
-        u: Input signal.
-        x: Position state (integrated output).
-        v: Velocity state (derivative of position).
+    is written in state-space form with ``v = dx/dt`` as
 
-    Returns:
-        dv/dt - the acceleration (derivative of velocity).
+    .. math::
+
+        \frac{dv}{dt} = A\,a\,u - 2 a v - a^2 x .
+
+    Parameters
+    ----------
+    A : Array
+        Amplitude gain parameter.
+    a : Array
+        Time-constant parameter (units of inverse time).
+    u : Array
+        Input signal.
+    x : Array
+        Position state (the integrated output).
+    v : Array
+        Velocity state (the derivative of ``x``).
+
+    Returns
+    -------
+    Array
+        ``dv/dt`` — the acceleration, i.e. the derivative of the velocity state.
     """
     return A * a * u - 2 * a * v - a ** 2 * x
 
@@ -69,21 +81,27 @@ def sigmoid(
     v0: Array,
     r: Array
 ) -> Array:
-    """
-    Sigmoidal firing rate function.
+    r"""Convert membrane potential to firing rate via a sigmoid.
 
-    Converts membrane potential to firing rate using a sigmoid function.
+    .. math::
 
-    S(x) = vmax / (1 + exp(r·(v0 - x)))
+        S(x) = \frac{v_{max}}{1 + \exp\!\big(r (v_0 - x)\big)}
 
-    Args:
-        x: Input membrane potential.
-        vmax: Maximum firing rate.
-        v0: Firing threshold (potential at half-max rate).
-        r: Steepness of the sigmoid.
+    Parameters
+    ----------
+    x : Array
+        Input membrane potential.
+    vmax : Array
+        Maximum firing rate.
+    v0 : Array
+        Firing threshold (potential at half-maximum rate).
+    r : Array
+        Steepness of the sigmoid.
 
-    Returns:
-        Firing rate in range (0, vmax).
+    Returns
+    -------
+    Array
+        Firing rate in the open interval ``(0, vmax)``.
     """
     # vmax / (1 + u.math.exp(r * (v0 - x)))
     return vmax * u.math.sigmoid(-r * (v0 - x))
@@ -93,18 +111,22 @@ def bounded_input(
     x: Array,
     bound: float = 500.0
 ) -> Array:
-    """
-    Apply tanh bounding to input signal.
+    r"""Apply a ``tanh`` bound to an input signal.
 
-    Prevents numerical instability by limiting the magnitude of inputs
-    to the second-order system.
+    Prevents numerical instability by smoothly limiting the magnitude of the
+    inputs fed to a second-order system.
 
-    Args:
-        x: Input signal.
-        bound: Maximum absolute value.
+    Parameters
+    ----------
+    x : Array
+        Input signal.
+    bound : float, default 500.0
+        Maximum absolute value of the output.
 
-    Returns:
-        Bounded input: bound * tanh(u / bound)
+    Returns
+    -------
+    Array
+        The bounded input ``bound * tanh(x / bound)``.
     """
     return bound * u.math.tanh(x / bound)
 
@@ -113,35 +135,47 @@ def process_sequence(
     data: brainstate.typing.PyTree,
     mode: Union[str, Callable] = 'stack',
 ) -> Union[Array, Tuple, List, Dict, Sequence]:
-    """
-    Stack a sequence of data items along a new dimension.
+    """Aggregate a sequence of data items along the leading dimension.
 
-    This is the inverse operation of slice_data - while slice_data reduces
-    a dimension via aggregation, stack_data creates a new dimension by
-    stacking multiple items together.
+    The sequence is first stacked along a new leading axis and then reduced
+    according to ``mode``. The reduction is applied recursively over arbitrary
+    PyTrees (dicts, tuples, lists, and nested combinations thereof).
 
+    Parameters
+    ----------
+    data : PyTree
+        A stacked PyTree of items, with the items enumerated along the leading
+        axis of every leaf. All leaves must share a compatible structure.
+    mode : str or Callable, default 'stack'
+        How to reduce along the leading axis:
 
-    Returns:
-        Aggregated data with structure matching input elements:
-        - mode='stack': Array/dict/tuple/list with new dimension at `dim`
-        - mode='last'/'first': Single item (same as data[-1] or data[0])
-        - mode='avg'/'mean'/'max'/'min': Aggregated tensor/dict/tuple/list
-        - mode=callable: Result of applying callable to stacked data
-        For dicts/tuples/lists, aggregation is applied recursively to each element.
+        - ``'stack'`` : return the data unchanged (identity).
+        - ``'last'`` / ``'first'`` : take the last/first item.
+        - ``'avg'`` / ``'mean'`` : mean over the leading axis.
+        - ``'max'`` / ``'min'`` : max/min over the leading axis.
+        - callable : apply the callable to each leaf.
 
-    Raises:
-        ValueError: If data is empty (cannot infer structure/type) or if
-            mode is an unknown string.
-        TypeError: If sequence contains mixed or incompatible types, or if
-            mode is not a string or callable.
+    Returns
+    -------
+    Array or tuple or list or dict or Sequence
+        Aggregated data whose structure matches the input leaves:
 
+        - ``mode='stack'`` : structure with the new leading dimension retained.
+        - ``mode='last'`` / ``'first'`` : a single item.
+        - ``mode='avg'``/``'mean'``/``'max'``/``'min'`` : reduced PyTree.
+        - ``mode`` callable : the result of applying the callable.
 
-    Notes:
-        - All elements in data must have the same type and structure
-        - NumPy arrays are automatically converted to float32 tensors
-        - Dictionary keys must match across all elements
-        - Tuple/list lengths must match across all elements
-        - Recursive: handles nested structures (e.g., dict of tuples)
+    Raises
+    ------
+    ValueError
+        If ``mode`` is an unknown string.
+
+    Notes
+    -----
+    - All leaves must share the same type and structure.
+    - Dictionary keys (and tuple/list lengths) must match across elements.
+    - The reduction is recursive and handles nested structures, e.g. a dict of
+      tuples of arrays.
     """
     msg = (
         f"Unknown mode: {mode}. "
@@ -171,6 +205,19 @@ def process_sequence(
 
 
 def set_module_as(module: str):
+    """Return a decorator that rebinds a function's ``__module__`` attribute.
+
+    Parameters
+    ----------
+    module : str
+        The module path to assign to the decorated function's ``__module__``.
+
+    Returns
+    -------
+    Callable
+        A decorator that sets ``fun.__module__ = module`` and returns ``fun``.
+    """
+
     def wrapper(fun: Callable):
         fun.__module__ = module
         return fun
@@ -179,4 +226,18 @@ def set_module_as(module: str):
 
 
 def delay_index(n_hidden: int):
+    """Build the neuron-index matrix used to address per-connection delays.
+
+    Parameters
+    ----------
+    n_hidden : int
+        Number of hidden units (nodes).
+
+    Returns
+    -------
+    numpy.ndarray
+        An integer array of shape ``(n_hidden, n_hidden)`` whose every row is
+        ``arange(n_hidden)``; row ``i`` selects the source-neuron index for
+        each delayed connection into target ``i``.
+    """
     return np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
