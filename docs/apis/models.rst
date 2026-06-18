@@ -87,6 +87,21 @@ The following table summarizes the key characteristics of each model:
      - 2 (r, v)
      - Mean-field dynamics, theta neurons
      - Quadratic integrate-and-fire, exact reduction
+   * - :class:`CoombesByrneStep`
+     - Physiological
+     - 2 (r, v)
+     - Next-generation mean-field, conductance synapses
+     - Ott-Antonsen reduction of QIF with synaptic conductance
+   * - :class:`LarterBreakspearStep`
+     - Physiological
+     - 3 (V, W, Z)
+     - Limit cycles, chaos, conductance-based dynamics
+     - Modified Morris-Lecar with Na/K/Ca gating
+   * - :class:`EpileptorStep`
+     - Physiological
+     - 6 states
+     - Seizure onset/offset, epilepsy
+     - Fast/slow subsystems + slow permittivity ``z``
 
 
 Common API Pattern
@@ -294,6 +309,64 @@ The Montbrio-Pazo-Roxin model is an exact mean-field reduction of networks of qu
    outputs = brainstate.transform.for_loop(
        lambda i: qif.update(I_ext=2.0 * u.nA),
        jnp.arange(1000)
+   )
+
+
+Complex Mean-Field Models (TVB parity)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These are literature-faithful ports of three complex mean-field models from
+`The Virtual Brain <https://www.thevirtualbrain.org/>`_, validated against the TVB /
+tvboptim reference equations. Full equations, default parameters and numbered
+references are in each class docstring.
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+   :template: classtemplate.rst
+
+   CoombesByrneStep
+   LarterBreakspearStep
+   EpileptorStep
+
+
+**Example: Coombes-Byrne (next-generation neural mass)**
+
+A conductance-based exact mean field of QIF neurons. With the synaptic conductance
+scale ``k = 0`` it reduces to :class:`MontbrioPazoRoxinStep` with ``J = 0``
+(Coombes & Byrne, 2019):
+
+.. code-block:: python
+
+   cb = brainmass.CoombesByrneStep(in_size=1, Delta=1.0, eta=2.0, k=1.0, v_syn=-4.0)
+   cb.init_all_states()
+   out = brainmass.Simulator(cb, dt=0.1 * u.ms).run(40. * u.ms, monitors=["r", "v"])
+
+
+**Example: Larter-Breakspear (conductance-based)**
+
+A modified Morris-Lecar mean field whose pyramidal threshold variance ``d_V`` selects
+the dynamical regime (fixed point, limit cycle, or chaos; Breakspear et al., 2003):
+
+.. code-block:: python
+
+   lb = brainmass.LarterBreakspearStep(in_size=1, d_V=0.57)  # limit-cycle band
+   lb.init_all_states()
+   out = brainmass.Simulator(lb, dt=0.1 * u.ms).run(400. * u.ms, monitors=["V"])
+
+
+**Example: Epileptor (seizure dynamics)**
+
+A six-variable model whose slow permittivity variable ``z`` autonomously ramps
+seizures on and off; ``x0`` sets the epileptogenicity (Jirsa et al., 2014). The
+``lfp()`` proxy (``x2 - x1``) is returned by ``update``:
+
+.. code-block:: python
+
+   epi = brainmass.EpileptorStep(in_size=1, x0=-1.6)  # epileptogenic node
+   epi.init_all_states()
+   out = brainmass.Simulator(epi, dt=0.1 * u.ms).run(
+       2000. * u.ms, monitors={"lfp": lambda m: m.lfp(), "z": "z"}
    )
 
 

@@ -31,6 +31,8 @@ from .coupling import (
     LaplacianConnParam,
 )
 # Neural mass models
+from .coombes_byrne import CoombesByrneStep
+from .epileptor import EpileptorStep
 from .fhn import FitzHughNagumoStep
 # Forward models and lead field
 from .forward_model import (
@@ -51,6 +53,7 @@ from .jansen_rit import (
     JansenRitTR,
 )
 from .kuramoto import KuramotoNetwork
+from .larter_breakspear import LarterBreakspearStep
 from .leadfield import LeadfieldReadout
 from .linear import ThresholdLinearStep
 # Noise processes
@@ -147,6 +150,9 @@ __all__ = [
     'WongWangStep',
     'VanDerPolStep',
     'MontbrioPazoRoxinStep',
+    'CoombesByrneStep',
+    'LarterBreakspearStep',
+    'EpileptorStep',
     'ThresholdLinearStep',
     'LeadfieldReadout',
     'KuramotoNetwork',

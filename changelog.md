@@ -1,5 +1,23 @@
 # Release Notes
 
+## Unreleased
+
+### New Features and Models
+
+- **Model parity (TVB mean-field), sub-project F.** Added three literature-faithful complex
+  mean-field models on the unified `NeuralMassDynamics` base, each with equations + numbered
+  references in the docstring, `exp_euler`-default integration (with `braintools.quad`
+  alternatives), unit/shape/dtype/batched support, gradient flow, and reference-regression
+  tests (RHS-fidelity oracles + published-feature fallbacks, with `requires_tvb`/
+  `requires_tvboptim`-gated live comparisons):
+  - `EpileptorStep` — Jirsa et al. (2014). Six state variables `(x1, y1, z, x2, y2, g)` whose
+    slow permittivity variable `z` autonomously drives seizure onset/offset; `x0` sets
+    epileptogenicity. `lfp()` (`x2 - x1`) proxy.
+  - `LarterBreakspearStep` — Breakspear, Terry & Friston (2003). Conductance-based `(V, W, Z)`
+    mean field with Na/K/Ca channel gating; `d_V` selects the dynamical regime.
+  - `CoombesByrneStep` — Coombes & Byrne (2019). Next-generation (exact) mean field of θ/QIF
+    networks in `(r, v)` form; reduces to `MontbrioPazoRoxinStep` (`J = 0`) when `k = 0`.
+
 ## Version 0.0.6 (2026-06-18)
 
 ### Bug Fixes

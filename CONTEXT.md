@@ -442,3 +442,57 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   **SIGABRT** with JAX imported — reproduces on pre-existing test files too, so it is environmental, not a
   code bug. CI (Linux) measures the `--cov-fail-under=90` gate fine. Audit branch coverage by reading the
   code + tests instead; full suite is **439 passed** (403 + 36 new) locally without `--cov`.
+
+### 2026-06-19 · goal-09 tvb-models-complex
+
+- **Three complex TVB mean-field models added** (sub-project F), all on the goal-05 unified
+  `NeuralMassDynamics` base, dimensionless-state + `×1/u.ms` FHN convention (RHS methods return
+  `value / u.ms` so `exp_euler` with dt-in-ms is consistent), `exp_euler` default with
+  `braintools.quad.ode_*` alternatives via `_solve_step`:
+  - **`CoombesByrneStep`** `(r, v)` — Coombes & Byrne (2019), next-gen exact mean field of θ/QIF.
+    `g = k·π·r`; `dr = (Δ/π + 2vr − gr)/ms`; `dv = (v² − (πr)² + η + (v_syn−v)g)/ms`. Defaults
+    `Δ=1, η=2, k=1, v_syn=−4`; init `r=0.1, v=0`. `update` returns `r`.
+  - **`LarterBreakspearStep`** `(V, W, Z)` — Breakspear, Terry & Friston (2003), conductance-based
+    Morris-Lecar mean field with Na/K/Ca gating. 32 params set in a loop via
+    `setattr(self, name, Param.init(value, varshape))` from a verbatim `DEFAULT_PARAMS` dict; long-range
+    coupling enters `V` only (`c_inst=0`). `update` returns `V`.
+  - **`EpileptorStep`** 6-var `(x1, y1, z, x2, y2, g)` — Jirsa et al. (2014). Slow permittivity `z`
+    drives seizure onset/offset; `x0` = epileptogenicity. `lfp() = x2 − x1` is what `update` returns.
+- **⚠ Coombes-Byrne ↔ MPR for goal-10:** `CoombesByrneStep` with **`k = 0`** is *exactly*
+  `MontbrioPazoRoxinStep` with `J = 0` (drop the synaptic-conductance term `(v_syn−v)·g` and the `−gr`
+  term; both reduce to `dr=(Δ/π+2vr)/ms`, `dv=(v²−(πr)²+η)/ms`). `coombes_byrne_test::test_cb_reduces_to_mpr`
+  asserts this (corr≥0.999 over an rk4 rollout). CB's `g=k·π·r` is the conductance generalization;
+  MPR's `J` is a *current* coupling, CB's `k`/`v_syn` a *conductance* coupling — same QIF backbone,
+  different synapse model. Mirror state names lowercase (`r`,`v`) so the two read as siblings.
+- **Validation = embedded-reference-oracle pattern (proven across all 3).** TVB/tvboptim are NOT
+  importable here, so each `*_test.py` embeds a verbatim transcription of tvboptim's JAX RHS as
+  `_<model>_reference` + a `_P` defaults dict, and validates four ways: (1) **RHS-fidelity** — our
+  `d<var>` vs the oracle at random states, **`rtol=1e-6`** (the literature-faithfulness gate; the real
+  test); (2) **rk4 trajectory regression** corr≥0.99 vs an embedded `jax.lax.scan` rk4 of the oracle;
+  (3) **always-on published-feature fallback**; (4) **gated live** `@requires_tvb`/`@requires_tvboptim`
+  (`pytest.mark.skipif(not find_spec(...))` — *skipif objects assigned to a local, applied as `@requires_tvb`*;
+  **no** `[tool.pytest] markers` registration needed, no `PytestUnknownMarkWarning`). RHS-fidelity tests
+  must drive **non-trivial coupling gains** (Epileptor parametrized over `modification∈{0,1}` AND
+  `Kvf=1.5, Kf=0.7, Ks=2.0`) or the coupling-port terms go unverified.
+- **Feature fallbacks must be empirically probed, not guessed (regime boundaries are sharp):**
+  - LB: `d_V=0.57` → limit cycle (std≈0.09); `d_V=0.50` → genuine fixed point (std≈1.5e-8). `d_V=0.40`
+    looked like a fixed point but was actually **divergent** (std≈2.77) — probe before asserting.
+  - Epileptor: `x0=−1.6` → epileptogenic (windowed-std detects ictal bursts + transitions, `x1.max()>0`)
+    vs `x0=−2.4` → healthy (`x1.max()<0`). Needs **~30000 steps** to span onset+offset.
+- **⚠ Epileptor noise routing — additive `add` term, NOT the coupling port.** First pass routed noise
+  through `x1_inp`/`x2_inp`, but those are scaled by `Kvf`/`Kf` (=0 by default) → noise was *inert*. Fix:
+  `dx1(self, x1, y1, z, x2, x1_inp, add=0.0)` returns `(det + add)/u.ms` where `det` includes the
+  `Kvf·x1_inp` coupling-gain term; noise is injected via the **direct additive `add`** (TVB-faithful
+  additive noise on the fast variables). Same for `dx2` with `Kf`. Lesson: trace where a stochastic term
+  actually lands through default-zero gains before trusting a noise test.
+- **dt/integrator sensitivity:** CB & LB are fine at `dt=0.1 ms` with `exp_euler`. Epileptor's slow `z`
+  (rate `r≈4e-4`) is stiff-ish but *stable* — 20000 steps at default `r` keep `z` bounded ~2–5; no
+  small-dt requirement, the slow manifold is attracting. rk4 oracle used only for the regression test.
+- **Coverage finding refines goal-08's:** the SIGABRT is **submodule-scoped** — `--cov=brainmass.epileptor`
+  aborts, but **`--cov=brainmass` (full-package) works locally**. Confirmed **100.00%** (stmts + branch)
+  on all three new modules; full suite **471 passed, 3 skipped** (live-TVB gated). The only
+  `sphinx -b doctest` failures (4) are pre-existing in goal-08's `tutorials/parameter_fitting.rst`
+  (non-deterministic `fitter.fit()` print with no expected output) — out of scope here; left untouched.
+  Our docstring `Examples` (21 `>>>` lines across the 3 classes) pass via `DocTestFinder` (0 failures).
+  NB `doctest.testmod(mod)`/`pytest --doctest-modules` reported 0 — they mis-filter re-exported classes by
+  `__module__`; `DocTestFinder().find(cls)` is the reliable local doctest check.

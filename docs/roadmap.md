@@ -22,6 +22,7 @@ though the suggested sequencing (see *Dependencies* at the end) builds the safet
 | **C** | CI / tooling & release hygiene | maintainability | Small–Medium | Planned |
 | **D** | Documentation integrity | documentation | Small–Medium | Done (goal-02) |
 | **E** | Code correctness & structure | maintainability | Medium | Planned |
+| **F** | Model parity (TVB mean-field) | functionality | Medium | In progress (goal-09) |
 
 ### What tvboptim does that we can learn from
 
@@ -227,6 +228,46 @@ rule 4, each bug fix starts with a reproducing test.
       `wong_wang.py` (per CLAUDE.md).
 - [ ] Replace the **`brainmass` self-import** in `jansen_rit.py` (it calls
       `brainmass.delay_index` instead of the local `delay_index` it already imports).
+
+---
+
+## F. Model parity (TVB mean-field)
+
+**Dimension:** functionality · **Effort:** Medium · **Status:** In progress (goal-09)
+
+brainmass ships a solid canonical-oscillator library (FitzHugh–Nagumo, Hopf, Stuart–Landau,
+Van der Pol, Wilson–Cowan family, Jansen–Rit, Montbrió–Pazó–Roxin), but lacks several of the
+*complex* mean-field models that The Virtual Brain / tvboptim use for whole-brain studies of
+seizures, conductance-based dynamics, and next-generation (exact) mean fields. This
+sub-project closes that gap, porting each model literature-faithfully onto the unified
+``NeuralMassDynamics`` base (goal-05) with equations + numbered references in the docstring,
+``exp_euler``-default integration with ``braintools.quad`` alternatives, and
+**reference-regression tests** mirroring tvboptim's ``test_tvb_comparison`` (correlation
+≥ 0.99 against the upstream equations, gated behind ``requires_tvb`` / ``requires_tvboptim``
+when those packages are not importable, plus an always-on published-feature fallback).
+
+**Complex mean-field models (goal-09):**
+
+- [x] **`EpileptorStep`** — Jirsa, Stacey, Quilichini, Ivanov & Bernard (2014). Six state
+      variables ``(x1, y1, z, x2, y2, g)`` with coupled fast/slow subsystems and a slow
+      permittivity variable ``z`` that autonomously drives seizure onset and offset; ``x0``
+      sets epileptogenicity. Validated via the seizure onset/offset feature fallback and an
+      RHS-fidelity oracle (with non-zero ``Kvf``/``Kf``/``Ks`` coupling gains).
+- [x] **`LarterBreakspearStep`** — Larter & Breakspear; Breakspear, Terry & Friston (2003).
+      Conductance-based ``(V, W, Z)`` mean field with Na/K/Ca channel gating; the pyramidal
+      threshold variance ``d_V`` selects the dynamical regime. Validated via the
+      limit-cycle-vs-fixed-point feature fallback and an RHS-fidelity oracle.
+- [x] **`CoombesByrneStep`** — Coombes & Byrne (2019), a next-generation neural mass (exact
+      mean field of θ/QIF networks) in ``(r, v)`` form. Reduces to
+      :class:`~brainmass.MontbrioPazoRoxinStep` (with ``J = 0``) when the synaptic
+      conductance scale ``k = 0`` — validated by that agreement plus an RHS-fidelity oracle.
+
+**Canonical / simple models still missing (goal-10, deferred):**
+
+- [ ] Wong–Wang **excitatory–inhibitory** (Deco et al., 2014) two-population extension of the
+      existing single-population `WongWangStep`.
+- [ ] Remaining canonical/simple TVB nodes not yet in brainmass (e.g. the reduced
+      Wong–Wang/Deco variants and any simple oscillators surfaced by the goal-10 audit).
 
 ---
 
