@@ -166,7 +166,7 @@ connectivity, and returns a per-node current you feed back into ``update``:
    # Each target node reads every source node's (delayed) ``x`` -> shape (N, N)
    delays = jnp.ones((N, N)) * (1.0 * u.ms)
    src_idx = np.tile(np.arange(N)[None, :], (N, 1))
-   x_delayed = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())
+   x_delayed = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.Constant(0.0))
    x_local = nodes.prefetch('x')
 
    coupling = brainmass.DiffusiveCoupling(x_delayed, x_local, conn=W, k=0.2)
@@ -320,7 +320,7 @@ Tips for Beginners
 See Also
 --------
 
-- :doc:`../api/models` - Complete model reference
-- :doc:`../api/noise` - Noise processes documentation
-- :doc:`../api/coupling` - Coupling mechanisms
-- :doc:`../api/forward` - Forward models
+- :doc:`../apis/models` - Complete model reference
+- :doc:`../apis/noise` - Noise processes documentation
+- :doc:`../apis/coupling` - Coupling mechanisms
+- :doc:`../apis/forward` - Forward models

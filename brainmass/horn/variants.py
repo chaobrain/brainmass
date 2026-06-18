@@ -43,8 +43,8 @@ class HORN_TR(Module):
         v: Parameter = 0.0,  # feedback
 
         # state initialization
-        x_init: Initializer = braintools.init.ZeroInit(),
-        y_init: Initializer = braintools.init.ZeroInit(),
+        x_init: Initializer = braintools.init.Constant(0.0),
+        y_init: Initializer = braintools.init.Constant(0.0),
 
         # time resolution
         tr: u.Quantity = 1. * u.ms,
@@ -53,8 +53,8 @@ class HORN_TR(Module):
         delay: Optional[Initializer] = None,
         rec_type: str = 'additive',
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
-        delay_init: Callable = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
+        delay_init: Callable = braintools.init.Constant(0.0),
     ):
         super().__init__()
 

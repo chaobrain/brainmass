@@ -176,4 +176,4 @@ See Also
 --------
 
 - :doc:`creating_models` - Custom model creation
-- :doc:`../api/noise` - Noise API reference
+- :doc:`../apis/noise` - Noise API reference

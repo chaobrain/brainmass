@@ -71,10 +71,10 @@ class HORNSeqLayer(Module):
         Amplitude feedback coefficient (dimensionless). Default is ``0.0``.
     x_init : Callable, optional
         Initializer for HORN position state :math:`\mathbf{x}`.
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
     y_init : Callable, optional
         Initializer for HORN velocity state :math:`\mathbf{y}`.
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
     delay : Initializer, optional
         Synaptic delay configuration for recurrent connections. If provided,
         creates a ``(n_hidden, n_hidden)`` delay matrix where each entry specifies
@@ -85,13 +85,13 @@ class HORNSeqLayer(Module):
         Default is ``braintools.init.KaimingNormal()``.
     rec_b_init : Initializer or None, optional
         Initializer for recurrent bias vector :math:`\mathbf{b}^{hh}`.
-        If ``None``, no recurrent bias is used. Default is ``braintools.init.ZeroInit()``.
+        If ``None``, no recurrent bias is used. Default is ``braintools.init.Constant(0.0)``.
     inp_w_init : Initializer, optional
         Initializer for input weight matrix :math:`\mathbf{W}^{ih}`.
         Default is ``braintools.init.KaimingNormal()``.
     inp_b_init : Initializer or None, optional
         Initializer for input bias vector :math:`\mathbf{b}^{ih}`.
-        If ``None``, no input bias is used. Default is ``braintools.init.ZeroInit()``.
+        If ``None``, no input bias is used. Default is ``braintools.init.Constant(0.0)``.
 
     Attributes
     ----------
@@ -138,14 +138,14 @@ class HORNSeqLayer(Module):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
-        delay_init: Callable = braintools.init.ZeroInit(),
-        x_init: Initializer = braintools.init.ZeroInit(),
-        y_init: Initializer = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.Constant(0.0),
+        x_init: Initializer = braintools.init.Constant(0.0),
+        y_init: Initializer = braintools.init.Constant(0.0),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
     ):
         super().__init__()
 
@@ -223,10 +223,10 @@ class HORNSeqNetwork(Module):
         Default is ``0.0``.
     x_init : Callable, optional
         Initializer for HORN position state :math:`\mathbf{x}` in all layers.
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
     y_init : Callable, optional
         Initializer for HORN velocity state :math:`\mathbf{y}` in all layers.
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
     delay : Initializer, optional
         Synaptic delay configuration for recurrent connections in all layers.
         If ``None``, no delays are used. Default is ``None``.
@@ -235,13 +235,13 @@ class HORNSeqNetwork(Module):
         Default is ``braintools.init.KaimingNormal()``.
     rec_b_init : Initializer or None, optional
         Initializer for recurrent bias vectors in all layers.
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
     inp_w_init : Initializer, optional
         Initializer for input weight matrices (layer-to-layer and final output).
         Default is ``braintools.init.KaimingNormal()``.
     inp_b_init : Initializer or None, optional
         Initializer for input bias vectors (layer-to-layer and final output).
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
 
     Attributes
     ----------
@@ -312,14 +312,14 @@ class HORNSeqNetwork(Module):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # feedback
-        x_init: Initializer = braintools.init.ZeroInit(),
-        y_init: Initializer = braintools.init.ZeroInit(),
-        delay_init: Callable = braintools.init.ZeroInit(),
+        x_init: Initializer = braintools.init.Constant(0.0),
+        y_init: Initializer = braintools.init.Constant(0.0),
+        delay_init: Callable = braintools.init.Constant(0.0),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
     ):
         super().__init__()
 

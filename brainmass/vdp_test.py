@@ -38,8 +38,8 @@ class TestVanDerPolOscillator:
         ny = brainmass.OUProcess(4, sigma=0.0)
         m = brainmass.VanDerPolStep(
             in_size=4,
-            init_x=braintools.init.ZeroInit(),
-            init_y=braintools.init.ZeroInit(),
+            init_x=braintools.init.Constant(0.0),
+            init_y=braintools.init.Constant(0.0),
             noise_x=nx,
             noise_y=ny,
         )
@@ -82,8 +82,8 @@ class TestVanDerPolOscillator:
         ny = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.VanDerPolStep(
             in_size=2,
-            init_x=braintools.init.ZeroInit(),
-            init_y=braintools.init.ZeroInit(),
+            init_x=braintools.init.Constant(0.0),
+            init_y=braintools.init.Constant(0.0),
             noise_x=nx,
             noise_y=ny,
             mu=1.0,
@@ -104,8 +104,8 @@ class TestVanDerPolOscillator:
         ny = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.VanDerPolStep(
             in_size=2,
-            init_x=braintools.init.ZeroInit(),
-            init_y=braintools.init.ZeroInit(),
+            init_x=braintools.init.Constant(0.0),
+            init_y=braintools.init.Constant(0.0),
             noise_x=nx,
             noise_y=ny,
             mu=1.0,

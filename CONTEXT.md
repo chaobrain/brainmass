@@ -159,7 +159,7 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   frequency). All `HopfStep(omega=…*u.Hz)` calls in docs were never-runnable; fixed to `w=`.
 - **Real `DiffusiveCoupling` API** (docs were full of the imagined `DiffusiveCoupling(conn=W,k=)`
   + `coupling(src,tgt)` form): construct from prefetch refs —
-  `nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())` (gives the
+  `nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.Constant(0.0))` (gives the
   `(N,N)` source read the impl REQUIRES) + `nodes.prefetch('x')` (the `(N,)` self read), then
   `DiffusiveCoupling(x_src, x_self, conn=W, k=…)`; drive with `coupling.update()` inside
   `environ.context(i=,t=)`. A plain `(N,)` source read raises `incompatible shape … expected
@@ -340,3 +340,45 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   defined in that cell because the downstream `visualization` cell and the `simulate_hope_model`
   exploration cell read the **global** `indices`/`t_ms`; dropping them would break later cells.
   (Notebooks are `nb_execution_mode="off"` — not run in CI — so verified the equivalence in a script.)
+
+### 2026-06-18 · goal-07 orchestration-network
+- **`brainmass.Network(node, *, conn, distance=None, speed=None, coupling='diffusive',
+  coupled_var, k=1.0, delay_init=Uniform(0.,0.05), self_connection=False, noise=None)`** collapses the
+  whole-brain wiring copy-pasted ~8× across examples into one `brainstate.nn.Module`. `update(*node_inputs)`
+  is exactly the hand-written idiom: `current = self.coupling(); [current += self.noise()];
+  return self.node(current, *node_inputs)`. Exposes `self.node`, `self.coupling`, `self.n_node`.
+  The coupling current is always the node's **first** positional input, so it drives the coupled var
+  (WilsonCowan `rE`, Hopf `x`, FHN `V` — all take that var's input first).
+- **Parameterization:** `conn` plain array → diagonal zeroed (unless `self_connection=True`); accepts
+  1-D flattened `(N*N,)` or 2-D `(N,N)`; a `Param`/`LaplacianConnParam` is passed through untouched (owns
+  its structure, may train). `delays = distance/speed`: plain quotient → assumed **ms**, a unit-carrying
+  quotient is used as-is; self-delay (diagonal) always zeroed; `distance is None or speed is None` →
+  zero-delay (instantaneous) path. `coupling=` dispatches `DiffusiveCoupling` / `AdditiveCoupling` /
+  `AdditiveCoupling(LaplacianConnParam(conn))`. `noise=` is a **network-level** process added to the
+  coupling current — distinct from per-region node noise (`WilsonCowanStep(noise_E=...)`), which stays on
+  the node. `k` may be a trainable `Param` (grad verified AD≈FD).
+- **Bit-for-bit reasoning (for goal-08 validation):** the delay-buffer shape `(max_delay_steps, N)` is
+  **independent** of whether `(delay, idx)` are passed flattened (examples/100) or as `(N,N)` matrices
+  (Network). So a 2-D Network reproduces the flattened hand-wired example **exactly** given same N, same
+  max delay, same seeded `Uniform` draw → proven via `np.array_equal` (seed-before-build + seed-before-run).
+- **`coupled_var` validation:** prefetch does NOT validate eagerly (bad var → late AttributeError). Pre-init
+  `node.states()` is empty; the node's state *names* are `{n for n,v in vars(node).items() if isinstance(v,
+  brainstate.State)}`. Validate in `Network.init_state` at **`@call_order(1)`** (runs before the coupling's
+  `call_order(2)` `init_maybe_prefetch`) → clean `ValueError` listing available states.
+- **⚠ Fitter (goal-08) MUST NOT batch delayed coupling via `init_all_states(batch_size)`.** brainstate's
+  `prefetch_delay` mis-orders the delayed `(N,N)` source read under a batch axis → `(N,N,B,N)` instead of
+  `(B,N,N)` (rank-4, not salvageable by reshape); the target read batches fine `(B,N)`. Batch the fit by
+  **vmap-over-parameters**, not batched initial states. `network_test.py::batched_delayed_coupling_unsupported`
+  pins this with `pytest.raises`. (`Simulator.run(batch_size=)` is fine for a *single* node, not a delayed net.)
+- **Merge gotcha:** PR #39 renamed `docs/api → docs/apis` but left ~16 inbound `:doc:`../api/...`` refs
+  dangling; git rename-detection auto-applied my `orchestration.rst` edits to the new path (no conflict),
+  but the stale refs needed a manual sweep. Build artifacts (`docs/_static/css|js`, `docs/_build`,
+  `docs/api/generated`) are regenerated — don't commit them.
+- **braintools deprecation sweep (library-wide, folded into this PR):** `braintools.init.ZeroInit()` warns
+  **even bare** (it forwards `unit=u.UNITLESS`, which is `not None`, into the deprecated `Constant(unit=)`
+  path) — so the warning is not limited to explicit `unit=` sites. Behaviour-preserving migration (verified
+  output-identical): `ZeroInit()`→`Constant(0.0)`, `ZeroInit(unit=X)`→`Constant(0.0 * X)`,
+  `Uniform(a,b,unit=X)`→`Uniform(a*X, b*X)`. Swept 229 sites across 33 files (every model's default
+  initializer + tests + docstrings + notebooks); `pytest -W error::DeprecationWarning` now passes (was 232
+  warnings / 26 collection errors). **Lesson:** when scoping a deprecation fix, reproduce the *actual*
+  warnings and trace every trigger — don't estimate from the obvious parameter pattern alone.

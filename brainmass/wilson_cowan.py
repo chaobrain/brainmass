@@ -62,10 +62,10 @@ class WilsonCowanBase(brainstate.nn.Dynamics):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Initializer for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Initializer for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method : str, optional
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -102,8 +102,8 @@ class WilsonCowanBase(brainstate.nn.Dynamics):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size)
@@ -306,10 +306,10 @@ class WilsonCowanStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Parameter  for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Parameter  for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method: str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -380,8 +380,8 @@ class WilsonCowanStep(WilsonCowanBase):
         noise_I: Noise = None,  # inhibitory noise process
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -472,10 +472,10 @@ class WilsonCowanNoSaturationStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Parameter for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Parameter for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method: str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -559,8 +559,8 @@ class WilsonCowanNoSaturationStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -643,10 +643,10 @@ class WilsonCowanSymmetricStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Parameter for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Parameter for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method: str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -731,8 +731,8 @@ class WilsonCowanSymmetricStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -817,10 +817,10 @@ class WilsonCowanSimplifiedStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Parameter for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Parameter for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method: str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -907,8 +907,8 @@ class WilsonCowanSimplifiedStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -988,10 +988,10 @@ class WilsonCowanLinearStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Parameter for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Parameter for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method: str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -1072,8 +1072,8 @@ class WilsonCowanLinearStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -1165,10 +1165,10 @@ class WilsonCowanDivisiveStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Initializer for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Initializer for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method : str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -1259,8 +1259,8 @@ class WilsonCowanDivisiveStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -1368,10 +1368,10 @@ class WilsonCowanDivisiveInputStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Initializer for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Initializer for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method : str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -1462,8 +1462,8 @@ class WilsonCowanDivisiveInputStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -1574,10 +1574,10 @@ class WilsonCowanDelayedStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Initializer for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Initializer for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method : str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -1670,8 +1670,8 @@ class WilsonCowanDelayedStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -1796,16 +1796,16 @@ class WilsonCowanAdaptiveStep(WilsonCowanBase):
         output is added to ``rI_inp`` at each update. Default is ``None``.
     rE_init : Callable, optional
         Initializer for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Initializer for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     aE_init : Callable, optional
         Initializer for the excitatory adaptation current ``aE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     aI_init : Callable, optional
         Initializer for the inhibitory adaptation current ``aI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method : str
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -1910,10 +1910,10 @@ class WilsonCowanAdaptiveStep(WilsonCowanBase):
         noise_I: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
-        aE_init: Callable = braintools.init.ZeroInit(),
-        aI_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
+        aE_init: Callable = braintools.init.Constant(0.0),
+        aI_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, rE_init, rI_init, method)
@@ -2148,13 +2148,13 @@ class WilsonCowanThreePopBase(brainstate.nn.Dynamics):
         Additive noise process for the modulatory population. Default is ``None``.
     rE_init : Callable, optional
         Initializer for the excitatory state ``rE``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
         Initializer for the inhibitory state ``rI``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     rM_init : Callable, optional
         Initializer for the modulatory state ``rM``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     method : str, optional
         The numerical integration method to use. One of ``'exp_euler'``,
         ``'euler'``, ``'rk2'``, or ``'rk4'``, that is implemented in
@@ -2190,9 +2190,9 @@ class WilsonCowanThreePopBase(brainstate.nn.Dynamics):
         noise_M: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
-        rM_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
+        rM_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size)
@@ -2398,11 +2398,11 @@ class WilsonCowanThreePopulationStep(WilsonCowanThreePopBase):
     noise_M : Noise or None, optional
         Additive noise for modulatory population. Default is ``None``.
     rE_init : Callable, optional
-        Initializer for ``rE``. Default is ``braintools.init.ZeroInit()``.
+        Initializer for ``rE``. Default is ``braintools.init.Constant(0.0)``.
     rI_init : Callable, optional
-        Initializer for ``rI``. Default is ``braintools.init.ZeroInit()``.
+        Initializer for ``rI``. Default is ``braintools.init.Constant(0.0)``.
     rM_init : Callable, optional
-        Initializer for ``rM``. Default is ``braintools.init.ZeroInit()``.
+        Initializer for ``rM``. Default is ``braintools.init.Constant(0.0)``.
     method : str
         Numerical integration method. Default is ``'exp_euler'``.
 
@@ -2503,9 +2503,9 @@ class WilsonCowanThreePopulationStep(WilsonCowanThreePopBase):
         noise_M: Noise = None,
 
         # initialization
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
-        rM_init: Callable = braintools.init.ZeroInit(),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
+        rM_init: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(in_size, noise_E, noise_I, noise_M, rE_init, rI_init, rM_init, method)
@@ -2572,7 +2572,7 @@ class AdditiveConn(brainstate.nn.Module):
         self,
         model,
         w_init: Callable = braintools.init.KaimingNormal(),
-        b_init: Callable = braintools.init.ZeroInit(),
+        b_init: Callable = braintools.init.Constant(0.0),
     ):
         super().__init__()
 
@@ -2588,7 +2588,7 @@ class DelayedAdditiveConn(brainstate.nn.Module):
         self,
         model,
         delay_time: Initializer,
-        delay_init: Initializer = braintools.init.ZeroInit(),
+        delay_init: Initializer = braintools.init.Constant(0.0),
         w_init: Callable = braintools.init.KaimingNormal(),
         k: Parameter = 1.0,
     ):
@@ -2612,14 +2612,14 @@ class WilsonCowanSeqLayer(brainstate.nn.Module):
         n_input: int,
         n_hidden: int,
         wc_cls: type = WilsonCowanNoSaturationStep,
-        delay_init: Callable = braintools.init.ZeroInit(),
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.Constant(0.0),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         **wc_kwargs
     ):
         super().__init__()
@@ -2654,14 +2654,14 @@ class WilsonCowanSeqNetwork(brainstate.nn.Module):
         n_hidden: int | Sequence[int],
         n_output: int,
         wc_cls: type = WilsonCowanNoSaturationStep,
-        delay_init: Callable = braintools.init.ZeroInit(),
-        rE_init: Callable = braintools.init.ZeroInit(),
-        rI_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.Constant(0.0),
+        rE_init: Callable = braintools.init.Constant(0.0),
+        rI_init: Callable = braintools.init.Constant(0.0),
         delay: Optional[Initializer] = None,
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         **wc_kwargs
     ):
         super().__init__()

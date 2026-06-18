@@ -69,7 +69,7 @@ If you encounter issues:
 
 - Check the :doc:`../faq` for common problems
 - Browse the :doc:`../examples/index` for practical examples
-- Consult the :doc:`../api/index` for detailed API reference
+- Consult the :doc:`../apis/index` for detailed API reference
 - Open an issue on `GitHub <https://github.com/chaobrain/brainmass/issues>`_
 
 

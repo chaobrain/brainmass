@@ -98,6 +98,7 @@ from .wilson_cowan import (
 from .wong_wang import WongWangStep
 # Orchestration layer
 from . import objectives
+from .network import Network
 from .simulator import Simulator
 
 __all__ = [
@@ -174,6 +175,7 @@ __all__ = [
     'HORNSeqNetwork',
 
     # Orchestration layer
+    'Network',
     'Simulator',
     'objectives',
 ]

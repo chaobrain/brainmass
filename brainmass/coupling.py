@@ -541,7 +541,7 @@ class AdditiveConn(Module):
         model: Module,
         state: str = 'y',
         w_init: Callable = braintools.init.KaimingNormal(),
-        b_init: Callable = braintools.init.ZeroInit(),
+        b_init: Callable = braintools.init.Constant(0.0),
     ):
         super().__init__()
 
@@ -588,7 +588,7 @@ class DelayedAdditiveConn(Module):
         model: Module,
         delay_time: Initializer,
         state: str = 'y',
-        delay_init: Initializer = braintools.init.ZeroInit(),
+        delay_init: Initializer = braintools.init.Constant(0.0),
         w_init: Callable = braintools.init.KaimingNormal(),
         k: Parameter = 1.0,
     ):

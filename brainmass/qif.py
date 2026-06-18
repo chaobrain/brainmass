@@ -129,7 +129,7 @@ class MontbrioPazoRoxinStep(NeuralMassDynamics):
         J: Parameter = 15.,
 
         # initializers
-        init_r: Callable = braintools.init.Uniform(0, 0.05, unit=u.Hz),
+        init_r: Callable = braintools.init.Uniform(0 * u.Hz, 0.05 * u.Hz),
         init_v: Callable = braintools.init.Uniform(0, 0.05),
         noise_r: Noise = None,
         noise_v: Noise = None,

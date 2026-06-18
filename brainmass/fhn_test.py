@@ -47,8 +47,8 @@ class TestFitzHughNagumoModel:
         nW = brainmass.OUProcess(4, sigma=0.0)
         m = brainmass.FitzHughNagumoStep(
             in_size=4,
-            init_V=braintools.init.ZeroInit(),
-            init_w=braintools.init.ZeroInit(),
+            init_V=braintools.init.Constant(0.0),
+            init_w=braintools.init.Constant(0.0),
             noise_V=nV,
             noise_w=nW,
         )
@@ -97,8 +97,8 @@ class TestFitzHughNagumoModel:
         nW = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.FitzHughNagumoStep(
             in_size=2,
-            init_V=braintools.init.ZeroInit(),
-            init_w=braintools.init.ZeroInit(),
+            init_V=braintools.init.Constant(0.0),
+            init_w=braintools.init.Constant(0.0),
             noise_V=nV,
             noise_w=nW,
         )
@@ -122,8 +122,8 @@ class TestFitzHughNagumoModel:
         nW = brainmass.OUProcess(n, sigma=0.0)
         m = brainmass.FitzHughNagumoStep(
             in_size=n,
-            init_V=braintools.init.ZeroInit(),
-            init_w=braintools.init.ZeroInit(),
+            init_V=braintools.init.Constant(0.0),
+            init_w=braintools.init.Constant(0.0),
             noise_V=nV,
             noise_w=nW,
         )

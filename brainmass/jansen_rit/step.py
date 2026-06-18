@@ -168,9 +168,9 @@ class JansenRitStep(brainstate.nn.Dynamics):
         Sigmoid midpoint (mV).
     r : `ArrayLike` or `Callable`, default `0.56`
         Sigmoid steepness (dimensionless).
-    M_init, E_init, I_init : `Callable`, defaults `ZeroInit(unit=u.mV)`
+    M_init, E_init, I_init : `Callable`, defaults `Constant(0.0 * u.mV)`
         Initializers for membrane potentials (mV).
-    Mv_init, Ev_init, Iv_init : `Callable`, defaults `ZeroInit(unit=u.mV/u.second)`
+    Mv_init, Ev_init, Iv_init : `Callable`, defaults `Constant(0.0 * u.mV / u.second)`
         Initializers for potential derivatives (mV/s).
     fr_scale : `Callable`, default `Identity()`
         Optional scaling applied to firing-rate drives; receives rates in s^-1
@@ -212,12 +212,12 @@ class JansenRitStep(brainstate.nn.Dynamics):
         s_max: Parameter = 5.0 * u.Hz,  # Max firing rate
         v0: Parameter = 6. * u.mV,  # Firing threshold
         r: Parameter = 0.56,  # Sigmoid steepness
-        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        M_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        E_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        I_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        Mv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Ev_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Iv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
         fr_scale: Callable = Identity(),
         noise_E: Noise = None,
         noise_I: Noise = None,

@@ -54,8 +54,8 @@ class TestQIFModel:
     def test_state_initialization_and_reset(self):
         m = brainmass.MontbrioPazoRoxinStep(
             in_size=4,
-            init_r=braintools.init.ZeroInit(),
-            init_v=braintools.init.ZeroInit(),
+            init_r=braintools.init.Constant(0.0),
+            init_v=braintools.init.Constant(0.0),
         )
 
         # init without batch
@@ -99,8 +99,8 @@ class TestQIFModel:
     def test_update_single_step_changes_state(self):
         m = brainmass.MontbrioPazoRoxinStep(
             in_size=2,
-            init_r=braintools.init.ZeroInit(unit=u.Hz),
-            init_v=braintools.init.ZeroInit(),
+            init_r=braintools.init.Constant(0.0 * u.Hz),
+            init_v=braintools.init.Constant(0.0),
         )
         m.init_state()
 
@@ -120,8 +120,8 @@ class TestQIFModel:
         sz = (2, 3)
         m = brainmass.MontbrioPazoRoxinStep(
             in_size=sz,
-            init_r=braintools.init.ZeroInit(unit=u.Hz),
-            init_v=braintools.init.ZeroInit(),
+            init_r=braintools.init.Constant(0.0 * u.Hz),
+            init_v=braintools.init.Constant(0.0),
         )
         m.init_state(batch_size=4)
 
@@ -309,8 +309,8 @@ def test_trajectory_matches_pre_refactor_golden():
     np.random.seed(0)
     model = brainmass.MontbrioPazoRoxinStep(
         2,
-        init_r=braintools.init.ZeroInit(unit=u.Hz),
-        init_v=braintools.init.ZeroInit(),
+        init_r=braintools.init.Constant(0.0 * u.Hz),
+        init_v=braintools.init.Constant(0.0),
     )
     brainstate.nn.init_all_states(model)
     traj = []

@@ -66,8 +66,8 @@ class JansenRitTR(Dynamics):
         mask: Optional[Array] = None,
         state_saturation: bool = True,
         input_saturation: bool = True,
-        state_init: Callable = braintools.init.ZeroInit(),
-        delay_init: Callable = braintools.init.ZeroInit(),
+        state_init: Callable = braintools.init.Constant(0.0),
+        delay_init: Callable = braintools.init.Constant(0.0),
         tr: u.Quantity = 1e-3 * u.second
     ):
         super().__init__(in_size)

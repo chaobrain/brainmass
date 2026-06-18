@@ -61,24 +61,24 @@ class JansenRitLayer(Module):
         v0: Parameter = 6. * u.mV,  # Firing threshold
         r: Parameter = 0.56,  # Sigmoid steepness
         # initialization
-        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        M_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        E_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        I_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        Mv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Ev_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Iv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
         # noise
         noise_E: Noise = None,
         noise_I: Noise = None,
         noise_M: Noise = None,
         # distance parameters
         delay: Array = None,
-        delay_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.Constant(0.0),
         # initialization
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         # other parameters
         method: str = 'exp_euler',
     ):
@@ -150,24 +150,24 @@ class JansenRit2Layer(Module):
         v0: Parameter = 6. * u.mV,  # Firing threshold
         r: Parameter = 0.56,  # Sigmoid steepness
         # initialization
-        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        M_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        E_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        I_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        Mv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Ev_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Iv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
         # noise
         noise_E: Noise = None,
         noise_I: Noise = None,
         noise_M: Noise = None,
         # structural parameters
         delay: Array = None,
-        delay_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.Constant(0.0),
         # initialization
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         # other parameters
         method: str = 'exp_euler',
     ):
@@ -247,24 +247,24 @@ class JansenRitNetwork(Module):
         v0: Parameter = 6. * u.mV,  # Firing threshold
         r: Parameter = 0.56,  # Sigmoid steepness
         # initialization
-        M_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        E_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        I_init: Callable = braintools.init.ZeroInit(unit=u.mV),
-        Mv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Ev_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
-        Iv_init: Callable = braintools.init.ZeroInit(unit=u.mV / u.second),
+        M_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        E_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        I_init: Callable = braintools.init.Constant(0.0 * u.mV),
+        Mv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Ev_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
+        Iv_init: Callable = braintools.init.Constant(0.0 * u.mV / u.second),
         # noise
         noise_E: Noise = None,
         noise_I: Noise = None,
         noise_M: Noise = None,
         # distance parameters
         delay: Array = None,
-        delay_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.Constant(0.0),
         # initialization
         rec_w_init: Initializer = braintools.init.KaimingNormal(),
-        rec_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        rec_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         inp_w_init: Initializer = braintools.init.KaimingNormal(),
-        inp_b_init: Optional[Initializer] = braintools.init.ZeroInit(),
+        inp_b_init: Optional[Initializer] = braintools.init.Constant(0.0),
         # other parameters
         method: str = 'exp_euler',
     ):

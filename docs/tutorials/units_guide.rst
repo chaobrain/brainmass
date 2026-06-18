@@ -447,5 +447,5 @@ Next Steps
 See Also
 --------
 
-- :doc:`../api/models` - Model parameters and units
-- :doc:`../api/forward` - Forward model units
+- :doc:`../apis/models` - Model parameters and units
+- :doc:`../apis/forward` - Forward model units
