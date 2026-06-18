@@ -4,39 +4,51 @@ Quickstart
 This 5-minute tutorial demonstrates the basic ``brainmass`` workflow: create a neural mass model,
 add noise, simulate dynamics, and visualize results.
 
+.. note::
+
+   Every code block on this page is executed as part of the documentation build
+   (via ``sphinx.ext.doctest``), so the snippets are guaranteed to run against the
+   current API. The integration time step ``dt`` is a global set through
+   ``brainstate.environ`` -- it is **not** a model argument.
+
 
 Your First Simulation
 ----------------------
 
 Let's simulate a single brain region using the Hopf oscillator model:
 
-.. code-block:: python
+.. testcode::
 
    import brainmass
-   import brainunit as u
    import brainstate
-   import jax.numpy as jnp
+   import brainunit as u
+   import numpy as np
    import matplotlib.pyplot as plt
 
-   # 1. Create a Hopf oscillator (10 Hz oscillation)
-   model = brainmass.HopfOscillator(
-       in_size=1,              # single region
-       omega=2 * jnp.pi * 10 * u.Hz,  # 10 Hz frequency
-       a=0.1,                  # bifurcation parameter (>0 for oscillations)
+   # dt is global state, set once through the environment
+   brainstate.environ.set(dt=0.1 * u.ms)
+
+   # 1. Create a Hopf oscillator in the limit-cycle regime
+   model = brainmass.HopfStep(
+       in_size=1,   # single region
+       a=0.25,      # bifurcation parameter (>0 -> self-sustained oscillation)
+       w=0.2,       # intrinsic angular frequency (dimensionless)
    )
 
-   # 2. Initialize model state
+   # 2. Initialize the model state
    model.init_all_states()
 
-   # 3. Run simulation for 1000 time steps
+   # 3. Run the simulation for 1000 time steps, recording x each step
    def step(i):
-       return model.update()
+       with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+           model.update()
+           return model.x.value
 
-   time_series = brainstate.transform.for_loop(step, jnp.arange(1000))
+   time_series = brainstate.transform.for_loop(step, np.arange(1000))
 
-   # 4. Visualize
+   # 4. Visualize (time_series has shape (1000, 1))
    plt.figure(figsize=(10, 4))
-   plt.plot(time_series[:, 0])  # plot x coordinate
+   plt.plot(time_series[:, 0])  # plot the x coordinate
    plt.xlabel('Time step')
    plt.ylabel('Activity')
    plt.title('Hopf Oscillator Dynamics')
@@ -45,181 +57,172 @@ Let's simulate a single brain region using the Hopf oscillator model:
 
 **What's happening:**
 
-- We create a 10 Hz oscillator (``omega = 2π × 10``)
-- ``a > 0`` puts the oscillator in the limit cycle regime
+- ``a > 0`` puts the oscillator in the limit-cycle (self-sustained oscillation) regime
+- ``w`` is the intrinsic angular frequency (dimensionless in this normal-form model)
+- ``brainstate.environ.context(i=, t=)`` supplies the step index/time the update needs
 - ``for_loop`` efficiently runs 1000 simulation steps
-- The output is a (1000, 1) array of the oscillator's x-coordinate
+- the output is a ``(1000, 1)`` array of the oscillator's x-coordinate
 
 
 Adding Noise
 ------------
 
-Real neural activity is noisy. Let's add stochastic fluctuations:
+Real neural activity is noisy. Attach Ornstein-Uhlenbeck noise processes when you
+construct the model. The XY-family oscillators expect a noise process for *both*
+components, and -- because the Hopf state is dimensionless -- ``sigma`` is dimensionless too:
 
-.. code-block:: python
+.. testcode::
 
    import brainmass
-   import brainunit as u
    import brainstate
-   import jax.numpy as jnp
+   import brainunit as u
+   import numpy as np
 
-   # Create oscillator
-   model = brainmass.HopfOscillator(in_size=1, omega=2 * jnp.pi * 10 * u.Hz, a=0.1)
+   brainstate.environ.set(dt=0.1 * u.ms)
 
-   # Add Ornstein-Uhlenbeck noise
-   model.noise = brainmass.OUProcess(
-       in_size=1,
-       sigma=0.5 * u.Hz,  # noise amplitude
-       tau=20. * u.ms,    # correlation time
+   model = brainmass.HopfStep(
+       in_size=1, a=0.25, w=0.2,
+       noise_x=brainmass.OUProcess(in_size=1, sigma=0.05, tau=20. * u.ms),
+       noise_y=brainmass.OUProcess(in_size=1, sigma=0.05, tau=20. * u.ms),
    )
 
-   # Initialize
-   model.init_all_states()
+   # init_all_states also initializes the attached noise sub-modules
+   brainstate.nn.init_all_states(model)
 
-   # Simulate with noise
-   time_series = brainstate.transform.for_loop(
-       lambda i: model.update(),
-       jnp.arange(1000)
-   )
+   def step(i):
+       with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+           model.update()
+           return model.x.value
+
+   time_series = brainstate.transform.for_loop(step, np.arange(1000))
 
 
-The noise is automatically added during ``update()``, creating more realistic fluctuations.
+The noise is added automatically inside ``update()``, creating more realistic fluctuations.
 
 
 Multi-Region Networks
-----------------------
+---------------------
 
-Simulate multiple brain regions simultaneously:
+Simulate multiple brain regions simultaneously by setting ``in_size`` to the number
+of regions. Here the regions are independent (no coupling yet):
 
-.. code-block:: python
+.. testcode::
 
    import brainmass
-   import jax.numpy as jnp
-   import brainunit as u
    import brainstate
+   import brainunit as u
+   import numpy as np
 
+   brainstate.environ.set(dt=0.1 * u.ms)
    N_regions = 10
 
-   # Create network of Wilson-Cowan models
-   network = brainmass.WilsonCowanModel(
+   # A bank of Wilson-Cowan models with per-population noise
+   network = brainmass.WilsonCowanStep(
        in_size=N_regions,
        tau_E=10. * u.ms,
        tau_I=20. * u.ms,
+       noise_E=brainmass.OUProcess(in_size=N_regions, sigma=0.1, tau=20. * u.ms),
+       noise_I=brainmass.OUProcess(in_size=N_regions, sigma=0.1, tau=30. * u.ms),
    )
+   brainstate.nn.init_all_states(network)
 
-   # Add noise to each population
-   network.noise_E = brainmass.OUProcess(
-       in_size=N_regions,
-       sigma=0.3 * u.Hz,
-       tau=20. * u.ms
-   )
-
-   network.noise_I = brainmass.OUProcess(
-       in_size=N_regions,
-       sigma=0.2 * u.Hz,
-       tau=30. * u.ms
-   )
-
-   # Initialize
-   network.init_all_states()
-
-   # Simulate
    def step(i):
-       return network.update(rE_inp=0.5, rI_inp=0.2)
-
-   exc_rates = brainstate.transform.for_loop(step, jnp.arange(2000))
+       with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+           return network.update(rE_inp=0.5, rI_inp=0.2)
 
    # exc_rates has shape (2000, 10) - excitatory rates for 10 regions
+   exc_rates = brainstate.transform.for_loop(step, np.arange(2000))
 
 
-**Note:** ``in_size=N_regions`` creates N independent copies of the model (no coupling yet).
+**Note:** ``in_size=N_regions`` creates ``N`` independent copies of the model (no coupling yet).
 
 
 Adding Coupling
 ---------------
 
-Connect regions with diffusive coupling:
+To connect regions, build a coupling term from a connectivity matrix. ``DiffusiveCoupling``
+reads each node's state through a *prefetch* (optionally delayed), multiplies by the
+connectivity, and returns a per-node current you feed back into ``update``:
 
-.. code-block:: python
+.. testcode::
 
    import brainmass
-   import jax.numpy as jnp
-   import brainunit as u
    import brainstate
+   import braintools
+   import brainunit as u
+   import numpy as np
+   import jax.numpy as jnp
 
+   brainstate.environ.set(dt=0.1 * u.ms)
    N = 10
 
-   # Create connectivity matrix (random for demo)
-   W = jax.random.uniform(jax.random.PRNGKey(0), (N, N)) * 0.1
-   W = W.at[jnp.diag_indices(N)].set(0.)  # no self-connections
+   nodes = brainmass.HopfStep(in_size=N, a=0.25, w=0.3)
 
-   # Create models
-   nodes = brainmass.HopfOscillator(in_size=N, omega=10 * u.Hz)
-   coupling = brainmass.DiffusiveCoupling(conn=W, k=0.2)
+   # Connectivity matrix (random for demo), no self-connections
+   W = np.random.RandomState(0).rand(N, N) * 0.1
+   np.fill_diagonal(W, 0.0)
+   W = jnp.asarray(W)
 
-   # Initialize
-   nodes.init_all_states()
-   coupling.init_all_states()
+   # Each target node reads every source node's (delayed) ``x`` -> shape (N, N)
+   delays = jnp.ones((N, N)) * (1.0 * u.ms)
+   src_idx = np.tile(np.arange(N)[None, :], (N, 1))
+   x_delayed = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())
+   x_local = nodes.prefetch('x')
 
-   # Network simulation with coupling
+   coupling = brainmass.DiffusiveCoupling(x_delayed, x_local, conn=W, k=0.2)
+
+   brainstate.nn.init_all_states(nodes)
+   brainstate.nn.init_all_states(coupling)  # the coupling owns the delay buffer
+
    def network_step(i):
-       x = nodes.x.value
-       coupled_input = coupling(x, x)
+       with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+           coupled_input = coupling.update()    # (N,) coupling current
+           nodes.update(coupled_input, 0.0)     # feed it as the x input
+           return nodes.x.value
 
-       output = nodes.update()
-       nodes.x.value += coupled_input  # add coupling to state
-
-       return output
-
-   network_activity = brainstate.transform.for_loop(
-       network_step,
-       jnp.arange(1000)
-   )
+   network_activity = brainstate.transform.for_loop(network_step, np.arange(1000))
 
 
 Forward Modeling (BOLD Signal)
 -------------------------------
 
-Map neural activity to fMRI BOLD signal:
+Map neural activity to an fMRI BOLD signal with the Balloon-Windkessel ``BOLDSignal`` model.
+The neural model integrates with a ``dt`` carrying time units, while ``BOLDSignal`` is fully
+dimensionless and expects a **unitless** ``dt`` -- so the two stages set ``dt`` separately:
 
-.. code-block:: python
+.. testcode::
 
    import brainmass
-   import jax.numpy as jnp
-   import brainunit as u
    import brainstate
+   import brainunit as u
+   import numpy as np
 
    N_regions = 5
 
-   # Neural mass model
-   nmm = brainmass.WilsonCowanModel(in_size=N_regions)
+   # --- neural stage (dt carries time units) ---
+   brainstate.environ.set(dt=0.1 * u.ms)
+   nmm = brainmass.WilsonCowanStep(in_size=N_regions)
    nmm.init_all_states()
 
-   # BOLD hemodynamic model
+   def sim_neural(i):
+       with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+           return nmm.update(rE_inp=0.5, rI_inp=0.2)
+
+   neural_activity = brainstate.transform.for_loop(sim_neural, np.arange(2000))
+
+   # --- haemodynamic stage (BOLDSignal needs a dimensionless dt) ---
+   brainstate.environ.set(dt=0.01)
    bold_model = brainmass.BOLDSignal(in_size=N_regions)
    bold_model.init_all_states()
 
-   # Simulate neural activity
-   def sim_neural(i):
-       return nmm.update(rE_inp=0.5, rI_inp=0.2)
-
-   neural_activity = brainstate.transform.for_loop(
-       sim_neural,
-       jnp.arange(5000)  # 5000 time steps
-   )
-
-   # Generate BOLD signal from neural activity
    def sim_bold(z):
-       bold_model.update(z=z)
-       return bold_model.bold()
+       bold_model.update(z)        # update() returns None; it mutates state
+       return bold_model.bold()    # read the BOLD observable
 
-   bold_signal = brainstate.transform.for_loop(
-       sim_bold,
-       neural_activity
-   )
+   bold_signal = brainstate.transform.for_loop(sim_bold, neural_activity)
+   # bold_signal has shape (2000, 5)
 
-   # bold_signal shape: (5000, 5)
-   # Downsample to TR ~ 2s if needed: bold_signal[::2000]
+   brainstate.environ.set(dt=0.1 * u.ms)  # restore the time-unit dt for later code
 
 
 Common Patterns
@@ -227,40 +230,43 @@ Common Patterns
 
 **Pattern 1: Batched Simulations**
 
-Run multiple simulations in parallel:
+Run multiple independent simulations in parallel with ``batch_size``:
 
-.. code-block:: python
+.. testcode::
 
+   brainstate.environ.set(dt=0.1 * u.ms)
    batch_size = 32
 
-   model = brainmass.HopfOscillator(in_size=10, omega=10 * u.Hz)
+   model = brainmass.HopfStep(in_size=10, w=0.2)
    model.init_all_states(batch_size=batch_size)
 
-   output = model.update()  # shape: (32, 10)
+   model.update()
+   x = model.x.value  # shape: (32, 10)
 
 
 **Pattern 2: Accessing Internal States**
 
-.. code-block:: python
+.. testcode::
 
-   model = brainmass.WilsonCowanModel(in_size=5)
+   model = brainmass.WilsonCowanStep(in_size=5)
    model.init_all_states()
 
    model.update(rE_inp=0.5, rI_inp=0.2)
 
    # Access internal state variables
-   exc_rate = model.rE.value  # excitatory firing rate
-   inh_rate = model.rI.value  # inhibitory firing rate
+   exc_rate = model.rE.value  # excitatory firing rate, shape (5,)
+   inh_rate = model.rI.value  # inhibitory firing rate, shape (5,)
 
 
 **Pattern 3: Custom Time Steps**
 
-.. code-block:: python
+.. testcode::
 
-   # Default dt is typically 1 ms
-   # To change, set during model creation or manually integrate
+   # dt is global; set it through the environment (not a model argument)
+   brainstate.environ.set(dt=0.5 * u.ms)
 
-   model = brainmass.HopfOscillator(in_size=1, omega=10 * u.Hz, dt=0.5 * u.ms)
+   model = brainmass.HopfStep(in_size=1, w=0.2)
+   model.init_all_states()
 
 
 Quick Reference
@@ -272,16 +278,18 @@ Quick Reference
 
    * - Task
      - Code
+   * - Set the time step
+     - ``brainstate.environ.set(dt=0.1 * u.ms)``
    * - Create model
-     - ``model = brainmass.ModelName(in_size=N, **params)``
+     - ``model = brainmass.HopfStep(in_size=N, **params)``
    * - Initialize state
      - ``model.init_all_states(batch_size=None)``
    * - Single step
      - ``output = model.update(**inputs)``
    * - Simulate loop
-     - ``brainstate.transform.for_loop(lambda i: model.update(), jnp.arange(T))``
+     - ``brainstate.transform.for_loop(step, jnp.arange(T))``
    * - Add noise
-     - ``model.noise = brainmass.OUProcess(in_size=N, sigma=..., tau=...)``
+     - ``brainmass.HopfStep(in_size=N, noise_x=..., noise_y=...)``
    * - Access state
      - ``value = model.state_var.value``
    * - Reset state
@@ -305,7 +313,7 @@ Tips for Beginners
 - **Start simple:** Single region, no noise, no coupling
 - **Visualize often:** Plot time series to understand dynamics
 - **Check units:** Use ``brainunit`` quantities to avoid unit errors
-- **Read docstrings:** Use ``help(brainmass.ModelName)`` for parameter details
+- **Read docstrings:** Use ``help(brainmass.HopfStep)`` for parameter details
 - **Use examples:** The :doc:`../examples/index` are your best resource
 
 

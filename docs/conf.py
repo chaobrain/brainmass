@@ -170,6 +170,8 @@ html_theme_options = {
 # default integration step without per-example boilerplate. Examples needing a different ``dt``
 # (e.g. the dimensionless ``BOLDSignal``) reset it locally.
 doctest_global_setup = """
+import matplotlib
+matplotlib.use("Agg")  # headless: example ``plt.show()`` calls must not block the build
 import brainmass
 import brainstate
 import brainunit as u
