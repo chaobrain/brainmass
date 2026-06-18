@@ -56,7 +56,7 @@ dependencies = [
     # braintools 0.2.0's init.param double-prepends the batch axis under
     # batched init_state (gives (B, B, N) instead of (B, N)); pin below it
     # until the upstream fix is released.
-    'braintools<0.2.0',
+    'braintools<0.4.0',
 ]
 dynamic = ['version']
 
