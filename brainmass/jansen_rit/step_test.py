@@ -16,10 +16,13 @@ import functools
 
 import brainstate
 import brainunit as u
+import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from brainstate.nn import Param
+from jax.test_util import check_grads
 
 import brainmass
 
@@ -483,52 +486,6 @@ class TestJansenRitModel:
         assert u.math.std(outputs) > 0.5 * u.mV
 
 
-class TestJansenRitTR:
-    """JansenRitTR.update: per-TR terms must be ready before the sub-step loop."""
-
-    @staticmethod
-    def _make(n=3, tr=1e-3 * u.second, dt=1e-4 * u.second, seed=0):
-        brainstate.environ.set(dt=dt)
-        brainstate.random.seed(seed)
-        np.random.seed(seed)  # sc/delay/w below use numpy's RNG
-        sc = jnp.asarray(np.random.rand(n, n))
-        sc = sc - jnp.diag(jnp.diag(sc))
-        delay = jnp.asarray(np.random.randint(1, 5, size=(n, n)).astype(float))
-        w = jnp.asarray(np.random.randn(n, n) * 0.1)
-        model = brainmass.JansenRitTR(
-            in_size=n, delay=delay, sc=sc, k=1.0,
-            w_ll=w, w_ff=w, w_bb=w, g_l=1.0, g_f=1.0, g_b=1.0, tr=tr,
-        )
-        brainstate.nn.init_all_states(model)
-        return model, n
-
-    def test_update_runs_and_returns_finite(self):
-        model, n = self._make()
-        out = model.update(jnp.zeros(n))
-        out = np.asarray(u.get_magnitude(out))
-        assert out.shape == (n,)
-        assert np.all(np.isfinite(out))
-
-    def test_update_record_state(self):
-        model, n = self._make()
-        out, state = model.update(jnp.zeros(n), record_state=True)
-        assert set(state.keys()) == {'M', 'E', 'I'}
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
-
-    def test_non_integer_n_step(self):
-        # tr/dt = 1e-3 / 0.3e-3 = 3.33 -> int() floors to 3; must still run.
-        model, n = self._make(tr=1e-3 * u.second, dt=0.3e-3 * u.second)
-        out = model.update(jnp.zeros(n))
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
-
-    def test_iter_input_path(self):
-        model, n = self._make(tr=1e-3 * u.second, dt=1e-4 * u.second)
-        n_step = int(1e-3 / 1e-4)  # 10
-        inp = jnp.zeros((n_step, n))
-        out = model.update(inp, iter_input=True)
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
-
-
 class TestJansenRitSmax:
     def test_default_smax_is_literature_value(self):
         # Max firing rate s_max = 2 * e0 = 5 s^-1 (Jansen & Rit, 1995).
@@ -547,103 +504,148 @@ class TestJansenRitStepRK2:
         assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
 
 
-class TestJansenRitTRMask:
-    """Cover the mask branch in LaplacianConnectivity._normalize / _symmetric_normalize."""
+# --------------------------------------------------------------------------- #
+# Differentiability / gradient test (migrated from gradient_test.py)
+# --------------------------------------------------------------------------- #
+# Short horizon keeps the test fast while still exercising recurrence.
+_GRAD_N_STEP = 40
+_GRAD_IN_SIZE = 2
+_GRAD_SEED = 0
 
-    def test_masked_update_runs(self):
-        n = 3
-        brainstate.environ.set(dt=1e-4 * u.second)
-        brainstate.random.seed(0)
-        np.random.seed(0)  # sc/delay/w/mask below use numpy's RNG
-        sc = jnp.asarray(np.random.rand(n, n))
-        sc = sc - jnp.diag(jnp.diag(sc))
-        delay = jnp.asarray(np.random.randint(1, 5, size=(n, n)).astype(float))
-        w = jnp.asarray(np.random.randn(n, n) * 0.1)
-        mask = jnp.asarray((np.random.rand(n, n) > 0.3).astype('float32'))
-        model = brainmass.JansenRitTR(
-            in_size=n, delay=delay, sc=sc, k=1.0,
-            w_ll=w, w_ff=w, w_bb=w, g_l=1.0, g_f=1.0, g_b=1.0,
-            tr=1e-3 * u.second, mask=mask,
-        )
+# Differentiate w.r.t. the connectivity ``C`` while driving the pyramidal
+# population. ``strong=False``: the Jansen-Rit gradient is legitimately tiny, so
+# only the AD-vs-FD and check_grads cross-checks validate it (no "non-trivial"
+# floor assertion).
+_JANSEN_GRAD_SPEC = dict(
+    build=lambda p: brainmass.JansenRitStep(_GRAD_IN_SIZE, C=Param(p, fit=True)),
+    drive=lambda m: m.update(M_inp=3.0 * u.mV),
+    read=lambda m: m.E.value - m.I.value,
+    p0=135.0,
+    strong=False,
+)
+
+
+def _grad_scalar_loss(model, drive, read):
+    """Run a short deterministic simulation and return ``sum(read ** 2)``."""
+    def step(i):
+        with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+            drive(model)
+            return read(model)
+
+    xs = brainstate.transform.for_loop(step, np.arange(_GRAD_N_STEP))
+    return jnp.sum(u.get_magnitude(xs) ** 2)
+
+
+def _grad_pure_loss(spec):
+    """Return a pure, seeded ``f(pval) -> scalar`` for a model spec."""
+    def f(pval):
+        brainstate.random.seed(_GRAD_SEED)
+        model = spec["build"](pval)
         brainstate.nn.init_all_states(model)
-        out = model.update(jnp.zeros(n))
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
+        return _grad_scalar_loss(model, spec["drive"], spec["read"])
+
+    return f
 
 
-def _jr_seq(T, n, seed=0):
-    brainstate.random.seed(seed)
-    np.random.seed(seed)  # the sequence below uses numpy's RNG, not brainstate's
-    return jnp.asarray(np.random.randn(T, n).astype('float32'))
+class TestJansenRitGradient:
+    """A gradient flows through a short for_loop simulation of JansenRitStep."""
+
+    def test_grad_flows_through_for_loop(self, dt):
+        spec = _JANSEN_GRAD_SPEC
+        brainstate.random.seed(_GRAD_SEED)
+        model = spec["build"](jnp.asarray(spec["p0"], dtype=float))
+        brainstate.nn.init_all_states(model)
+
+        weights = model.states(brainstate.ParamState)
+        assert len(weights) == 1, "exactly one trainable Param expected"
+
+        def loss():
+            return _grad_scalar_loss(model, spec["drive"], spec["read"])
+
+        grads, value = brainstate.transform.grad(loss, weights, return_value=True)()
+        leaves = jax.tree.leaves(grads)
+        assert leaves, "grad tree is empty -- no ParamState was differentiated"
+        for g in leaves:
+            assert jnp.all(jnp.isfinite(g)), "non-finite gradient"
+        assert jnp.isfinite(value)
+
+    def test_value_and_grad(self, dt):
+        spec = _JANSEN_GRAD_SPEC
+        f = _grad_pure_loss(spec)
+        value, grad = jax.value_and_grad(f)(jnp.asarray(spec["p0"], dtype=float))
+        assert jnp.isfinite(value)
+        assert jnp.isfinite(grad)
+        if spec["strong"]:
+            assert abs(float(grad)) > 1e-3
+
+    def test_ad_matches_finite_difference(self, dt):
+        spec = _JANSEN_GRAD_SPEC
+        f = _grad_pure_loss(spec)
+        p0 = float(spec["p0"])
+        ad = float(jax.grad(f)(jnp.asarray(p0)))
+
+        eps = 1e-3 * max(1.0, abs(p0))
+        fd = (float(f(jnp.asarray(p0 + eps))) - float(f(jnp.asarray(p0 - eps)))) / (2 * eps)
+
+        assert ad == pytest.approx(fd, rel=2e-2, abs=1e-6), (
+            f"AD={ad:.6g} disagrees with finite-difference={fd:.6g}"
+        )
+
+    def test_check_grads(self, dt):
+        spec = _JANSEN_GRAD_SPEC
+        f = _grad_pure_loss(spec)
+        check_grads(f, (jnp.asarray(float(spec["p0"])),), order=1, modes=["rev"],
+                    rtol=2e-2, atol=2e-2)
 
 
-class TestJansenRitLayer:
-    """Cover JansenRitLayer (additive + delayed) — uses the deduped AdditiveConn/DelayedAdditiveConn."""
+# --------------------------------------------------------------------------- #
+# Pre-refactor golden trajectory (goal-05 characterization)
+# --------------------------------------------------------------------------- #
+# Goal-05 split ``jansen_rit.py`` into a package; that refactor had to be
+# behaviour-preserving. This pins a seeded, deterministic 20-step ``exp_euler``
+# trajectory against values captured from ``origin/main`` *before* the refactor.
+# The trajectory was bit-identical pre/post; ``rtol`` only guards future
+# XLA/platform drift.
+_JANSEN_PRE_REFACTOR_GOLDEN = [
+    [0.0, 0.0, 0.0],
+    [-3.673594619613141e-06, -3.673594619613141e-06, -3.673594619613141e-06],
+    [-1.1558848200365901e-05, -1.1558848200365901e-05, -1.1558848200365901e-05],
+    [-2.417954965494573e-05, -2.417954965494573e-05, -2.417954965494573e-05],
+    [-4.204572178423405e-05, -4.204572178423405e-05, -4.204572178423405e-05],
+    [-6.565364310517907e-05, -6.565364310517907e-05, -6.565364310517907e-05],
+    [-9.54862916842103e-05, -9.54862916842103e-05, -9.54862916842103e-05],
+    [-0.00013201311230659485, -0.00013201311230659485, -0.00013201311230659485],
+    [-0.00017569120973348618, -0.00017569120973348618, -0.00017569120973348618],
+    [-0.00022696470841765404, -0.00022696470841765404, -0.00022696470841765404],
+    [-0.0002862652763724327, -0.0002862652763724327, -0.0002862652763724327],
+    [-0.0003540122415870428, -0.0003540122415870428, -0.0003540122415870428],
+    [-0.00043061375617980957, -0.00043061375617980957, -0.00043061375617980957],
+    [-0.0005164649337530136, -0.0005164649337530136, -0.0005164649337530136],
+    [-0.0006119506433606148, -0.0006119506433606148, -0.0006119506433606148],
+    [-0.0007174438796937466, -0.0007174438796937466, -0.0007174438796937466],
+    [-0.0008333069272339344, -0.0008333069272339344, -0.0008333069272339344],
+    [-0.0009598899632692337, -0.0009598899632692337, -0.0009598899632692337],
+    [-0.0010975347831845284, -0.0010975347831845284, -0.0010975347831845284],
+    [-0.0012465715408325195, -0.0012465715408325195, -0.0012465715408325195],
+]
 
-    def test_additive_path(self):
-        from brainmass.jansen_rit import JansenRitLayer
-        brainstate.environ.set(dt=1e-4 * u.second)
-        m = JansenRitLayer(n_input=3, n_hidden=5)
-        brainstate.nn.init_all_states(m)
-        out = m.update(_jr_seq(6, 3))
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
 
-    def test_delayed_path_and_record_state(self):
-        from brainmass.jansen_rit import JansenRitLayer
-        brainstate.environ.set(dt=1e-4 * u.second)
-        np.random.seed(0)  # deterministic delay matrix
-        delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
-        m = JansenRitLayer(n_input=3, n_hidden=5, delay=delay)
-        brainstate.nn.init_all_states(m)
-        st, out = m.update(_jr_seq(6, 3), record_state=True)
-        assert set(st.keys()) == {'M', 'E', 'I'}
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
-
-
-class TestJansenRit2LayerAndNetwork:
-    """Cover JansenRit2Layer / LaplacianConnV2 / JansenRitNetwork."""
-
-    def test_jansen_rit2_layer_record_state(self):
-        from brainmass.jansen_rit import JansenRit2Layer
-        brainstate.environ.set(dt=1e-4 * u.second)
-        np.random.seed(0)  # deterministic delay matrix
-        delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
-        m = JansenRit2Layer(n_input=3, n_hidden=5, delay=delay)
-        brainstate.nn.init_all_states(m)
-        st, out = m.update(_jr_seq(6, 3), record_state=True)
-        assert set(st.keys()) == {'M', 'E', 'I'}
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
-
-    def test_jansen_rit2_layer_requires_delay(self):
-        from brainmass.jansen_rit import JansenRit2Layer
-        brainstate.environ.set(dt=1e-4 * u.second)
-        with pytest.raises(AssertionError):
-            JansenRit2Layer(n_input=3, n_hidden=5)  # delay is required
-
-    def test_network_single_and_multi_layer(self):
-        from brainmass.jansen_rit import JansenRitNetwork
-        brainstate.environ.set(dt=1e-4 * u.second)
-        np.random.seed(0)  # deterministic delay matrix
-        delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
-        net = JansenRitNetwork(n_input=3, n_hidden=5, n_output=2, delay=delay)
-        brainstate.nn.init_all_states(net)
-        out = net.update(_jr_seq(6, 3))
-        assert out.shape == (2,)  # network emits a single readout from the final state
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
-
-    def test_network_multi_layer_runs(self):
-        """Stacking ≥2 JansenRit2Layers now runs (goal-05 fix).
-
-        Previously this was ``xfail(strict)``: a layer emits an mV ``eeg()``
-        proxy, and the next layer re-multiplied its input by ``u.mV`` ->
-        ``UnitMismatchError``. ``JansenRitNetwork.update`` now strips units
-        between layers, so a two-layer stack produces a finite readout.
-        """
-        from brainmass.jansen_rit import JansenRitNetwork
-        brainstate.environ.set(dt=1e-4 * u.second)
-        np.random.seed(0)  # deterministic delay matrix
-        delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
-        net = JansenRitNetwork(n_input=3, n_hidden=[5, 5], n_output=2, delay=delay)
-        brainstate.nn.init_all_states(net)
-        out = net.update(_jr_seq(6, 3))
-        assert out.shape == (2,)
-        assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
+def test_trajectory_matches_pre_refactor_golden():
+    """JansenRitStep reproduces its pre-refactor seeded ``exp_euler`` trajectory."""
+    brainstate.environ.set(dt=0.1 * u.ms)
+    brainstate.random.seed(0)
+    np.random.seed(0)
+    model = brainmass.JansenRitStep(in_size=3)
+    brainstate.nn.init_all_states(model)
+    traj = []
+    for i in range(20):
+        with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
+            out = model.update()
+        traj.append(np.asarray(u.get_magnitude(out)).reshape(-1))
+    got = np.stack(traj)
+    golden = np.asarray(_JANSEN_PRE_REFACTOR_GOLDEN)
+    assert got.shape == golden.shape
+    np.testing.assert_allclose(
+        got, golden, rtol=1e-5, atol=1e-6,
+        err_msg="jansen: trajectory drifted from pre-refactor golden",
+    )
