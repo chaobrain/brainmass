@@ -75,26 +75,20 @@ SWEEP = {
 }
 
 
-_MONTBRIO_RK_XFAIL = pytest.mark.xfail(
-    reason="LATENT BUG (deferred to goal-05): qif.py MontbrioPazoRoxinStep.update "
-           "non-exp_euler branch calls ode_<method>_step((r, v), ...) without passing "
-           "self.derivative as the first (function) argument -- cf. the correct calls in "
-           "_xy_model.py and fhn.py. So method in {rk2, rk4} raises 'input function should "
-           "be callable'.",
-    strict=True,
-    raises=AssertionError,
-)
-
-
 def _sweep_cases():
-    """Build (model, method) cases; mark the known-broken montbrio rk2/rk4 xfail."""
-    cases = []
-    for model_name in SWEEP:
-        for method in METHODS:
-            marks = (_MONTBRIO_RK_XFAIL
-                     if model_name == "montbrio" and method in ("rk2", "rk4") else ())
-            cases.append(pytest.param(model_name, method, marks=marks))
-    return cases
+    """Build all ``(model, method)`` cases for the integrator sweep.
+
+    The montbrio ``rk2``/``rk4`` cases used to be ``xfail(strict)`` because
+    ``MontbrioPazoRoxinStep.update`` omitted ``self.derivative`` in its
+    non-exp_euler branch. goal-05 routed every two-variable model through the
+    shared ``NeuralMassDynamics._solve_step``, which passes the vector field
+    correctly, so these cases now run like the rest.
+    """
+    return [
+        pytest.param(model_name, method)
+        for model_name in SWEEP
+        for method in METHODS
+    ]
 
 
 @pytest.mark.parametrize("model_name, method", _sweep_cases())

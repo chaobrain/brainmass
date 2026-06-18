@@ -56,9 +56,9 @@ class TestLeadfieldReadout:
         assert np.all(np.isfinite(np.asarray(out)))
 
     def test_row_normalization_makes_unit_l1_rows(self):
-        # normalize_leadfield computes sum(sqrt(w**2)) == sum(|w|), i.e. the L1
-        # norm (despite the historical "L2" label). With demean=False to isolate
-        # normalization, each row's sum of absolute values should be ~1.
+        # The default ``normalize=True`` is L1 row-normalisation: with demean=False
+        # to isolate it, each row's sum of absolute values should be ~1. (goal-05
+        # made L1 the documented default and the code now uses sum(|w|) directly.)
         readout, M, N = _make(normalize=True, demean=False)
         lm = np.asarray(readout.lm.value())
         l1_norms = np.abs(lm).sum(axis=1)
@@ -69,3 +69,27 @@ class TestLeadfieldReadout:
         lm = np.asarray(readout.lm.value())
         # demean subtracts the per-column (across-channel) mean -> column means ~0
         assert np.allclose(lm.mean(axis=0), 0.0, atol=1e-5)
+
+    def test_normalize_true_equals_l1(self):
+        # ``normalize=True`` is the backward-compatible alias for L1.
+        lm_true = np.asarray(_make(normalize=True, demean=False)[0].lm.value())
+        lm_l1 = np.asarray(_make(normalize='l1', demean=False)[0].lm.value())
+        assert np.allclose(lm_true, lm_l1, atol=0.0)
+
+    def test_l2_normalization_makes_unit_l2_rows(self):
+        # 'l2' scales each row by its Euclidean norm -> unit-L2 rows.
+        readout, M, N = _make(normalize='l2', demean=False)
+        lm = np.asarray(readout.lm.value())
+        l2_norms = np.sqrt((lm ** 2).sum(axis=1))
+        assert np.allclose(l2_norms, 1.0, atol=1e-5)
+
+    def test_l1_and_l2_differ(self):
+        # The two norms produce genuinely different matrices (sanity check that
+        # 'l2' is not silently doing L1).
+        lm_l1 = np.asarray(_make(normalize='l1', demean=False)[0].lm.value())
+        lm_l2 = np.asarray(_make(normalize='l2', demean=False)[0].lm.value())
+        assert not np.allclose(lm_l1, lm_l2, atol=1e-3)
+
+    def test_invalid_normalize_raises(self):
+        with pytest.raises(ValueError):
+            _make(normalize='l3')

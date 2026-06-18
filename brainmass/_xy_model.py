@@ -16,9 +16,9 @@
 from typing import Callable
 
 import braintools
-import brainunit as u
 
 import brainstate
+from ._base import NeuralMassDynamics
 from .noise import Noise
 
 __all__ = [
@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 
-class XY_Oscillator(brainstate.nn.Dynamics):
+class XY_Oscillator(NeuralMassDynamics):
     def __init__(
         self,
         in_size: brainstate.typing.Size,
@@ -84,13 +84,14 @@ class XY_Oscillator(brainstate.nn.Dynamics):
             x_inp = x_inp + self.noise_x()
         if self.noise_y is not None:
             y_inp = y_inp + self.noise_y()
-        if self.method == 'exp_euler':
-            x = brainstate.nn.exp_euler_step(self.dx, self.x.value, self.y.value, x_inp)
-            y = brainstate.nn.exp_euler_step(self.dy, self.y.value, self.x.value, y_inp)
-        else:
-            method = getattr(braintools.quad, f'ode_{self.method}_step')
-            t = brainstate.environ.get('t', 0 * u.ms)
-            x, y = method(self.derivative, (self.x.value, self.y.value), t, x_inp, y_inp)
+        x, y = self._solve_step(
+            exp_euler_specs=(
+                (self.dx, self.x.value, self.y.value, x_inp),
+                (self.dy, self.y.value, self.x.value, y_inp),
+            ),
+            ode_state=(self.x.value, self.y.value),
+            ode_inputs=(x_inp, y_inp),
+        )
         self.x.value = x
         self.y.value = y
         return x, y

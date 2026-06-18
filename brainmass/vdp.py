@@ -191,30 +191,7 @@ class VanDerPolStep(XY_Oscillator):
         mu = self.mu.value()
         return (x / mu + inp) / u.ms
 
-    def derivative(self, state, t, x_inp, y_inp):
-        """Vector field for ODE integrators.
-
-        This packs :meth:`dx` and :meth:`dy` into a single callable of the form
-        ``f(state, t, x_inp, y_inp)`` to be used by ``braintools.quad``
-        integrators when ``method != 'exp_euler'``.
-
-        Parameters
-        ----------
-        state : tuple of array-like
-            Current state as ``(x, y)``.
-        t : array-like or scalar
-            Current time (ignored in the autonomous dynamics).
-        x_inp : array-like or scalar
-            External input to ``x`` passed through to :meth:`dx`.
-        y_inp : array-like or scalar
-            External input to ``y`` passed through to :meth:`dy`.
-
-        Returns
-        -------
-        tuple of array-like
-            Derivatives as ``(dx/dt, dy/dt)`` each with unit ``1/ms``.
-        """
-        V, w = state
-        dVdt = self.dx(V, w, x_inp)
-        dwdt = self.dy(w, V, y_inp)
-        return (dVdt, dwdt)
+    # ``derivative`` is inherited unchanged from :class:`XY_Oscillator`: it packs
+    # ``dx``/``dy`` into ``f(state, t, x_inp, y_inp)`` for the ``braintools.quad``
+    # solvers. The previous explicit override here was byte-identical to the base
+    # implementation, so it was removed to avoid duplicating the contract.
