@@ -12,6 +12,9 @@ be hand-written in every example and tutorial:
   collects monitored trajectories into a unit-aware result.
 - :mod:`brainmass.objectives` composes :mod:`braintools.metric` into small,
   jit / grad / vmap-safe objective callables over those trajectories.
+- :class:`Fitter` fits a model's trainable parameters to data behind one
+  ``.fit`` call, swapping between gradient (optax), Nevergrad, and SciPy
+  backends without rewriting the objective.
 
 
 Network
@@ -40,6 +43,24 @@ Simulator
 .. autoclass:: Simulator
    :members:
    :special-members: __init__
+
+
+Fitter
+------
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+
+   Fitter
+   FitResult
+
+.. autoclass:: Fitter
+   :members:
+   :special-members: __init__
+
+.. autoclass:: FitResult
+   :members:
 
 
 Objectives
