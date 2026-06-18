@@ -314,7 +314,7 @@ Next Steps
 
 - :doc:`forward_modeling` - Map coupled network to neuroimaging signals
 - :doc:`parameter_fitting` - Optimize coupling parameters
-- :doc:`../api/coupling` - Full coupling API reference
+- :doc:`../apis/coupling` - Full coupling API reference
 
 
 See Also

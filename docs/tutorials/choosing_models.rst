@@ -345,7 +345,7 @@ Next Steps
 ----------
 
 - :doc:`building_networks` - Create multi-region networks with your chosen model
-- :doc:`../api/models` - Detailed documentation for each model
+- :doc:`../apis/models` - Detailed documentation for each model
 - :doc:`../examples/index` - See models in action
 
 

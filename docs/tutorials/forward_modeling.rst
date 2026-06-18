@@ -9,7 +9,7 @@ Forward models map neural activity to observable neuroimaging signals (BOLD, EEG
    in places assume empirical data or a network driver, so they are not executed in the
    documentation build. For runnable, current-API forward-model code see the
    Balloon-Windkessel BOLD section of :doc:`quickstart` and the ``LeadFieldModel`` examples in
-   :doc:`../api/forward`.
+   :doc:`../apis/forward`.
 
 
 Overview
@@ -368,7 +368,7 @@ Next Steps
 ----------
 
 - :doc:`parameter_fitting` - Optimize parameters to match empirical data
-- :doc:`../api/forward` - Complete forward model API
+- :doc:`../apis/forward` - Complete forward model API
 - :doc:`../examples/index` - Real data examples
 
 
@@ -376,4 +376,4 @@ See Also
 --------
 
 - :doc:`building_networks` - Network setup for forward modeling
-- :doc:`../api/forward` - Forward model reference
+- :doc:`../apis/forward` - Forward model reference

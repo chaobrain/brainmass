@@ -320,7 +320,7 @@ Tips for Beginners
 See Also
 --------
 
-- :doc:`../api/models` - Complete model reference
-- :doc:`../api/noise` - Noise processes documentation
-- :doc:`../api/coupling` - Coupling mechanisms
-- :doc:`../api/forward` - Forward models
+- :doc:`../apis/models` - Complete model reference
+- :doc:`../apis/noise` - Noise processes documentation
+- :doc:`../apis/coupling` - Coupling mechanisms
+- :doc:`../apis/forward` - Forward models

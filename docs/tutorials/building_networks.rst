@@ -425,6 +425,6 @@ Next Steps
 See Also
 --------
 
-- :doc:`../api/coupling` - Coupling API reference
-- :doc:`../api/models` - Node model options
+- :doc:`../apis/coupling` - Coupling API reference
+- :doc:`../apis/models` - Node model options
 - :doc:`../examples/index` - Network simulation examples
