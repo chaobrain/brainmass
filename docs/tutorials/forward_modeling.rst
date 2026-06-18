@@ -36,7 +36,7 @@ Basic BOLD Workflow
    N_regions = 90
 
    # 1. Create neural mass model
-   nmm = brainmass.WongWangModel(in_size=N_regions)
+   nmm = brainmass.WongWangStep(in_size=N_regions)
    nmm.init_all_states()
 
    # 2. Create BOLD hemodynamic model
@@ -84,7 +84,7 @@ Complete fMRI Simulation
    SC = jnp.load('SC_AAL90.npy')
 
    # Create network
-   nodes = brainmass.WongWangModel(in_size=N)
+   nodes = brainmass.WongWangStep(in_size=N)
    coupling = brainmass.DiffusiveCoupling(conn=SC, k=0.2)
    nodes.noise_E = brainmass.OUProcess(in_size=N, sigma=0.01*u.Hz, tau=100*u.ms)
 
@@ -166,7 +166,7 @@ EEG Simulation
    import brainstate
 
    # Jansen-Rit model (generates EEG-like signals)
-   nmm = brainmass.JansenRitModel(in_size=N_sources)
+   nmm = brainmass.JansenRitStep(in_size=N_sources)
    nmm.init_all_states()
 
    # Simulate source activity
@@ -212,7 +212,7 @@ Simultaneous EEG/MEG/fMRI
 .. code-block:: python
 
    # Use same neural activity for all modalities
-   nmm = brainmass.JansenRitModel(in_size=68)
+   nmm = brainmass.JansenRitStep(in_size=68)
    nmm.init_all_states()
 
    # Forward models

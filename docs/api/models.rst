@@ -159,7 +159,7 @@ to limit cycle oscillations as the bifurcation parameter crosses zero:
 
    hopf = brainmass.HopfStep(
        in_size=5,
-       omega=2 * jnp.pi * 10 * u.Hz,  # 10 Hz oscillation
+       w=0.1,  # intrinsic frequency (dimensionless)
        a=0.1,  # bifurcation parameter > 0 for oscillations
    )
    hopf.init_all_states()
@@ -276,9 +276,9 @@ Spiking Network Reductions
    MontbrioPazoRoxinStep
 
 
-**Example: QIF Model (Montbrio-Pazo-Roxin)**
+**Example: Montbrio-Pazo-Roxin Model (mean-field)**
 
-The QIF model is an exact mean-field reduction of networks of quadratic integrate-and-fire neurons:
+The Montbrio-Pazo-Roxin model is an exact mean-field reduction of networks of quadratic integrate-and-fire neurons:
 
 .. code-block:: python
 
@@ -305,7 +305,7 @@ All models support adding stochastic noise through dedicated noise attributes:
 .. code-block:: python
 
    # Create model
-   model = brainmass.HopfStep(in_size=10, omega=10 * u.Hz)
+   model = brainmass.HopfStep(in_size=10, w=0.2)
 
    # Add Ornstein-Uhlenbeck noise
    model.noise = brainmass.OUProcess(
@@ -333,7 +333,7 @@ To create multi-region brain networks, combine models with coupling mechanisms:
    N = 90  # number of regions
 
    # Create node dynamics
-   nodes = brainmass.HopfStep(in_size=N, omega=10 * u.Hz)
+   nodes = brainmass.HopfStep(in_size=N, w=0.3)
 
    # Create coupling
    coupling = brainmass.DiffusiveCoupling(

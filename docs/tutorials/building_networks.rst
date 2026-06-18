@@ -26,7 +26,7 @@ Simple Network Example
    N_regions = 10
 
    # 1. Create node dynamics (uncoupled)
-   nodes = brainmass.HopfOscillator(
+   nodes = brainmass.HopfStep(
        in_size=N_regions,
        omega=2 * jnp.pi * 10 * u.Hz,
        a=0.1,
@@ -152,7 +152,7 @@ Using Anatomical Atlases
    SC_AAL90 = jnp.load('AAL90_SC.npy')  # from DTI
 
    # Create network
-   nodes = brainmass.WilsonCowanModel(in_size=N_AAL90)
+   nodes = brainmass.WilsonCowanStep(in_size=N_AAL90)
    coupling = brainmass.DiffusiveCoupling(conn=SC_AAL90, k=0.1)
 
 
@@ -200,14 +200,14 @@ Different Models per Region
 
    # Thalamus: fast oscillators
    N_thal = 10
-   thalamus = brainmass.HopfOscillator(
+   thalamus = brainmass.HopfStep(
        in_size=N_thal,
        omega=2 * jnp.pi * 40 * u.Hz,  # 40 Hz
    )
 
    # Cortex: excitatory-inhibitory dynamics
    N_cort = 80
-   cortex = brainmass.WilsonCowanModel(in_size=N_cort)
+   cortex = brainmass.WilsonCowanStep(in_size=N_cort)
 
    # Coupling between subsystems
    W_thal_cort = jnp.ones((N_cort, N_thal)) * 0.1  # thalamus → cortex
@@ -312,7 +312,7 @@ Whole-Brain Resting-State Simulation
    SC = jnp.load('AAL90_SC_normalized.npy')
 
    # Create components
-   nodes = brainmass.WongWangModel(in_size=N_regions)
+   nodes = brainmass.WongWangStep(in_size=N_regions)
    coupling = brainmass.DiffusiveCoupling(conn=SC, k=coupling_strength)
 
    # Add noise for spontaneous activity

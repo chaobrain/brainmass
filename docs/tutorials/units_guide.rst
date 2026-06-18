@@ -184,7 +184,7 @@ Most brainmass models accept unit quantities:
    import brainmass
    import brainunit as u
 
-   model = brainmass.WilsonCowanModel(
+   model = brainmass.WilsonCowanStep(
        in_size=10,
        tau_E=10. * u.ms,    # with units
        tau_I=20. * u.ms,
@@ -200,7 +200,7 @@ Internal states maintain units:
 
 .. code-block:: python
 
-   model = brainmass.HopfOscillator(
+   model = brainmass.HopfStep(
        in_size=5,
        omega=10 * u.Hz,
    )

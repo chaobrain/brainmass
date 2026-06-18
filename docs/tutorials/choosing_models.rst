@@ -11,16 +11,16 @@ Decision Tree
 
    Need physiological realism?
    ├─ YES → Physiological Models
-   │  ├─ Modeling EEG/MEG? → JansenRitModel
-   │  ├─ Modeling fMRI BOLD? → WongWangModel
-   │  ├─ E-I population dynamics? → WilsonCowanModel
-   │  └─ Mean-field spiking? → QIFModel (MontbrioPazoRoxin)
+   │  ├─ Modeling EEG/MEG? → JansenRitStep
+   │  ├─ Modeling fMRI BOLD? → WongWangStep
+   │  ├─ E-I population dynamics? → WilsonCowanStep
+   │  └─ Mean-field spiking? → MontbrioPazoRoxinStep
    │
    └─ NO → Phenomenological Models
-      ├─ Studying oscillations? → HopfOscillator or StuartLandauOscillator
-      ├─ Studying excitability? → FitzHughNagumoModel
+      ├─ Studying oscillations? → HopfStep or StuartLandauStep
+      ├─ Studying excitability? → FitzHughNagumoStep
       ├─ Phase synchronization? → KuramotoNetwork
-      └─ Fast/simple dynamics? → ThresholdLinearModel
+      └─ Fast/simple dynamics? → ThresholdLinearStep
 
 
 Model Categories
@@ -44,9 +44,9 @@ Phenomenological Models
 
 .. code-block:: python
 
-   hopf = brainmass.HopfOscillator(
+   hopf = brainmass.HopfStep(
        in_size=90,
-       omega=2 * jnp.pi * 10 * u.Hz,  # 10 Hz alpha rhythm
+       w=0.1,  # intrinsic frequency (dimensionless)
        a=0.1,  # >0 for limit cycle
    )
 
@@ -83,7 +83,7 @@ Physiological Models
 
 .. code-block:: python
 
-   jr = brainmass.JansenRitModel(
+   jr = brainmass.JansenRitStep(
        in_size=68,  # number of cortical sources
    )
 
@@ -101,10 +101,10 @@ Physiological Models
 - **Variables:** 2 (S_E, S_I)
 - **Example use:** Whole-brain resting-state fMRI simulations
 
-**QIF Model (Montbrio-Pazo-Roxin)**
+**Montbrio-Pazo-Roxin Model**
 
 - **Best for:** Mean-field reduction of spiking networks
-- **Key feature:** Exact reduction of QIF neuron networks
+- **Key feature:** Exact mean-field reduction of quadratic integrate-and-fire neuron networks
 - **Variables:** 2 (r, v)
 - **Example use:** Linking spiking and rate dynamics
 
@@ -156,7 +156,7 @@ Model Comparison
      - Slow
      - High
      - fMRI BOLD, decision making
-   * - QIF
+   * - Montbrio-Pazo-Roxin
      - Medium
      - Medium
      - High
@@ -171,7 +171,7 @@ Resting-State fMRI Study
 
 **Goal:** Simulate spontaneous BOLD fluctuations matching empirical FC
 
-**Recommended:** :class:`WongWangModel` or :class:`WilsonCowanModel`
+**Recommended:** :class:`WongWangStep` or :class:`WilsonCowanStep`
 
 **Why:**
 - Slow synaptic dynamics (NMDA) match BOLD timescales
@@ -180,11 +180,11 @@ Resting-State fMRI Study
 
 .. code-block:: python
 
-   nodes = brainmass.WongWangModel(in_size=90)  # AAL90 atlas
+   nodes = brainmass.WongWangStep(in_size=90)  # AAL90 atlas
    bold = brainmass.BOLDSignal(in_size=90)
 
    # Add structural coupling from DTI
-   coupling = brainmass.DiffusiveCoupling(conn=SC_matrix, k=0.2)
+   # add structural coupling from a DTI connectome (see the adding_coupling tutorial)
 
 
 EEG Source Modeling
@@ -192,7 +192,7 @@ EEG Source Modeling
 
 **Goal:** Simulate EEG signals from cortical sources
 
-**Recommended:** :class:`JansenRitModel`
+**Recommended:** :class:`JansenRitStep`
 
 **Why:**
 
@@ -202,7 +202,7 @@ EEG Source Modeling
 
 .. code-block:: python
 
-   jr = brainmass.JansenRitModel(in_size=68)  # cortical parcels
+   jr = brainmass.JansenRitStep(in_size=68)  # cortical parcels
    eeg_fwd = brainmass.EEGLeadFieldModel(
        in_size=68,
        out_size=64,  # electrodes
@@ -215,7 +215,7 @@ Synchronization Study
 
 **Goal:** Study emergence of network synchronization
 
-**Recommended:** :class:`HopfOscillator` or :class:`KuramotoNetwork`
+**Recommended:** :class:`HopfStep` or :class:`KuramotoNetwork`
 
 **Why:**
 
@@ -233,7 +233,7 @@ Synchronization Study
    )
 
    # Hopf for amplitude + phase
-   hopf = brainmass.HopfOscillator(in_size=100, omega=10 * u.Hz, a=0.1)
+   hopf = brainmass.HopfStep(in_size=100, w=0.2, a=0.1)
 
 
 Parameter Fitting Study
@@ -245,9 +245,9 @@ Parameter Fitting Study
 
 **Strategy:**
 
-1. Start with :class:`HopfOscillator` or :class:`WilsonCowanModel` (fewer parameters)
+1. Start with :class:`HopfStep` or :class:`WilsonCowanStep` (fewer parameters)
 2. Validate parameter estimates
-3. If needed, move to :class:`JansenRitModel` or :class:`WongWangModel`
+3. If needed, move to :class:`JansenRitStep` or :class:`WongWangStep`
 
 **Why:**
 
@@ -290,15 +290,16 @@ You can use different models for different regions:
 .. code-block:: python
 
    # Thalamus: fast dynamics
-   thalamus = brainmass.HopfOscillator(in_size=N_thal, omega=40 * u.Hz)
+   thalamus = brainmass.HopfStep(in_size=N_thal, w=0.3)
 
    # Cortex: slower dynamics
-   cortex = brainmass.WilsonCowanModel(in_size=N_cort)
+   cortex = brainmass.WilsonCowanStep(in_size=N_cort)
 
    # Couple them
    def network_step(i):
-       thal_out = thalamus.update()
-       cort_out = cortex.update(rE_inp=thal_out.mean())  # thalamic drive
+       thalamus.update()  # advance the thalamus
+       thal_drive = thalamus.x.value.mean()  # use thalamic x as drive
+       cort_out = cortex.update(rE_inp=thal_drive)
        return cort_out
 
 
@@ -325,19 +326,19 @@ Summary Recommendations
    * - Your Goal
      - Recommended Model
    * - Learn brainmass basics
-     - :class:`HopfOscillator` or :class:`WilsonCowanModel`
+     - :class:`HopfStep` or :class:`WilsonCowanStep`
    * - EEG/MEG modeling
-     - :class:`JansenRitModel`
+     - :class:`JansenRitStep`
    * - fMRI BOLD modeling
-     - :class:`WongWangModel` or :class:`WilsonCowanModel`
+     - :class:`WongWangStep` or :class:`WilsonCowanStep`
    * - Fast exploratory work
-     - :class:`Hopf Oscillator` or :class:`ThresholdLinearModel`
+     - :class:`Hopf Oscillator` or :class:`ThresholdLinearStep`
    * - Excitable dynamics
-     - :class:`FitzHughNagumoModel`
+     - :class:`FitzHughNagumoStep`
    * - Spiking network reduction
-     - :class:`QIFModel`
+     - :class:`MontbrioPazoRoxinStep`
    * - Synchronization studies
-     - :class:`KuramotoNetwork` or :class:`HopfOscillator`
+     - :class:`KuramotoNetwork` or :class:`HopfStep`
 
 
 Next Steps

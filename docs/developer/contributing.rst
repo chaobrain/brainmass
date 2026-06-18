@@ -128,7 +128,7 @@ Good examples:
 
 .. code-block:: text
 
-   Add QIF model implementation
+   Add Montbrio-Pazo-Roxin model implementation
 
    Fix coupling bug in DiffusiveCoupling
 

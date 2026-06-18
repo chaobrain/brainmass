@@ -128,7 +128,7 @@ Example Tutorial Template
 
       # Code example
       import brainmass
-      model = brainmass.HopfOscillator(in_size=10)
+      model = brainmass.HopfStep(in_size=10)
 
    [More steps...]
 

@@ -117,7 +117,7 @@ Class-Based Coupling
    coupling.init_all_states()
 
    # Create node dynamics
-   nodes = brainmass.HopfOscillator(in_size=N, omega=10 * u.Hz)
+   nodes = brainmass.HopfStep(in_size=N, w=0.3)
    nodes.init_all_states()
 
    # Simulation loop
@@ -212,7 +212,7 @@ Basic Network Simulation
    W = W.at[jnp.diag_indices(N_regions)].set(0.)
 
    # Create network components
-   nodes = brainmass.WilsonCowanModel(in_size=N_regions)
+   nodes = brainmass.WilsonCowanStep(in_size=N_regions)
    coupling = brainmass.DiffusiveCoupling(conn=W, k=coupling_strength)
 
    # Add noise

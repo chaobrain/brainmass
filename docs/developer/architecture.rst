@@ -18,7 +18,7 @@ Package Structure
    ├── _wong_wang.py        # Wong-Wang model
    ├── _vdp.py              # Van der Pol oscillator
    ├── _sl.py               # Stuart-Landau oscillator
-   ├── _qif.py              # QIF model
+   ├── qif.py               # Montbrio-Pazo-Roxin (mean-field) model
    ├── _linear.py           # Threshold-linear model
    ├── _kuramoto.py         # Kuramoto network
    ├── _xy_model.py         # XY oscillator base class

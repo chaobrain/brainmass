@@ -142,7 +142,7 @@ Processes a sequence through a model, handling state management automatically.
    import brainstate
 
    # Create model
-   model = brainmass.HopfOscillator(in_size=5, omega=10)
+   model = brainmass.HopfStep(in_size=5, w=0.2)
    model.init_all_states()
 
    # Input sequence

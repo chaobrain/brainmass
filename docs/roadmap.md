@@ -20,7 +20,7 @@ though the suggested sequencing (see *Dependencies* at the end) builds the safet
 | **A** | Fitting & orchestration layer | functionality + usability | Large | In design |
 | **B** | Testing rigor | testing | Medium | Planned |
 | **C** | CI / tooling & release hygiene | maintainability | Small–Medium | Planned |
-| **D** | Documentation integrity | documentation | Small–Medium | Planned |
+| **D** | Documentation integrity | documentation | Small–Medium | Done (goal-02) |
 | **E** | Code correctness & structure | maintainability | Medium | Planned |
 
 ### What tvboptim does that we can learn from
@@ -157,28 +157,30 @@ fail on a real release, and the declared minimum Python is never tested.
 
 ## D. Documentation integrity
 
-**Dimension:** documentation · **Effort:** Small–Medium · **Status:** Planned
+**Dimension:** documentation · **Effort:** Small–Medium · **Status:** Done (goal-02);
+CI gating deferred to sub-project C (goal-03)
 
-After the `*Step` rename, the prose and tutorials reference symbols that no longer
-exist — the Quickstart example does not even import — and nothing catches it because
-notebooks/tutorials are not executed at build time.
+After the `*Step` rename, the prose and tutorials referenced symbols that no longer
+existed — the Quickstart example did not even import — and nothing caught it because
+notebooks/tutorials are not executed at build time. Addressed by goal-02.
 
-- [ ] **Fix the pervasive API drift.** Replace renamed symbols across prose/tutorials:
-      `HopfOscillator` (×26, incl. the headline Quickstart), `WilsonCowanModel` (×18),
-      `WongWangModel`, `FitzHughNagumoModel`, `StuartLandauOscillator`,
-      `VanDerPolOscillator`, and `QIF` (→ `MontbrioPazoRoxinStep`).
-- [ ] **Execute docs in CI.** `jupyter_execute_notebooks` is `"off"`; turn on
-      notebook/tutorial execution and/or add a doctest + notebook-smoke CI job so drift
-      can't recur (mirror tvboptim's "docs cells execute in CI").
-- [ ] **Fix `docs/conf.py`** — `autodoc_default_options` is defined twice (≈ lines 100
-      and 159); the second silently disables `members` / `special-members` /
-      `undoc-members`. Merge into one.
-- [ ] Add a **usage code snippet to `README.md`** (currently none); fix the stale
-      citation version (`0.0.4` → current).
-- [ ] Add the **missing `0.0.6` changelog entry**.
-- [ ] **Fix `developer/contributing.rst` contradictions** — it says "use Google-style
-      docstrings" (project standard is NumPy-doc) and references the nonexistent `tests/`
-      dir and `[dev,doc]` extras.
+- [x] **Fixed the pervasive API drift.** Replaced the legacy ``*Oscillator`` / ``*Model``
+      class aliases (Hopf, Wilson–Cowan, Wong–Wang, FitzHugh–Nagumo, Stuart–Landau, Van der
+      Pol, and the Montbrió–Pazó–Roxin mean-field model) with their canonical ``*Step`` names
+      across prose and tutorials; grep-verified that none remain (goal-02).
+- [x] **Made docs self-checking (content + config).** Enabled `sphinx.ext.doctest`: every
+      docstring `>>>` example is doctest-clean and the Quickstart / units guide run as
+      executable `.. testcode::` blocks. Notebooks stay non-executed (large embedded outputs;
+      HCP data dependency) and are documented as such. *Wiring `make doctest` into CI is
+      sub-project C (goal-03).*
+- [x] **Fixed `docs/conf.py`** — merged the duplicated `autodoc_default_options` (the second
+      silently disabled `members` / `special-members` / `undoc-members`) into one (goal-02).
+- [x] Added a **usage code snippet to `README.md`** and fixed the stale citation version
+      (`0.0.4` → `0.0.6`) (goal-02).
+- [x] Added the **`0.0.6` changelog entry** (goal-02).
+- [x] **Fixed `developer/contributing.rst` contradictions** — NumPy-doc (not Google-style),
+      co-located `*_test.py` (not a `tests/` dir), and the dev/doc install instructions
+      (goal-02).
 - [ ] Evaluate the **one-source → tested-HTML + clean-Colab** tutorial pipeline from
       tvboptim.
 

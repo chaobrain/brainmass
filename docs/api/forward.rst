@@ -85,7 +85,7 @@ The BOLD signal is then computed from volume and deoxyhemoglobin:
    N_regions = 10
 
    # Create neural mass model
-   nmm = brainmass.WilsonCowanModel(in_size=N_regions)
+   nmm = brainmass.WilsonCowanStep(in_size=N_regions)
    nmm.init_all_states()
 
    # Create BOLD forward model
@@ -243,7 +243,7 @@ fMRI BOLD Simulation
    T = 600  # 10 minutes at 1 ms resolution
 
    # 1. Create neural mass model
-   nodes = brainmass.HopfOscillator(in_size=N, omega=10 * u.Hz, a=0.1)
+   nodes = brainmass.HopfStep(in_size=N, w=0.3, a=0.1)
 
    # 2. Add coupling
    W = jnp.load('structural_connectivity.npy')  # DTI tractography
@@ -299,7 +299,7 @@ EEG/MEG Source Space Simulation
    L_meg = jnp.load('L_meg.npy') * (u.fT / (u.nA * u.meter))
 
    # 2. Create neural mass model (Jansen-Rit for EEG)
-   nmm = brainmass.JansenRitModel(in_size=N_sources)
+   nmm = brainmass.JansenRitStep(in_size=N_sources)
    nmm.init_all_states()
 
    # 3. Create forward models
