@@ -6,3 +6,7 @@ pytest-cov
 coverage
 absl-py
 matplotlib
+# Fitter's gradient-free backend (braintools.optim.NevergradOptimizer) needs
+# nevergrad; it is only a braintools "testing" extra, so install it explicitly
+# for the brainmass test suite and the doctest examples.
+nevergrad

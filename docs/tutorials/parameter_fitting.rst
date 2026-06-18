@@ -1,473 +1,240 @@
 Parameter Fitting
 ==================
 
-This tutorial covers optimizing model parameters to match empirical data.
+This tutorial fits a model's parameters to data with :class:`brainmass.Fitter` --
+one object that wraps the *write-the-objective-once, swap-the-backend* workflow.
+You build a ``predict`` closure and an objective once, then fit with gradient
+descent, Nevergrad, or SciPy by changing a single ``backend`` argument.
 
 .. note::
 
-   The snippets on this page are *schematic*: parameter fitting requires empirical data and a
-   full simulation driver, so the optimization examples below are illustrative and not executed
-   in the documentation build. For the runnable simulation building blocks they rely on (model
-   construction, stepping, coupling, BOLD) see :doc:`quickstart` and :doc:`building_networks`.
+   Every code block on this page is executed as part of the documentation build
+   (via ``sphinx.ext.doctest``), so the snippets are guaranteed to run against the
+   current API. The integration time step ``dt`` is global state set through
+   ``brainstate.environ`` -- it is **not** a model argument.
 
 
 Overview
 --------
 
-Parameter fitting workflow:
-
-1. Define a loss function comparing model output to data
-2. Choose an optimization method
-3. Run optimization to find best parameters
-4. Validate fitted parameters
-
-
-Loss Functions
---------------
-
-Functional Connectivity Loss
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Most common for fMRI data:
-
-.. code-block:: python
-
-   import jax.numpy as jnp
-
-   def fc_loss(params, SC, FC_empirical):
-       """Loss based on functional connectivity matching"""
-
-       # Run simulation with params
-       bold_sim = simulate_network(params, SC)
-
-       # Compute simulated FC
-       FC_sim = jnp.corrcoef(bold_sim.T)
-
-       # Compare to empirical FC
-       # Option 1: Correlation
-       FC_corr = jnp.corrcoef(FC_sim.flatten(), FC_empirical.flatten())[0, 1]
-       loss = 1.0 - FC_corr  # minimize (1 - correlation)
-
-       # Option 2: MSE
-       # loss = jnp.mean((FC_sim - FC_empirical) ** 2)
-
-       return loss
-
-
-Time Series Loss
-^^^^^^^^^^^^^^^^
-
-For EEG/MEG or other time-domain data:
-
-.. code-block:: python
-
-   def timeseries_loss(params, data_empirical):
-       """Direct time series matching"""
-
-       # Simulate
-       data_sim = simulate_eeg(params)
-
-       # MSE loss
-       loss = jnp.mean((data_sim - data_empirical) ** 2)
-
-       return loss
-
-
-Power Spectrum Loss
-^^^^^^^^^^^^^^^^^^^
-
-Match frequency content:
-
-.. code-block:: python
-
-   from scipy import signal
-
-   def psd_loss(params, psd_empirical, freqs_empirical):
-       """Match power spectral density"""
-
-       # Simulate and compute PSD
-       ts_sim = simulate(params)
-       freqs_sim, psd_sim = signal.welch(ts_sim, fs=1000)
-
-       # Interpolate to match empirical frequencies
-       psd_sim_interp = jnp.interp(freqs_empirical, freqs_sim, psd_sim)
-
-       # Log-space MSE (better for power spectra)
-       loss = jnp.mean((jnp.log(psd_sim_interp) - jnp.log(psd_empirical)) ** 2)
-
-       return loss
-
-
-Optimization Methods
---------------------
-
-Gradient-Free (Nevergrad)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Best for non-differentiable objectives:
-
-.. code-block:: python
-
-   import nevergrad as ng
-   import brainmass
-   import jax.numpy as jnp
-
-   # Load data
-   SC = jnp.load('SC.npy')
-   FC_emp = jnp.load('FC_empirical.npy')
-
-   # Define simulation function
-   def simulate_network(coupling_strength):
-       nodes = brainmass.WongWangStep(in_size=90)
-       coupling = brainmass.DiffusiveCoupling(conn=SC, k=coupling_strength)
-       bold = brainmass.BOLDSignal(in_size=90)
-
-       nodes.init_all_states()
-       coupling.init_all_states()
-       bold.init_all_states()
-
-       # Simulate (simplified)
-       neural_ts = []
-       for t in range(10000):
-           S_E = nodes.S_E.value
-           coupled = coupling(S_E, S_E)
-           out = nodes.update(S_E_ext=coupled)
-           neural_ts.append(out)
-
-       neural_ts = jnp.stack(neural_ts)
-
-       # Generate BOLD
-       bold_ts = []
-       for z in neural_ts:
-           bold.update(z=z)
-           bold_ts.append(bold.bold())
-
-       return jnp.stack(bold_ts)[::2000]  # downsample
-
-   # Define loss
-   def objective(coupling_strength):
-       bold_sim = simulate_network(coupling_strength)
-       FC_sim = jnp.corrcoef(bold_sim.T)
-       corr = jnp.corrcoef(FC_sim.flatten(), FC_emp.flatten())[0, 1]
-       return 1.0 - corr  # minimize
-
-   # Setup optimization
-   instrum = ng.p.Scalar(init=0.2, lower=0.0, upper=1.0)
-   optimizer = ng.optimizers.NGOpt(parametrization=instrum, budget=50)
-
-   # Run optimization
-   for i in range(50):
-       x = optimizer.ask()
-       loss = objective(x.value)
-       optimizer.tell(x, loss)
-       print(f"Iteration {i}: k={x.value:.3f}, loss={loss:.4f}")
-
-   # Best parameters
-   recommendation = optimizer.provide_recommendation()
-   best_k = recommendation.value
-   print(f"Best coupling strength: {best_k:.3f}")
-
-
-Gradient-Based (JAX + Optax)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For differentiable models:
-
-.. code-block:: python
-
-   import jax
-   import jax.numpy as jnp
-   import optax
-   import brainmass
-
-   # Define differentiable simulation
-   @jax.jit
-   def simulate_and_loss(k, SC, FC_emp):
-       # Simplified differentiable simulation
-       # (full network simulation needs careful state management)
-
-       # ... simulation code ...
-
-       FC_sim = jnp.corrcoef(bold_sim.T)
-       loss = jnp.mean((FC_sim - FC_emp) ** 2)
-
-       return loss
-
-   # Setup optimizer
-   learning_rate = 1e-3
-   optimizer = optax.adam(learning_rate)
-
-   # Initial parameters
-   params = {'k': 0.2}
-   opt_state = optimizer.init(params)
-
-   # Training loop
-   for epoch in range(100):
-       # Compute gradients
-       loss, grads = jax.value_and_grad(simulate_and_loss)(
-           params['k'], SC, FC_emp
-       )
-
-       # Update parameters
-       updates, opt_state = optimizer.update(grads, opt_state)
-       params = optax.apply_updates(params, updates)
-
-       if epoch % 10 == 0:
-           print(f"Epoch {epoch}: k={params['k']:.3f}, loss={loss:.4f}")
-
-
-SciPy Optimizers
-^^^^^^^^^^^^^^^^
-
-Good for moderate-dimensional problems:
-
-.. code-block:: python
-
-   from scipy.optimize import minimize
-   import jax.numpy as jnp
-
-   def objective(params):
-       k, noise_sigma = params
-       # ... simulate ...
-       loss = fc_loss(k, noise_sigma, FC_emp)
-       return loss
-
-   # Initial guess
-   x0 = [0.2, 0.01]
-
-   # Optimize
-   result = minimize(
-       objective,
-       x0,
-       method='Nelder-Mead',
-       options={'maxiter': 100}
-   )
-
-   best_params = result.x
-   print(f"Best parameters: k={best_params[0]:.3f}, sigma={best_params[1]:.4f}")
-
-
-Multi-Parameter Optimization
------------------------------
-
-Optimizing Multiple Parameters
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: python
-
-   import nevergrad as ng
-
-   # Define parameter space
-   instrum = ng.p.Instrumentation(
-       coupling_k=ng.p.Scalar(init=0.2, lower=0.0, upper=1.0),
-       noise_sigma=ng.p.Scalar(init=0.01, lower=0.0, upper=0.1),
-       tau_E=ng.p.Scalar(init=10.0, lower=5.0, upper=50.0),
-       tau_I=ng.p.Scalar(init=20.0, lower=10.0, upper=100.0),
-   )
-
-   optimizer = ng.optimizers.NGOpt(parametrization=instrum, budget=200)
-
-   def multi_param_objective(coupling_k, noise_sigma, tau_E, tau_I):
-       # Simulate with all parameters
-       # ...
-       return loss
-
-   # Optimize
-   for i in range(200):
-       x = optimizer.ask()
-       loss = multi_param_objective(**x.kwargs)
-       optimizer.tell(x, loss)
-
-
-Constrained Parameters
-^^^^^^^^^^^^^^^^^^^^^^
-
-Use :class:`ArrayParam` for constraints:
-
-.. code-block:: python
+The fitting workflow has four pieces:
+
+1. A model with one or more **trainable parameters** -- a
+   :class:`brainstate.nn.Param` with ``fit=True`` (the default). A transform such
+   as :class:`~brainstate.nn.SigmoidT` keeps the parameter inside physical bounds.
+2. A ``predict(model) -> prediction`` closure, usually a :class:`brainmass.Simulator`
+   run that returns a ``(time, regions)`` trajectory.
+3. An **objective** comparing the prediction to data, from
+   :mod:`brainmass.objectives`.
+4. A :class:`~brainmass.Fitter` that minimises the loss with the chosen backend.
+
+
+A Model, a Prediction, and an Objective
+---------------------------------------
+
+We use a minimal differentiable model with a single bounded gain ``k``. The
+``SigmoidT(0.1, 5.0)`` transform constrains ``k`` to ``(0.1, 5.0)`` -- and those
+bounds are later reused, verbatim, as the search box for the gradient-free
+backends. The synthetic target is generated with a "true" gain of ``2.0``:
+
+.. testcode::
 
    import brainmass
    import braintools
+   import brainstate
+   import brainunit as u
+   import jax.numpy as jnp
+   from brainstate.nn import Param, SigmoidT
 
-   # Create constrained parameter (must be positive)
-   tau_param = brainmass.ArrayParam(
-       data=10.0,  # initial value
-       transform=braintools.SoftplusTransform(),
+   brainstate.environ.set(dt=0.1 * u.ms)
+
+   class GainModel(brainstate.nn.Module):
+       def __init__(self, init_gain=1.0):
+           super().__init__()
+           # Trainable, bounded parameter; stored unconstrained, exposed in (0.1, 5.0).
+           self.k = Param(init_gain, t=SigmoidT(0.1, 5.0))
+
+       def update(self, x):
+           return self.k.value() * x
+
+   # A fixed 3-region drive and the target it should reproduce at the true gain k = 2.0.
+   t = jnp.linspace(0.0, 6.28, 40)[:, None]
+   drive = jnp.sin(t * jnp.arange(1, 4))        # (40, 3): three distinct channels
+   target = 2.0 * drive
+
+   # predict(model) -> (time, regions): one Simulator run over the drive.
+   def predict(model):
+       sim = brainmass.Simulator(model, dt=0.1 * u.ms)
+       return sim.run(4.0 * u.ms, inputs=drive, monitors=None)['output']
+
+   # Write the objective ONCE, then reuse it for every backend below.
+   objective = brainmass.objectives.timeseries_rmse()
+
+
+Gradient-Based (optax)
+----------------------
+
+The ``grad`` backend is the canonical loop: it registers the model's trainable
+``ParamState`` weights with the :mod:`braintools.optim` optimizer, differentiates
+the loss through the (differentiable) model, and steps the optimizer.
+``model.reg_loss()`` is added automatically and parameter transforms keep ``k``
+inside its bounds.
+
+.. testcode::
+
+   fitter = brainmass.Fitter(
+       GainModel(),
+       braintools.optim.Adam(lr=0.2),
+       predict=predict,
+       objective=objective,
+       backend='grad',
    )
+   result = fitter.fit(target=target, n_steps=60)
+   print(f"grad: fitted k = {float(result.best_params['k']):.2f}")
+   assert result.best_loss <= result.history[0]
 
-   # Optimize in unconstrained space
-   def objective(tau_unconstrained):
-       tau_param.value = tau_unconstrained
-       tau_actual = tau_param.data  # always positive
 
-       # Use tau_actual in simulation
-       # ...
-       return loss
+Gradient-Free (Nevergrad)
+-------------------------
+
+Swap ``backend='nevergrad'`` to search the same parameter with an evolutionary
+algorithm -- useful when the objective is non-differentiable. The search box is
+**derived automatically** from the ``SigmoidT`` transform, so no bounds need to be
+spelled out. For the derivative-free backends the ``optimizer`` argument is an
+options dict (or a method-name string):
+
+.. testcode::
+
+   fitter = brainmass.Fitter(
+       GainModel(),
+       {'method': 'DE', 'n_sample': 8},
+       predict=predict,
+       objective=objective,
+       backend='nevergrad',
+   )
+   result = fitter.fit(target=target, n_steps=20)
+   print(f"nevergrad: fitted k = {float(result.best_params['k']):.1f}")
+
+
+SciPy
+-----
+
+``backend='scipy'`` runs :class:`braintools.optim.ScipyOptimizer`. Gradient
+methods (``L-BFGS-B``) differentiate through the parameter assignment;
+gradient-free methods (``Nelder-Mead``) work too. ``n_steps`` is the number of
+random restarts -- a few restarts make the search robust to a poor starting
+point:
+
+.. testcode::
+
+   fitter = brainmass.Fitter(
+       GainModel(),
+       {'method': 'L-BFGS-B'},
+       predict=predict,
+       objective=objective,
+       backend='scipy',
+   )
+   result = fitter.fit(target=target, n_steps=3)
+   print(f"scipy: fitted k = {float(result.best_params['k']):.2f}")
+
+
+Search Spaces from Transforms
+-----------------------------
+
+The gradient-free backends search a bounded box per parameter. The bounds are
+derived from each parameter's transform where the transform defines a finite
+interval:
+
+- :class:`~brainstate.nn.SigmoidT` / ``TanhT`` / ``SoftsignT`` / ``ScaledSigmoidT``
+  -> ``(lower, upper)``
+- :class:`~brainstate.nn.ClipT` -> ``(lower, upper)``
+
+Half-line or unbounded transforms (``ReluT``, ``SoftplusT``, ``PositiveT``,
+``IdentityT``, ...) define no finite box, so you must pass an explicit
+``search_space`` (which also overrides any derived bound):
+
+.. testcode::
+
+   from brainstate.nn import ReluT
+
+   class PositiveGain(brainstate.nn.Module):
+       def __init__(self):
+           super().__init__()
+           self.k = Param(1.0, t=ReluT(0.0))   # lower bound only -> no finite box
+
+       def update(self, x):
+           return self.k.value() * x
+
+   fitter = brainmass.Fitter(
+       PositiveGain(),
+       {'method': 'L-BFGS-B'},
+       predict=predict,
+       objective=objective,
+       backend='scipy',
+       search_space={'k': (0.1, 5.0)},          # supply the box explicitly
+   )
+   result = fitter.fit(target=target, n_steps=1)
+   assert 0.1 <= float(result.best_params['k']) <= 5.0
+
+
+Custom Loss Functions
+---------------------
+
+When the loss is more than ``objective(prediction, target)`` -- multiple terms,
+custom weighting, data captured in a closure -- pass ``loss_fn(model) ->
+(scalar_loss, aux)`` instead of ``predict`` + ``objective``. It is the entire loss
+(you own any regularization):
+
+.. testcode::
+
+   def loss_fn(model):
+       pred = predict(model)
+       rmse = brainmass.objectives.timeseries_rmse()
+       cos = brainmass.objectives.cosine_sim(as_loss=True)
+       loss = rmse(pred, target) + 0.1 * cos(pred, target)
+       return loss, pred
+
+   fitter = brainmass.Fitter(GainModel(), braintools.optim.Adam(lr=0.2), loss_fn=loss_fn)
+   result = fitter.fit(n_steps=40)
+   print(f"custom loss: fitted k = {float(result.best_params['k']):.1f}")
+
+
+Reading the Result
+------------------
+
+:meth:`~brainmass.Fitter.fit` returns a :class:`~brainmass.FitResult`:
+
+- ``best_loss`` -- the lowest loss seen,
+- ``best_params`` -- ``{name: value}`` in constrained (physical) space,
+- ``history`` -- per-iteration loss,
+- ``prediction`` -- the model output at the best point,
+- ``model`` -- the model, left holding the best-seen parameters,
+- ``optimizer`` / ``raw`` -- the underlying optimizer and its native result.
+
+Callbacks (``callbacks=[fn]``, each called with ``{'step', 'loss', 'best_loss',
+'model'}``) can monitor progress and, by returning ``True``, stop the ``grad``
+backend early.
 
 
 Best Practices
 --------------
 
-1. **Start Simple**
-   - Fit one parameter at a time initially
-   - Add complexity gradually
-
-2. **Use Multiple Initializations**
-   - Run optimization from different starting points
-   - Avoid local minima
-
-3. **Normalize Loss**
-   - Scale loss components to similar magnitude
-   - Prevents one term dominating
-
-4. **Validate on Hold-Out Data**
-   - Test fitted parameters on unseen data
-   - Check for overfitting
-
-5. **Monitor Convergence**
-   - Plot loss vs iteration
-   - Stop when loss plateaus
-
-6. **Set Reasonable Bounds**
-   - Use prior knowledge for parameter ranges
-   - Prevents unphysical values
-
-
-Common Issues
--------------
-
-**Optimization Stuck in Local Minimum:**
-
-- Use global optimizer (Nevergrad)
-- Try multiple initializations
-- Increase budget
-
-**Loss Not Decreasing:**
-
-- Check loss function implementation
-- Verify simulation is correct
-- Reduce learning rate (gradient-based)
-
-**Parameters Unrealistic:**
-
-- Add constraints/bounds
-- Use regularization
-- Check units
-
-**Slow Optimization:**
-
-- Reduce simulation time
-- Use simpler model for initial fits
-- Parallelize evaluations (Nevergrad supports this)
-
-
-Complete Example
-----------------
-
-Full FC-Based Parameter Fitting
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: python
-
-   import brainmass
-   import jax.numpy as jnp
-   import brainstate
-   import nevergrad as ng
-
-   # Load data
-   SC = jnp.load('SC_AAL90.npy')
-   FC_emp = jnp.load('FC_empirical.npy')
-
-   # Simulation function
-   def simulate_bold_fc(coupling_k, noise_sigma):
-       N = 90
-       T = 600000  # 10 min at 1ms
-
-       # Create network
-       nodes = brainmass.WongWangStep(in_size=N)
-       coupling = brainmass.DiffusiveCoupling(conn=SC, k=coupling_k)
-       nodes.noise_E = brainmass.OUProcess(
-           in_size=N,
-           sigma=noise_sigma,
-           tau=100.0,
-       )
-       bold = brainmass.BOLDSignal(in_size=N)
-
-       # Initialize
-       nodes.init_all_states()
-       coupling.init_all_states()
-       bold.init_all_states()
-
-       # Simulate
-       neural_ts = []
-       for t in range(T):
-           S_E = nodes.S_E.value
-           coupled = coupling(S_E, S_E)
-           out = nodes.update(S_E_ext=coupled)
-           neural_ts.append(out)
-
-           if t % 10000 == 0:
-               print(f"  Sim: {t}/{T}")
-
-       neural_ts = jnp.stack(neural_ts)
-
-       # BOLD
-       bold_ts = []
-       for z in neural_ts:
-           bold.update(z=z)
-           bold_ts.append(bold.bold())
-
-       bold_downsampled = jnp.stack(bold_ts)[::2000]
-
-       # FC
-       FC_sim = jnp.corrcoef(bold_downsampled.T)
-
-       return FC_sim
-
-   # Loss function
-   def objective(coupling_k, noise_sigma):
-       print(f"Trying k={coupling_k:.3f}, sigma={noise_sigma:.4f}")
-
-       FC_sim = simulate_bold_fc(coupling_k, noise_sigma)
-       corr = jnp.corrcoef(FC_sim.flatten(), FC_emp.flatten())[0, 1]
-       loss = 1.0 - corr
-
-       print(f"  Loss: {loss:.4f}, FC corr: {corr:.4f}")
-       return loss
-
-   # Optimization
-   instrum = ng.p.Instrumentation(
-       coupling_k=ng.p.Scalar(init=0.2, lower=0.0, upper=1.0),
-       noise_sigma=ng.p.Scalar(init=0.01, lower=0.0, upper=0.1),
-   )
-
-   optimizer = ng.optimizers.NGOpt(parametrization=instrum, budget=50)
-
-   for i in range(50):
-       print(f"\n=== Iteration {i+1}/50 ===")
-       x = optimizer.ask()
-       loss = objective(**x.kwargs)
-       optimizer.tell(x, loss)
-
-   # Best result
-   best = optimizer.provide_recommendation()
-   print(f"\nBest parameters:")
-   print(f"  Coupling k: {best.kwargs['coupling_k']:.3f}")
-   print(f"  Noise sigma: {best.kwargs['noise_sigma']:.4f}")
-
-
-Next Steps
-----------
-
-- Try parameter fitting on your own data
-- Explore different loss functions
-- Compare optimization methods
-- :doc:`../examples/index` for advanced optimization examples
+1. **Constrain with transforms.** A ``SigmoidT`` / ``SoftplusT`` parameter cannot
+   leave its physical range, and its bounds double as the gradient-free search box.
+2. **Start simple.** Fit one or two scalar parameters before a full matrix; the
+   gradient-free backends evaluate candidates one at a time and suit low dimensions.
+3. **Normalise the loss.** Scale objective terms to similar magnitudes (see
+   :func:`brainmass.objectives.combine`) so one term does not dominate.
+4. **Discard transients.** Pass ``transient=<n_samples>`` to drop warm-up samples
+   from the prediction before the objective is applied.
+5. **Swap backends to escape local minima.** Try a gradient-free global search
+   (Nevergrad) when gradient descent stalls, then refine with ``grad``.
 
 
 See Also
 --------
 
-- :doc:`forward_modeling` - Getting observable data from models
-- Nevergrad documentation
-- Optax documentation
+- :doc:`forward_modeling` - getting observable data out of models
+- :doc:`building_networks` - building the whole-brain models you fit
+- :class:`brainmass.Simulator` - the run loop behind ``predict``
+- :mod:`brainmass.objectives` - the objective builders

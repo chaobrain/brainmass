@@ -382,3 +382,63 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   initializer + tests + docstrings + notebooks); `pytest -W error::DeprecationWarning` now passes (was 232
   warnings / 26 collection errors). **Lesson:** when scoping a deprecation fix, reproduce the *actual*
   warnings and trace every trigger — don't estimate from the obvious parameter pattern alone.
+
+### 2026-06-18 · goal-08 orchestration-fitter
+
+- **`brainmass.Fitter(model, optimizer=None, *, loss_fn=None, objective=None, predict=None,
+  backend='grad', callbacks=None, transient=None, search_space=None)`** + **`FitResult`** collapse the 7
+  copy-pasted `ModelFitting` classes (in the untracked `tutorials/` scratch dir) into one object.
+  `.fit(target=None, n_steps=100, *, verbose=False) -> FitResult`. "Write the objective once; swap
+  backends." `FitResult` carries `backend, best_loss, best_params{name:constrained}, history, n_steps,
+  prediction, optimizer, raw, model`.
+- **`optimizer` is backend-polymorphic** (the key unification trick): for `backend='grad'` it is a
+  `braintools.optim.OptaxOptimizer` instance (default `Adam(lr=1e-2)`); for `'nevergrad'`/`'scipy'` it is
+  an **options dict** (`{'method':'DE','n_sample':8}` / `{'method':'L-BFGS-B'}`) or a method-name `str` or
+  `None` — the real `NevergradOptimizer`/`ScipyOptimizer` is built *inside* `.fit()` (it needs the loss +
+  bounds at construction) and exposed as `fitter.optimizer`. `n_steps` = optax steps / nevergrad
+  generations / scipy random-restarts.
+- **Two loss paths:** `loss_fn(model)->(scalar, aux)` is the *entire* loss (user owns reg); else
+  `objective(predict(model)[transient:], target) + model.reg_loss()` with `objective` defaulting to
+  `objectives.timeseries_rmse()`. `predict(model)->prediction` is a user-built `Simulator` closure (keeps
+  the constructor free of duration/monitors). `transient` is an **int sample count** trimmed off axis 0.
+- **grad backend = the canonical invariant, verbatim:** `weights = model.states(ParamState)` (empty →
+  clear `ValueError`); `optimizer.register_trainable_weights(weights)`; jitted closure
+  `grad(f_loss, weights, has_aux=True, return_value=True)` → `optimizer.step(grads)`; `f_loss` runs inside
+  `with model.param_precompute():`. Track a **best-seen checkpoint** (snapshot `{path: state.value}` on
+  improvement, restore at end) so the model ends at its best, not its last, point. Step-for-step it
+  reproduces a hand-rolled `ModelFitting` loop (`fitter_test::test_grad_matches_handrolled` asserts
+  `allclose` history).
+- **search_space derivation from Param transforms** (`_finite_box`): only transforms with a *finite*
+  interval auto-derive a box — `SigmoidT/TanhT/SoftsignT/ScaledSigmoidT` via `(.lower, .lower+.width)`,
+  `ClipT` via `(.lower,.upper)`. Half-line/unbounded (`ReluT`(`.lower_bound`!), `SoftplusT/LogT/ExpT`
+  (`.lower` only), `NegSoftplusT` (`.lower` stores upper), `PositiveT/NegativeT/IdentityT`) → **no box** →
+  raise naming the param unless an explicit `search_space[name]` is given (which always overrides). Bounds
+  are built at the param's value shape (`jnp.full(shape, lo/hi)`; scalars stay scalar) so candidate shape
+  matches `set_value`.
+- **⚠ optimizer gotcha for goals 09-10 — derivative-free candidates MUST be looped, not vmapped.**
+  `brainstate.transform.vmap` over `Param.set_value` raises `BatchAxisError` (the written ParamState isn't
+  in `out_states`) — same family as goal-07's batched-delay limitation. So the Nevergrad `batched_loss_fun`
+  evaluates its `n_sample` candidates with a **Python `for` loop** (set_value→predict→objective, stacked);
+  fine for the few scalar params derivative-free search suits, but it does NOT scale to matrix params.
+  `Param.set_value(constrained)` stores `t.inverse(constrained)` and `value()` returns `t.forward` — they
+  round-trip, so the search box lives in constrained/physical space and the transform constraint is
+  redundant-but-harmless there.
+- **Backend availability:** `scipy` is a hard `braintools` dep (always present); **`nevergrad` is only a
+  braintools `testing` extra** — added to `requirements-dev.txt` so CI installs it, and the nevergrad tests
+  `pytest.importorskip('nevergrad')` for robustness. SciPy *gradient* methods (`L-BFGS-B`) DO differentiate
+  through `set_value` (verified); a `timeseries_rmse` loss is V-shaped (`|k−k*|·const`) with a sqrt kink at
+  the optimum, so a single restart can stall — use a few restarts (`n_steps≈3`) for derivative-free robustness.
+- **callbacks/early-stop** are a **grad-backend feature** (the Fitter owns that loop): each
+  `callback({'step','loss','best_loss','model'})` fires per step and returning `True` stops early.
+  Derivative-free backends run `.minimize(n_iter)` to completion (their loop is internal), so callbacks
+  there fire once at the end — documented, not silently dropped.
+- **Migration:** rewrote `docs/tutorials/parameter_fitting.rst` around `Fitter` (was schematic
+  hand-rolled snippets + a nonexistent `brainmass.ArrayParam`) — all blocks are runnable `.. testcode::`
+  (3-region drive so `fc_corr`/`cosine_sim` are non-degenerate). Added `Fitter`/`FitResult` autoclass to
+  `docs/apis/orchestration.rst`. Real nodes (`HopfStep`, `WilsonCowanStep`) expose **no** trainable
+  `ParamState` by default — fitting requires wrapping the target parameter in a `Param(..., t=...)` (as the
+  `tutorials/` models do, e.g. `JansenRitTR(k=Param(5.5, t=ReluT(0.5)))`).
+- **Local coverage is unmeasurable in this WSL env:** `pytest --cov` (and `COVERAGE_CORE=sysmon|pytrace`)
+  **SIGABRT** with JAX imported — reproduces on pre-existing test files too, so it is environmental, not a
+  code bug. CI (Linux) measures the `--cov-fail-under=90` gate fine. Audit branch coverage by reading the
+  code + tests instead; full suite is **439 passed** (403 + 36 new) locally without `--cov`.

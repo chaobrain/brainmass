@@ -98,6 +98,7 @@ from .wilson_cowan import (
 from .wong_wang import WongWangStep
 # Orchestration layer
 from . import objectives
+from .fitter import Fitter, FitResult
 from .network import Network
 from .simulator import Simulator
 
@@ -177,6 +178,8 @@ __all__ = [
     # Orchestration layer
     'Network',
     'Simulator',
+    'Fitter',
+    'FitResult',
     'objectives',
 ]
 
