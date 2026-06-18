@@ -522,9 +522,15 @@ class WilsonCowanNoSaturationStep(WilsonCowanBase):
 
     Examples
     --------
+    >>> import brainmass
+    >>> import brainstate
+    >>> import brainunit as u
+    >>> brainstate.environ.set(dt=0.1 * u.ms)
     >>> model = brainmass.WilsonCowanNoSaturationStep(1)
-    >>> model.init_all_states()
-    >>> model.update(rE_inp=0.5)
+    >>> _ = model.init_all_states()
+    >>> out = model.update(rE_inp=0.5)
+    >>> out.shape
+    (1,)
     """
     __module__ = 'brainmass'
 
@@ -690,9 +696,15 @@ class WilsonCowanSymmetricStep(WilsonCowanBase):
 
     Examples
     --------
+    >>> import brainmass
+    >>> import brainstate
+    >>> import brainunit as u
+    >>> brainstate.environ.set(dt=0.1 * u.ms)
     >>> model = brainmass.WilsonCowanSymmetricStep(1)
-    >>> model.init_all_states()
-    >>> model.update(rE_inp=0.5)
+    >>> _ = model.init_all_states()
+    >>> out = model.update(rE_inp=0.5)
+    >>> out.shape
+    (1,)
     """
     __module__ = 'brainmass'
 
@@ -857,9 +869,15 @@ class WilsonCowanSimplifiedStep(WilsonCowanBase):
 
     Examples
     --------
+    >>> import brainmass
+    >>> import brainstate
+    >>> import brainunit as u
+    >>> brainstate.environ.set(dt=0.1 * u.ms)
     >>> model = brainmass.WilsonCowanSimplifiedStep(1)
-    >>> model.init_all_states()
-    >>> model.update(rE_inp=0.5)
+    >>> _ = model.init_all_states()
+    >>> out = model.update(rE_inp=0.5)
+    >>> out.shape
+    (1,)
     """
     __module__ = 'brainmass'
 
@@ -1020,9 +1038,15 @@ class WilsonCowanLinearStep(WilsonCowanBase):
 
     Examples
     --------
+    >>> import brainmass
+    >>> import brainstate
+    >>> import brainunit as u
+    >>> brainstate.environ.set(dt=0.1 * u.ms)
     >>> model = brainmass.WilsonCowanLinearStep(1)
-    >>> model.init_all_states()
-    >>> model.update(rE_inp=0.5)
+    >>> _ = model.init_all_states()
+    >>> out = model.update(rE_inp=0.5)
+    >>> out.shape
+    (1,)
     """
     __module__ = 'brainmass'
 

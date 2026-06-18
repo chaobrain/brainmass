@@ -398,23 +398,25 @@ def laplacian_connectivity(
 
     Examples
     --------
-    Compute unnormalized Laplacian for a simple 3-node graph:
+    Compute the (combinatorial) Laplacian for a simple 3-node graph:
 
+    >>> import brainmass
     >>> import brainunit as u
     >>> W = u.math.asarray([[0., 1., 1.],
     ...                      [1., 0., 1.],
     ...                      [1., 1., 0.]])
-    >>> L = laplacian_connectivity(W)
-    >>> # L = [[ 2, -1, -1],
-    >>> #      [-1,  2, -1],
-    >>> #      [-1, -1,  2]]
+    >>> L = brainmass.laplacian_connectivity(W)
+    >>> L.shape
+    (3, 3)
+    >>> # every row of the combinatorial Laplacian sums to zero
+    >>> bool(abs(L.sum(axis=1)).max() < 1e-6)
+    True
 
-    Compute symmetric normalized Laplacian:
+    Compute the symmetric normalized Laplacian:
 
-    >>> L_sym = laplacian_connectivity(W, normalize="sym")
-    >>> # L_sym = [[ 1.0, -0.5, -0.5],
-    >>> #          [-0.5,  1.0, -0.5],
-    >>> #          [-0.5, -0.5,  1.0]]
+    >>> L_sym = brainmass.laplacian_connectivity(W, normalize="sym")
+    >>> L_sym.shape
+    (3, 3)
     """
     W = u.math.asarray(W)
     d = u.math.sum(W, axis=-1)  # (N,)

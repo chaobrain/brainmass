@@ -115,16 +115,17 @@ class WongWangStep(brainstate.nn.Dynamics):
 
     Examples
     --------
-    .. code-block:: python
-
-        >>> import brainstate
-        >>> import brainmass
-        >>> model = brainmass.WongWangStep(in_size=100)
-        >>> model.init_all_states(batch_size=1)
-        >>> # Simulate decision-making with rightward motion (c=0.32).
-        >>> for t in range(1000):
-        ...     r1, r2 = model.update(coherence=0.32)
-        >>> # S1 and S2 activities are accessible via model.S1.value / model.S2.value.
+    >>> import brainmass
+    >>> import brainstate
+    >>> import brainunit as u
+    >>> brainstate.environ.set(dt=0.1 * u.ms)
+    >>> model = brainmass.WongWangStep(in_size=2)
+    >>> _ = model.init_all_states()
+    >>> # one decision-making step with rightward motion coherence c=0.32
+    >>> r1, r2 = model.update(coherence=0.32)   # population firing rates (Hz)
+    >>> r1.shape
+    (2,)
+    >>> # S1 and S2 synaptic gating are accessible via model.S1.value / model.S2.value
     """
     __module__ = 'brainmass'
 
