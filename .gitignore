@@ -230,7 +230,7 @@ cython_debug/
 /dev/
 /docs/changelog.md
 /examples/data/
-/docs/api/generated/
+/docs/apis/generated/
 /examples/results/
 
 # brainx-sphinx-header build artifacts

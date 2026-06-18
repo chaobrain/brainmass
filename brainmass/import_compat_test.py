@@ -24,6 +24,7 @@ must still work, and moved classes must remain valid (pytree-flattenable) models
 """
 
 import importlib
+import warnings
 
 import jax
 import numpy as np
@@ -128,3 +129,20 @@ def test_moved_classes_pytree_roundtrip(factory):
     assert len(rebuilt_leaves) == len(leaves)
     for got, exp in zip(rebuilt_leaves, leaves):
         np.testing.assert_array_equal(np.asarray(got), np.asarray(exp))
+
+
+# --- Package ``__getattr__`` deprecation shim (migrated from branch_coverage_test.py) ---
+
+def test_deprecated_model_alias_warns_and_resolves():
+    """Legacy ``*Model`` names resolve to their ``*Step`` class with a warning."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cls = brainmass.WilsonCowanModel  # legacy alias for WilsonCowanStep
+    assert cls is brainmass.WilsonCowanStep
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+
+
+def test_unknown_attribute_raises():
+    """An attribute that is neither current nor a legacy alias raises."""
+    with pytest.raises(AttributeError):
+        _ = brainmass.DefinitelyNotAModelName
