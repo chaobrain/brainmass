@@ -23,7 +23,9 @@ import jax.numpy as jnp
 import numpy as np
 from brainstate.nn import Param, Module, Dynamics
 
-from .coupling import AdditiveCoupling, additive_coupling, LaplacianConnParam
+from .coupling import (
+    AdditiveCoupling, additive_coupling, LaplacianConnParam, AdditiveConn, DelayedAdditiveConn
+)
 from .typing import Initializer, Parameter
 
 __all__ = [
@@ -231,51 +233,6 @@ class HORNStep(Dynamics):
         self.x.value = x_t
         self.y.value = y_t
         return x_t
-
-
-class AdditiveConn(Module):
-    def __init__(
-        self,
-        model: Module,
-        w_init: Callable = braintools.init.KaimingNormal(),
-        b_init: Callable = braintools.init.ZeroInit(),
-    ):
-        super().__init__()
-
-        self.model = model
-        self.linear = brainstate.nn.Linear(self.model.in_size, self.model.out_size, w_init=w_init, b_init=b_init)
-
-    def update_tr(self, *args, **kwargs):
-        return 0.
-
-    def update(self, *args, **kwargs):
-        return self.linear(self.model.y.value)
-
-
-class DelayedAdditiveConn(Module):
-    def __init__(
-        self,
-        model: Dynamics,
-        delay_time: Initializer,
-        delay_init: Initializer = braintools.init.ZeroInit(),
-        w_init: Callable = braintools.init.KaimingNormal(),
-        k: Parameter = 1.0,
-    ):
-        super().__init__()
-
-        n_hidden = model.varshape[0]
-        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
-        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
-        self.prefetch = model.prefetch_delay('y', delay_time, neuron_idx, init=delay_init)
-        self.weights = Param(braintools.init.param(w_init, (n_hidden, n_hidden)))
-        self.k = Param.init(k)
-
-    def update_tr(self, *args, **kwargs):
-        return 0.
-
-    def update(self, *args, **kwargs):
-        delayed = self.prefetch()
-        return additive_coupling(delayed, self.weights.value(), self.k.value())
 
 
 class DelayedAdditiveConnTR(Module):

@@ -16,11 +16,13 @@
 
 from typing import Union, Tuple, Callable, Literal, Optional
 
+import braintools
 import brainstate
 import brainunit as u
+import numpy as np
 from brainstate.nn import Param, Module, init_maybe_prefetch, Transform, IdentityT, Regularization
 
-from .typing import Parameter
+from .typing import Parameter, Initializer
 from .utils import set_module_as
 
 # Typing alias for static type hints
@@ -482,7 +484,11 @@ class LaplacianConnParam(Param):
         eps: float = 1e-12,
         return_diag: bool = False,
     ):
-        super().__init__(W, fit=fit, precompute=self.normalize, t=t, reg=reg)
+        # ``normalize`` is the normalization *mode* string ("rw"/"sym"/None); the
+        # precompute callback is the (renamed) ``_laplacian`` method, so the two
+        # no longer collide on the ``normalize`` name. precompute is invoked
+        # lazily by Param.value()/cache(), after these attributes are set.
+        super().__init__(W, fit=fit, precompute=self._laplacian, t=t, reg=reg)
         self.mask = mask
         self.original_W = W
         self.normalize = normalize
@@ -494,7 +500,7 @@ class LaplacianConnParam(Param):
                     f'Mask shape {mask.shape} must match W shape {W.shape}.'
                 )
 
-    def normalize(self, weight):
+    def _laplacian(self, weight):
         weight = u.math.exp(u.get_magnitude(weight)) * self.original_W
         if self.mask is not None:
             weight = weight * self.mask
@@ -504,3 +510,98 @@ class LaplacianConnParam(Param):
             eps=self.eps,
             return_diag=self.return_diag,
         )
+
+
+class AdditiveConn(Module):
+    r"""Additive recurrent connection: a dense linear map of a model state.
+
+    Reads a named hidden state of ``model`` and applies a trainable linear
+    projection. Shared by the HORN layers (``state='y'``) and the Jansen-Rit
+    layers (``state='M'``); ``brainunit.get_magnitude`` is a no-op on the unitless
+    HORN state and strips units from the unit-carrying Jansen-Rit state.
+
+    Parameters
+    ----------
+    model : brainstate.nn.Module
+        The dynamics module whose state is read.
+    state : str, default 'y'
+        Name of the model attribute (a ``State``) to read; e.g. ``'y'`` (HORN
+        velocity) or ``'M'`` (Jansen-Rit pyramidal potential).
+    w_init : Callable, default KaimingNormal
+        Initializer for the linear weight matrix.
+    b_init : Callable, default ZeroInit
+        Initializer for the linear bias.
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        model: Module,
+        state: str = 'y',
+        w_init: Callable = braintools.init.KaimingNormal(),
+        b_init: Callable = braintools.init.ZeroInit(),
+    ):
+        super().__init__()
+
+        self.model = model
+        self.state = state
+        self.linear = brainstate.nn.Linear(
+            self.model.in_size, self.model.out_size, w_init=w_init, b_init=b_init
+        )
+
+    def update_tr(self, *args, **kwargs):
+        return 0.
+
+    def update(self, *args, **kwargs):
+        x = u.get_magnitude(getattr(self.model, self.state).value)
+        return self.linear(x)
+
+
+class DelayedAdditiveConn(Module):
+    r"""Delayed additive recurrent connection.
+
+    Prefetches a delayed model state and applies :func:`additive_coupling`.
+    Shared by the HORN layers (``state='y'``) and the Jansen-Rit layers
+    (``state='M'``).
+
+    Parameters
+    ----------
+    model : brainstate.nn.Dynamics
+        The dynamics module whose delayed state is read.
+    delay_time : Initializer or ArrayLike
+        Per-connection delay times, shaped ``(n_hidden, n_hidden)``.
+    state : str, default 'y'
+        Name of the model state to prefetch with delay.
+    delay_init : Initializer, default ZeroInit
+        Initializer for the delay buffer.
+    w_init : Callable, default KaimingNormal
+        Initializer for the coupling weight matrix.
+    k : Parameter, default 1.0
+        Global coupling strength.
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        model: Module,
+        delay_time: Initializer,
+        state: str = 'y',
+        delay_init: Initializer = braintools.init.ZeroInit(),
+        w_init: Callable = braintools.init.KaimingNormal(),
+        k: Parameter = 1.0,
+    ):
+        super().__init__()
+
+        n_hidden = model.varshape[0]
+        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
+        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
+        self.prefetch = model.prefetch_delay(state, delay_time, neuron_idx, init=delay_init)
+        self.weights = Param(braintools.init.param(w_init, (n_hidden, n_hidden)))
+        self.k = Param.init(k)
+
+    def update_tr(self, *args, **kwargs):
+        return 0.
+
+    def update(self, *args, **kwargs):
+        delayed = u.get_magnitude(self.prefetch())
+        return additive_coupling(delayed, self.weights.value(), self.k.value())

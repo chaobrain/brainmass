@@ -25,8 +25,7 @@ from brainstate.nn import (
     exp_euler_step, Param, Dynamics, Module, init_maybe_prefetch, Delay,
 )
 
-import brainmass
-from .coupling import additive_coupling
+from .coupling import additive_coupling, AdditiveConn, DelayedAdditiveConn
 from .noise import Noise, GaussianNoise
 from .typing import Parameter, Initializer
 from .utils import delay_index
@@ -138,7 +137,7 @@ class JansenRitStep(brainstate.nn.Dynamics):
          - 0.125-0.375
        * - smax
          - Max firing rate
-         - 2.5 s^-1
+         - 5.0 s^-1
          - -
        * - v0
          - Firing threshold
@@ -165,8 +164,9 @@ class JansenRitStep(brainstate.nn.Dynamics):
         Global connectivity scaling (dimensionless).
     a1, a2, a3, a4 : `ArrayLike` or `Callable`, defaults `1., 0.8, 0.25, 0.25`
         Connectivity parameters (dimensionless) used as in the equations above.
-    s_max : `ArrayLike` or `Callable`, default `2.5 * u.Hz`
-        Maximum firing rate for the sigmoid, units s^-1.
+    s_max : `ArrayLike` or `Callable`, default `5.0 * u.Hz`
+        Maximum firing rate for the sigmoid, units s^-1. This is the
+        literature value :math:`2 e_0 = 5` s\ :sup:`-1` (Jansen & Rit, 1995).
     v0 : `ArrayLike` or `Callable`, default `6. * u.mV`
         Sigmoid midpoint (mV).
     r : `ArrayLike` or `Callable`, default `0.56`
@@ -627,7 +627,7 @@ class JansenRitTR(Dynamics):
         n_hidden = self.varshape[0]
         dt = brainstate.environ.get_dt()
         self.delay = Delay(self.step.M_init(self.varshape), init=delay_init)
-        self.delay_access = self.delay.access('delay', delay * dt, brainmass.delay_index(n_hidden))
+        self.delay_access = self.delay.access('delay', delay * dt, delay_index(n_hidden))
 
         # connectivity
         self.conn = LaplacianConnectivity(
@@ -651,6 +651,16 @@ class JansenRitTR(Dynamics):
         record_state: bool = False,
         iter_input: bool = False
     ):
+        n_step = int(self.tr / brainstate.environ.get_dt())
+        if iter_input:
+            assert input.shape[0] == n_step, f'Input length {input.shape[0]} does not match number of steps {n_step}'
+
+        # Per-TR terms (constant across the sub-step loop) are computed *before*
+        # the closure so they are bound when ``step`` runs, rather than relying on
+        # Python late-binding of names assigned after the closure was defined.
+        input = self.k.value() * input
+        inp_M_tr, inp_E_tr, inp_I_tr = self.conn.update_tr()
+
         def step(inp):
             ext = inp if iter_input else input
             inp_M_step, inp_E_step, inp_I_step = self.conn.update()
@@ -659,12 +669,6 @@ class JansenRitTR(Dynamics):
             inp_I = (inp_I_tr + inp_I_step) * u.mV
             self.step.update(inp_M, inp_E, inp_I)
 
-        n_step = int(self.tr / brainstate.environ.get_dt())
-        if iter_input:
-            assert input.shape[0] == n_step, f'Input length {input.shape[0]} does not match number of steps {n_step}'
-
-        input = self.k.value() * input
-        inp_M_tr, inp_E_tr, inp_I_tr = self.conn.update_tr()
         brainstate.transform.for_loop(step, input if iter_input else np.arange(n_step))
         self.delay.update(self.step.M.value)
         activity = self.step.E.value - self.step.I.value
@@ -674,46 +678,6 @@ class JansenRitTR(Dynamics):
             state = dict(M=self.step.M.value, E=self.step.E.value, I=self.step.I.value)
             return activity, state
         return activity
-
-
-class AdditiveConn(Module):
-    def __init__(
-        self,
-        model: Module,
-        w_init: Callable = braintools.init.KaimingNormal(),
-        b_init: Callable = braintools.init.ZeroInit(),
-    ):
-        super().__init__()
-
-        self.model = model
-        self.linear = brainstate.nn.Linear(self.model.in_size, self.model.out_size, w_init=w_init, b_init=b_init)
-
-    def update(self, *args, **kwargs):
-        inp = u.get_magnitude(self.model.M.value)
-        return self.linear(inp)
-
-
-class DelayedAdditiveConn(Module):
-    def __init__(
-        self,
-        model: Dynamics,
-        delay_time: Initializer,
-        delay_init: Initializer = braintools.init.ZeroInit(),
-        w_init: Callable = braintools.init.KaimingNormal(),
-        k: Parameter = 1.0,
-    ):
-        super().__init__()
-
-        n_hidden = model.varshape[0]
-        delay_time = braintools.init.param(delay_time, (n_hidden, n_hidden))
-        neuron_idx = np.tile(np.expand_dims(np.arange(n_hidden), axis=0), (n_hidden, 1))
-        self.prefetch = model.prefetch_delay('M', delay_time, neuron_idx, init=delay_init)
-        self.weights = Param(braintools.init.param(w_init, (n_hidden, n_hidden)))
-        self.k = Param.init(k)
-
-    def update(self, *args, **kwargs):
-        delayed = u.get_magnitude(self.prefetch())
-        return additive_coupling(delayed, self.weights.value(), self.k.value())
 
 
 class JansenRitLayer(Module):
@@ -784,9 +748,9 @@ class JansenRitLayer(Module):
         )
         self.i2h = brainstate.nn.Linear(n_input, n_hidden, w_init=inp_w_init, b_init=inp_b_init)
         if delay is None:
-            self.h2h = AdditiveConn(self.dynamics, w_init=rec_w_init, b_init=rec_b_init)
+            self.h2h = AdditiveConn(self.dynamics, state='M', w_init=rec_w_init, b_init=rec_b_init)
         else:
-            self.h2h = DelayedAdditiveConn(self.dynamics, delay, delay_init=delay_init, w_init=rec_w_init)
+            self.h2h = DelayedAdditiveConn(self.dynamics, delay, state='M', delay_init=delay_init, w_init=rec_w_init)
 
     def update(self, inputs, record_state: bool = False):
         def step(inp):

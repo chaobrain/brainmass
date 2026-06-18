@@ -28,102 +28,103 @@ __all__ = [
 
 
 class WongWangStep(brainstate.nn.Dynamics):
-    r"""
-    The Wong-Wang neural mass model for perceptual decision-making.
-    
-    This model implements the reduced two-variable neural mass model described in:
-    Wong, K.-F. & Wang, X.-J. "A Recurrent Network Mechanism of Time Integration 
-    in Perceptual Decisions." J. Neurosci. 26, 1314–1328 (2006).
-    
-    The model describes the competitive dynamics between two neural populations 
-    (e.g., left vs right motion detection) through slow NMDA-mediated recurrent 
-    excitation, capturing the temporal integration of sensory evidence during 
+    r"""Wong-Wang reduced neural-mass model for perceptual decision-making.
+
+    Implements the reduced two-variable model of Wong & Wang (2006). It
+    describes the competitive dynamics between two neural populations (e.g.
+    left- vs right-motion detectors) through slow NMDA-mediated recurrent
+    excitation, capturing the temporal integration of sensory evidence during
     perceptual decision-making.
 
-    Mathematical Description
-    ========================
-    
-    The model is governed by two coupled differential equations for the synaptic 
-    gating variables S1 and S2 of the competing neural populations:
-    
+    Parameters
+    ----------
+    in_size : brainstate.typing.Size
+        Shape of the population (number of independent decision units).
+    tau_S : Parameter, default ``0.1 * u.second``
+        NMDA receptor time constant.
+    gamma : Parameter, default 0.641
+        Saturation factor for the synaptic gating variables.
+    a : Parameter, default ``270. * (u.Hz / u.nA)``
+        Gain of the input-output (f-I) function.
+    theta : Parameter, default ``0.31 * u.nA``
+        Firing threshold of the input-output function.
+    J_N11 : Parameter, default ``0.2609 * u.nA``
+        Self-excitation strength of population 1.
+    J_N22 : Parameter, default ``0.2609 * u.nA``
+        Self-excitation strength of population 2.
+    J_N12 : Parameter, default ``0.0497 * u.nA``
+        Cross-inhibition strength from population 2 to population 1.
+    J_N21 : Parameter, default ``0.0497 * u.nA``
+        Cross-inhibition strength from population 1 to population 2.
+    J_A_ext : Parameter, default ``0.0002243 * (u.nA / u.Hz)``
+        External input strength (AMPA).
+    mu_0 : Parameter, default ``30. * u.Hz``
+        Baseline external input rate.
+    I_0 : Parameter, default ``0.3255 * u.nA``
+        Background input current.
+    noise_s1 : Noise, optional
+        Noise process added to the input current of population 1. ``None``
+        disables noise on that population.
+    noise_s2 : Noise, optional
+        Noise process added to the input current of population 2. ``None``
+        disables noise on that population.
+
+    Notes
+    -----
+    The model evolves the synaptic gating variables :math:`S_1` and :math:`S_2`
+    of the two competing populations:
+
     .. math::
-        \frac{dS_1}{dt} = -\frac{S_1}{\tau_S} + (1-S_1)\gamma r_1
-        
+
+        \frac{dS_1}{dt} = -\frac{S_1}{\tau_S} + (1-S_1)\gamma r_1 , \qquad
+        \frac{dS_2}{dt} = -\frac{S_2}{\tau_S} + (1-S_2)\gamma r_2 ,
+
+    where the firing rates follow the threshold-linear f-I curve
+
     .. math::
-        \frac{dS_2}{dt} = -\frac{S_2}{\tau_S} + (1-S_2)\gamma r_2
-    
-    where the firing rates r1 and r2 are given by:
-    
-    .. math::
+
         r_i = \phi(I_i) = \begin{cases}
             a(I_i - \theta) & \text{if } I_i > \theta \\
-            0 & \text{otherwise}
+            0 & \text{otherwise} ,
         \end{cases}
-    
-    The total input current to each population is:
-    
+
+    and the total input currents are
+
     .. math::
-        I_1 = J_{N,11}S_1 - J_{N,12}S_2 + J_{A,ext}\mu_0(1+c) + I_{noise,1}
-        
+
+        I_1 = J_{N,11}S_1 - J_{N,12}S_2 + J_{A,ext}\mu_0(1+c) + I_0 + I_{noise,1} ,
+
     .. math::
-        I_2 = J_{N,22}S_2 - J_{N,21}S_1 + J_{A,ext}\mu_0(1-c) + I_{noise,2}
 
-    Parameters
-    ==========
-    
-    Synaptic Parameters:
-        - $\tau_S$ = 100 ms : NMDA receptor time constant
-        - $\gamma$ = 0.641 : Saturation factor for synaptic gating
-        
-    Input-Output Function:
-        - $\alpha$ = 270 Hz/nA : Gain parameter
-        - $\theta$ = 0.31 nA : Firing threshold
-        
-    Network Connectivity (typical values):
-        - J_N,11 = J_N,22 = 0.2609 nA : Self-excitation strength
-        - J_N,12 = J_N,21 = 0.0497 nA : Cross-inhibition strength
-        - J_A,ext = 0.00052 nA : External input strength
-        
-    External Input:
-        - $\mu_0$ = 30 Hz : Baseline external input rate
-        - $c \in [-1, 1]$ : Motion coherence (stimulus strength)
+        I_2 = J_{N,22}S_2 - J_{N,21}S_1 + J_{A,ext}\mu_0(1-c) + I_0 + I_{noise,2} ,
 
+    with motion coherence :math:`c \in [-1, 1]`.
 
-    Network Behavior
-    ================
-    
-    The model exhibits rich dynamics depending on the stimulus strength:
-    
-    1. **Spontaneous State**: At c=0 (no coherence), both populations have equal 
-       activity, representing uncertainty.
-       
-    2. **Decision State**: For $|c| > 0$, one population gradually wins the competition,
-       representing a perceptual choice.
-       
-    3. **Bistability**: The network can exhibit bistable attractor dynamics where
-       the system can remain in either of two decision states.
-       
-    4. **Integration Time**: The slow NMDA dynamics ($\tau_S$ = 100ms) enable temporal
-       integration of sensory evidence over hundreds of milliseconds.
+    The network exhibits a spontaneous (symmetric) state at :math:`c = 0`, a
+    decision state in which one population wins for :math:`|c| > 0`, bistable
+    attractor dynamics, and slow (:math:`\tau_S = 100` ms) temporal integration
+    of evidence over hundreds of milliseconds.
 
-
-    Usage Example
-    =============
-    
-    >>> model = WongWangStep(in_size=100)
-    >>> model.init_all_states(batch_size=1)
-    >>> 
-    >>> # Simulate decision making with rightward motion (c=0.32)
-    >>> for t in range(1000):
-    ...     output = model.update(coherence=0.32)
-    ...     # S1 and S2 activities accessible via model.S1.value, model.S2.value
-    
     References
-    ==========
-    
-    - Wong, K.-F. & Wang, X.-J. A Recurrent Network Mechanism of Time Integration 
-      in Perceptual Decisions. J. Neurosci. 26, 1314–1328 (2006).
-    - Deco, G. et al. The role of rhythm in cognition. Front. Hum. Neurosci. 5, 29 (2011).
+    ----------
+    .. [1] Wong, K.-F. & Wang, X.-J. "A Recurrent Network Mechanism of Time
+           Integration in Perceptual Decisions." J. Neurosci. 26, 1314-1328
+           (2006).
+    .. [2] Deco, G. et al. "The role of rhythm in cognition." Front. Hum.
+           Neurosci. 5, 29 (2011).
+
+    Examples
+    --------
+    .. code-block:: python
+
+        >>> import brainstate
+        >>> import brainmass
+        >>> model = brainmass.WongWangStep(in_size=100)
+        >>> model.init_all_states(batch_size=1)
+        >>> # Simulate decision-making with rightward motion (c=0.32).
+        >>> for t in range(1000):
+        ...     r1, r2 = model.update(coherence=0.32)
+        >>> # S1 and S2 activities are accessible via model.S1.value / model.S2.value.
     """
     __module__ = 'brainmass'
 
@@ -135,7 +136,7 @@ class WongWangStep(brainstate.nn.Dynamics):
         tau_S: Parameter = 0.1 * u.second,  # NMDA time constant (ms)
         gamma: Parameter = 0.641,  # saturation factor
 
-        # Input-output function parameters  
+        # Input-output function parameters
         a: Parameter = 270. * (u.Hz / u.nA),  # gain (Hz/nA)
         theta: Parameter = 0.31 * u.nA,  # firing threshold (nA)
 
@@ -185,30 +186,41 @@ class WongWangStep(brainstate.nn.Dynamics):
         self.S2 = brainstate.HiddenState.init(jnp.zeros, self.varshape, batch_size)
 
     def phi(self, I):
-        """
-        Input-output transfer function (f-I curve).
-        
-        Args:
-            I: Input current (nA)
-            
-        Returns:
-            Firing rate (Hz)
+        """Threshold-linear input-output transfer function (f-I curve).
+
+        Parameters
+        ----------
+        I : ArrayLike
+            Input current (in units of ``nA``).
+
+        Returns
+        -------
+        ArrayLike
+            Firing rate (in units of ``Hz``); ``a * (I - theta)`` above
+            threshold and ``0`` otherwise.
         """
         theta = self.theta.value()
         a = self.a.value()
         return u.math.where(I > theta, a * (I - theta), 0. * u.Hz)
 
     def compute_inputs(self, coherence=0., noise_1_val=0. * u.nA, noise_2_val=0. * u.nA):
-        """
-        Compute total input currents to both populations.
-        
-        Args:
-            coherence: Motion coherence level, c ∈ [-1, 1]
-            noise_1_val: Noise input to population 1
-            noise_2_val: Noise input to population 2
-            
-        Returns:
-            Tuple of (I1, I2) input currents
+        """Compute the total input currents to both populations.
+
+        Parameters
+        ----------
+        coherence : float, default 0.0
+            Motion coherence level, ``c`` in ``[-1, 1]``.
+        noise_1_val : ArrayLike, default ``0. * u.nA``
+            Noise input added to population 1.
+        noise_2_val : ArrayLike, default ``0. * u.nA``
+            Noise input added to population 2.
+
+        Returns
+        -------
+        I1 : ArrayLike
+            Total input current to population 1.
+        I2 : ArrayLike
+            Total input current to population 2.
         """
         J_A_ext = self.J_A_ext.value()
         mu_0 = self.mu_0.value()
@@ -245,15 +257,20 @@ class WongWangStep(brainstate.nn.Dynamics):
         return (-S2 / tau_S + (1 - S2) * gamma * r2).to(u.Hz)
 
     def update(self, coherence=0.):
-        """
-        Update the Wong-Wang model for one time step.
-        
-        Args:
-            coherence: Motion coherence level, c ∈ [-1, 1]. Positive values 
-                      favor population 1, negative values favor population 2.
+        """Advance the Wong-Wang model by one time step.
 
-        Returns:
-            Tuple of (r1, r2) firing rates of the two populations
+        Parameters
+        ----------
+        coherence : float, default 0.0
+            Motion coherence level, ``c`` in ``[-1, 1]``. Positive values
+            favour population 1, negative values favour population 2.
+
+        Returns
+        -------
+        r1 : ArrayLike
+            Firing rate of population 1 (in units of ``Hz``).
+        r2 : ArrayLike
+            Firing rate of population 2 (in units of ``Hz``).
         """
         # Add noise if specified
         noise_1_val = 0. * u.nA if self.noise_s1 is None else self.noise_s1()
@@ -277,14 +294,19 @@ class WongWangStep(brainstate.nn.Dynamics):
         return r1, r2
 
     def get_decision(self, threshold=15. * u.Hz):
-        """
-        Get the current decision based on firing rate threshold.
-        
-        Args:
-            threshold: Firing rate threshold for decision (Hz)
-            
-        Returns:
-            Decision: 1 if population 1 wins, -1 if population 2 wins, 0 if undecided
+        """Return the current decision based on a firing-rate threshold.
+
+        Parameters
+        ----------
+        threshold : ArrayLike, default ``15. * u.Hz``
+            Firing-rate threshold a population must exceed to count as the
+            winner.
+
+        Returns
+        -------
+        ArrayLike
+            Decision code: ``1`` if population 1 wins, ``-1`` if population 2
+            wins, and ``0`` if undecided.
         """
         I1, I2 = self.compute_inputs()
         r1 = self.phi(I1)

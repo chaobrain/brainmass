@@ -264,6 +264,20 @@ class LeadFieldModel(nn.Module):
         unit **sensor_unit^2**, or a unitless array in which case its unit is assumed compatible
         with ``sensor_unit**2``. Noise is sampled i.i.d. across time (same covariance at each step).
 
+    See Also
+    --------
+    brainmass.leadfield.LeadfieldReadout
+        A lightweight, trainable EEG readout head.
+
+    Notes
+    -----
+    Use :class:`LeadFieldModel` when you need a physically faithful forward
+    operator: explicit physical units, optional vertex-to-region aggregation,
+    and additive measurement noise with a configurable covariance. Prefer
+    :class:`brainmass.leadfield.LeadfieldReadout` instead when you only need a
+    lightweight, *trainable* EEG readout head that operates on plain (unitless)
+    arrays with optional row normalisation / demeaning.
+
     """
     __module__ = 'brainmass'
 
@@ -297,8 +311,21 @@ class LeadFieldModel(nn.Module):
 
     def _sample_noise(self, T: int) -> Quantity:
         """
-        Sample Gaussian sensor noise E (M,T) with covariance self._noise_cov_q per time step.
-        Returns a Quantity in sensor_unit.
+        Sample i.i.d. Gaussian sensor noise of shape ``(T, M)``.
+
+        Each row is drawn from a zero-mean Gaussian with covariance ``noise_cov``
+        using its Cholesky factor ``self._noise_conv_Lc`` (built in ``__init__``
+        when ``noise_cov`` is provided).
+
+        Parameters
+        ----------
+        T : int
+            Number of time steps (rows) to sample.
+
+        Returns
+        -------
+        Quantity
+            Sensor noise of shape ``(T, M)`` with unit ``sensor_unit``.
         """
         z = brainstate.random.randn(T, self.M)
         e = z @ self._noise_conv_Lc  # (T,M) @ (M,M) -> (T,M)
@@ -319,27 +346,31 @@ class LeadFieldModel(nn.Module):
 
         Parameters
         ----------
-        nmm_obs_or_dipoles : ArrayLike
-            ``(R, T)`` region time series. If `already_in_dipole_unit=False`, this is the
-            **NMM observable** (e.g., membrane potential in mV) which will be mapped to dipole
-            moment via `scale`. If `already_in_dipole_unit=True`, it is interpreted directly as
-            dipole moment (ECD) in `dipole_unit`.
-            Accepts unitless arrays (units are attached via `scale`/constructor) or `Quantity`.
+        nmm_obs_or_dipoles : ArrayLike or Quantity
+            Region time series with shape ``(..., R)`` (e.g. ``(T, R)``). It is the
+            **NMM observable** (e.g. membrane potential in mV) and is mapped to the
+            dipole moment via ``scale`` (``s = scale * nmm_obs_or_dipoles``). When
+            ``scale`` is dimensionless the input is treated as already being in
+            ``dipole_unit``. Accepts unitless arrays (units attached via
+            ``scale``/constructor) or a `Quantity`.
 
         Returns
         -------
-        y :
-            Sensor-space time series **Quantity** of shape ``(M, T)`` with unit `sensor_unit`.
+        y : Quantity
+            Sensor-space time series of shape ``(..., M)`` (e.g. ``(T, M)``) with
+            unit ``sensor_unit``.
 
         Notes
         -----
-        The mapping uses the instantaneous linear model:
+        The mapping uses the instantaneous linear model
 
         .. math::
-            \mathbf{Y} = \mathbf{S}\,\mathbf{L} + \mathbf{E}.
+            \mathbf{Y} = \mathbf{S}\,\mathbf{L} + \mathbf{E},
 
-        where :math:`\mathbf{S}` stacks dipoles over time and :math:`\mathbf{E}` is sampled per
-        time step from :math:`\mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma})` if enabled.
+        where :math:`\mathbf{S}` (shape ``(..., R)``) stacks dipoles over time,
+        :math:`\mathbf{L}` has shape ``(R, M)``, and :math:`\mathbf{E}` is sampled
+        per time step from :math:`\mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma})`
+        when ``noise_cov`` is provided.
 
         """
         # 1) Ensure dipoles S (T, R) as Quantity in dipole_unit
