@@ -19,7 +19,8 @@ import braintools
 import brainunit as u
 
 import brainstate
-from brainstate.nn import Param, Dynamics
+from brainstate.nn import Param
+from ._base import NeuralMassDynamics
 from .noise import Noise
 from .typing import Parameter
 
@@ -28,7 +29,7 @@ __all__ = [
 ]
 
 
-class FitzHughNagumoStep(Dynamics):
+class FitzHughNagumoStep(NeuralMassDynamics):
     r"""FitzHugh–Nagumo neural mass model.
 
     A two-dimensional reduction of the Hodgkin–Huxley model that captures
@@ -227,13 +228,14 @@ class FitzHughNagumoStep(Dynamics):
             V_inp = V_inp + self.noise_V()
         if self.noise_w is not None:
             w_inp = w_inp + self.noise_w()
-        if self.method == 'exp_euler':
-            V = brainstate.nn.exp_euler_step(self.dV, self.V.value, self.w.value, V_inp)
-            w = brainstate.nn.exp_euler_step(self.dw, self.w.value, self.V.value, w_inp)
-        else:
-            method = getattr(braintools.quad, f'ode_{self.method}_step')
-            t = brainstate.environ.get('t', 0 * u.ms)
-            V, w = method(self.derivative, (self.V.value, self.w.value), t, V_inp, w_inp)
+        V, w = self._solve_step(
+            exp_euler_specs=(
+                (self.dV, self.V.value, self.w.value, V_inp),
+                (self.dw, self.w.value, self.V.value, w_inp),
+            ),
+            ode_state=(self.V.value, self.w.value),
+            ode_inputs=(V_inp, w_inp),
+        )
         self.V.value = V
         self.w.value = w
         return V

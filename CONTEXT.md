@@ -66,7 +66,9 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   where the vector field should be → `TypeError: input function should be callable`. Only the
   default `exp_euler` path works; `method='rk2'|'rk4'` is dead. Found in goal-04 (integrator
   sweep), parked as **2 strict `xfail`s** in `integrator_test.py` (so the fix flips them to
-  pass). Fix in goal-05.
+  pass). **RESOLVED in goal-05** — `MontbrioPazoRoxinStep` now routes through the shared
+  `NeuralMassDynamics._solve_step`, which passes `self.derivative` correctly; the two `xfail`
+  markers were removed and the cases pass.
 
 ## Known drift / debt
 
@@ -227,3 +229,56 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   needed only locally before and is NOT shipped. `pytest-cov`+`coverage` added to requirements-dev.
 - **For goal-05:** see the new `qif.py` entry under *Known latent bugs* — the 2 strict `xfail`s in
   `integrator_test.py` flip to pass the moment `self.derivative` is restored.
+
+### 2026-06-18 · goal-05 structure-refactor
+- **Headline — unified the 2-variable model base + split the two dumping-ground modules, with
+  PROVEN zero behaviour change.** New private `brainmass/_base.py::NeuralMassDynamics` owns the
+  one duplicated integrator-selection branch (`exp_euler` per-variable `exp_euler_step` vs
+  `getattr(braintools.quad, f'ode_{method}_step')(self.derivative, state, t, *inps)`). `XY_Oscillator`
+  (→ hopf/sl/vdp), `FitzHughNagumoStep`, `MontbrioPazoRoxinStep` now subclass it and delegate via
+  `self._solve_step(exp_euler_specs=…, ode_state=…, ode_inputs=…)`. Net suite **311→337 passed**,
+  coverage **97.85%→98.17%** (`_base.py`, all `jansen_rit/*` and `horn/*` submodules 100%).
+- **Migration scope discipline:** only models that *duplicated* the branch were migrated.
+  `WongWang` (exp_euler-only, clamps S∈[0,1], no `method`/`derivative`) and `KuramotoNetwork`
+  (single-var, exp_euler-only) have **no** branch → deliberately untouched. `WilsonCowan*` and
+  `JansenRitStep` keep their *own* branches: WC already has an internal base hierarchy shared by
+  ~10 variants, and Jansen is a 6-variable model — neither is a "2-variable oscillator", both are
+  out of scope (a separate unification risk). Migrating only the genuine duplicates kept the diff
+  small and the equivalence airtight.
+- **Carve big modules mechanically, not by hand.** `jansen_rit.py` (991 L) → `jansen_rit/` and
+  `horn.py` (773 L) → `horn/` were split with a throwaway Python script that maps **by top-level
+  class name** (immune to line-number drift), reproduces the import header, rewrites intra-package
+  relatives `.coupling`→`..coupling`, and rstrip-joins blocks. Hand-retyping ~1.8k lines would
+  have been error-prone; the script made it deterministic. `orphaned `zeros()` helper dropped.
+- **Non-breaking package split recipe (every old path must still resolve):**
+  - Order submodule imports by dependency (step → connectivity → tr/network) to dodge cycles; the
+    package's on-demand `from ..noise import …` works even though `brainmass/__init__` imports the
+    package *before* its own `noise` line (the submodule loads independently).
+  - The package `__init__.py` **re-exports every former module member** (incl. internal helpers
+    `Identity`/`LaplacianConnectivity` and the coupling names `brainmass.horn.AdditiveConn` that a
+    tutorial used) so `brainmass.<pkg>.<name>` keeps importing — this is also the path **pickle**
+    uses for pre-split instances, so it must hold even for non-public classes.
+  - `__module__` of moved classes shifts (`brainmass.jansen_rit`→`brainmass.jansen_rit.tr`) UNLESS
+    hardcoded — `JansenRitStep`/`LaplacianConnectivity` keep `__module__='brainmass'`. Cosmetic and
+    nothing asserts it; the re-exports cover pickle/back-compat regardless.
+  - New `import_compat_test.py` locks all of this: `__all__` resolves, both old module paths
+    resolve, top-level `is` package object (one class → one pytree registration), the Model→Step
+    shim still warns, and moved classes still pytree-flatten.
+- **Pre/post equivalence proof beats a self-referential snapshot.** Goldens were generated from a
+  **throwaway `git worktree add --detach /tmp/bm_main origin/main`** (PYTHONPATH-pinned so the
+  right `brainmass` imports past the site-packages copy), then compared to the refactored code:
+  **all 7 touched models bit-identical** (not just within `rtol=1e-5`). The earlier Phase-B "1-ULP"
+  scare was a capture artifact — same deterministic `exp_euler` run in two clean processes fuses
+  identically in XLA. `characterization_test.py` pins those goldens (fixture
+  `_characterization_goldens.json`, tol `rtol=1e-5/atol=1e-6` only to absorb future platform drift).
+- **goal-01 debts closed:** (1) `LeadfieldReadout.normalize` — kept L1 as the back-compat default
+  (`True`≡`'l1'`, the historical `sum(sqrt(w²))=sum(|w|)`), added opt-in `'l2'`
+  (`sqrt(sum(w²))`), validated `_resolve_normalize` (bad value → `ValueError`); 4 new leadfield
+  tests. (2) `JansenRitNetwork` multi-layer unit bug — fixed at the network level by
+  `x = u.get_magnitude(layer(x))` between layers (single-layer output untouched); the strict
+  `xfail` became a passing `test_network_multi_layer_runs`.
+- **`np.asarray` on a unit-bearing `Quantity` RAISES** (refuses to silently drop the unit) — the
+  pytree round-trip test compares the already-unit-stripped `jax.tree.leaves`, not the State values.
+- **Gotcha confirmed again:** drvfs file-tool persistence is bumpy — `git rm` on a worktree-modified
+  file needs `-f`; and a package dir shadows a same-named stale `.py` at import time, so delete the
+  old module *before* trusting the smoke test.

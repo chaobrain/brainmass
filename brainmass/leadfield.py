@@ -51,9 +51,19 @@ class LeadfieldReadout(Module):
         Output bias parameter, subtracted from every channel.
     cy0 : Parameter
         Global scaling coefficient applied to the projected activity.
-    normalize : bool, default True
-        If ``True``, scale each leadfield row by its L1 norm (``sum(|w|)``,
-        the sum of absolute values). Note: historically labelled "L2".
+    normalize : bool or {'l1', 'l2'}, default True
+        Row-normalisation mode for the leadfield matrix:
+
+        - ``True`` or ``'l1'`` (default): scale each row by its **L1** norm
+          ``sum(|w|)`` so the row's absolute values sum to one.
+        - ``'l2'``: scale each row by its **L2** (Euclidean) norm
+          ``sqrt(sum(w**2))`` so each row becomes a unit vector.
+        - ``False``: no row normalisation.
+
+        ``True`` maps to ``'l1'`` for backward compatibility: the original
+        implementation computed ``sum(sqrt(w**2)) == sum(|w|)`` while its comment
+        mislabelled it "L2". L1 is kept as the default so existing results are
+        unchanged; pass ``'l2'`` to opt into Euclidean row normalisation.
     demean : bool, default True
         If ``True``, remove the per-channel mean across sensors (columns).
 
@@ -87,8 +97,31 @@ class LeadfieldReadout(Module):
         self.lm.precompute = self.normalize_leadfield
         self.y0 = y0
         self.cy0 = cy0
-        self.normalize = normalize
+        self.normalize = self._resolve_normalize(normalize)
         self.demean = demean
+
+    @staticmethod
+    def _resolve_normalize(normalize):
+        """Normalise the ``normalize`` argument to ``'l1'``, ``'l2'`` or ``None``.
+
+        ``True`` maps to ``'l1'`` (backward compatible) and ``False``/``None`` to
+        ``None`` (no normalisation).
+
+        Raises
+        ------
+        ValueError
+            If ``normalize`` is not one of ``True``, ``False``, ``None``,
+            ``'l1'`` or ``'l2'``.
+        """
+        if normalize is True:
+            return 'l1'
+        if normalize is False or normalize is None:
+            return None
+        if normalize in ('l1', 'l2'):
+            return normalize
+        raise ValueError(
+            f"normalize must be one of True, False, 'l1', 'l2'; got {normalize!r}."
+        )
 
     def normalize_leadfield(self, lm: Array) -> Array:
         """Row-normalise and/or demean the leadfield matrix.
@@ -104,15 +137,19 @@ class LeadfieldReadout(Module):
         Returns
         -------
         Array
-            The leadfield matrix after optional L1 row normalisation
-            (``normalize``; scales each row by ``sum(|w|)``) and optional
-            per-channel demeaning (``demean``).
+            The leadfield matrix after optional row normalisation
+            (``'l1'`` scales each row by ``sum(|w|)``; ``'l2'`` by
+            ``sqrt(sum(w**2))``) and optional per-channel demeaning
+            (``demean``).
         """
 
-        if self.normalize:
-            # Scale each row by its L1 norm: sum(|w|). (Comment historically
-            # said "L2"; the code computes sum(sqrt(w**2)) == sum(|w|).)
-            row_norms = u.math.sum(u.math.sqrt(lm ** 2), axis=1, keepdims=True)
+        if self.normalize == 'l1':
+            # L1 row norm: sum of absolute values per row.
+            row_norms = u.math.sum(u.math.abs(lm), axis=1, keepdims=True)
+            lm = lm / row_norms
+        elif self.normalize == 'l2':
+            # L2 (Euclidean) row norm: each row becomes a unit vector.
+            row_norms = u.math.sqrt(u.math.sum(lm ** 2, axis=1, keepdims=True))
             lm = lm / row_norms
 
         # Optional: remove mean across channels (columns)

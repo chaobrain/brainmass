@@ -21,6 +21,7 @@ import brainunit as u
 
 import brainstate
 from brainstate.nn import Param
+from ._base import NeuralMassDynamics
 from .noise import Noise
 from .typing import Parameter
 
@@ -29,7 +30,7 @@ __all__ = [
 ]
 
 
-class MontbrioPazoRoxinStep(brainstate.nn.Dynamics):
+class MontbrioPazoRoxinStep(NeuralMassDynamics):
     r"""Montbrio-Pazo-Roxin infinite theta neuron population model.
 
     Implements the exact mean-field reduction of a population of all-to-all
@@ -253,13 +254,14 @@ class MontbrioPazoRoxinStep(brainstate.nn.Dynamics):
         if self.noise_v is not None:
             v_inp = v_inp + self.noise_v()
 
-        if self.method == 'exp_euler':
-            r = brainstate.nn.exp_euler_step(self.dr, self.r.value, self.v.value, r_inp)
-            v = brainstate.nn.exp_euler_step(self.dv, self.v.value, self.r.value, v_inp)
-        else:
-            r, v = getattr(braintools.quad, f'ode_{self.method}_step')(
-                (self.r.value, self.v.value), 0. * u.ms, r_inp, v_inp
-            )
+        r, v = self._solve_step(
+            exp_euler_specs=(
+                (self.dr, self.r.value, self.v.value, r_inp),
+                (self.dv, self.v.value, self.r.value, v_inp),
+            ),
+            ode_state=(self.r.value, self.v.value),
+            ode_inputs=(r_inp, v_inp),
+        )
         self.r.value = r
         self.v.value = v
         return r

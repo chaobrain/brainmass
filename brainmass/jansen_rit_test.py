@@ -630,15 +630,14 @@ class TestJansenRit2LayerAndNetwork:
         assert out.shape == (2,)  # network emits a single readout from the final state
         assert np.all(np.isfinite(np.asarray(u.get_magnitude(out))))
 
-    @pytest.mark.xfail(
-        reason="Pre-existing latent bug: stacking JansenRit2Layers feeds an mV "
-               "Quantity output into the next layer, which re-multiplies by u.mV "
-               "-> UnitMismatchError. Out of scope for goal-01; documented here. "
-               "Construction (the multi-layer __init__ loop) is still exercised.",
-        raises=Exception,
-        strict=True,
-    )
-    def test_network_multi_layer_unit_chaining_bug(self):
+    def test_network_multi_layer_runs(self):
+        """Stacking ≥2 JansenRit2Layers now runs (goal-05 fix).
+
+        Previously this was ``xfail(strict)``: a layer emits an mV ``eeg()``
+        proxy, and the next layer re-multiplied its input by ``u.mV`` ->
+        ``UnitMismatchError``. ``JansenRitNetwork.update`` now strips units
+        between layers, so a two-layer stack produces a finite readout.
+        """
         from brainmass.jansen_rit import JansenRitNetwork
         brainstate.environ.set(dt=1e-4 * u.second)
         np.random.seed(0)  # deterministic delay matrix
