@@ -1,5 +1,7 @@
 numpy
 jax
 brainunit
-braintools
+# braintools 0.2.0 has a batched-init regression (init.param double-prepends
+# the batch axis); pin below it until the upstream fix is released.
+braintools<0.2.0
 brainstate>=0.2.9
