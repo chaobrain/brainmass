@@ -625,16 +625,22 @@ class HORNSeqNetwork(Module):
     --------
     Create a 2-layer HORN network for sequence classification:
 
+    >>> import brainmass
     >>> import brainstate
-    >>> net = HORNSeqNetwork(
+    >>> import brainunit as u
+    >>> brainstate.environ.set(dt=0.1 * u.ms)
+    >>> net = brainmass.HORNSeqNetwork(
     ...     n_input=10,
     ...     n_hidden=[64, 128],
     ...     n_output=5,
     ...     alpha=0.04,
-    ...     omega=2*3.14159/28
+    ...     omega=2 * 3.14159 / 28,
     ... )
+    >>> _ = brainstate.nn.init_all_states(net)
     >>> inputs = brainstate.random.randn(20, 10)  # (time_steps, input_dim)
-    >>> output = net(inputs)  # (output_dim,)
+    >>> output = net(inputs)
+    >>> output.shape
+    (5,)
     """
 
     def __init__(
