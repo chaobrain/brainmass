@@ -39,6 +39,8 @@ The ``brainmass`` package provides the following components:
      - Forward models for mapping neural activity to observed signals (BOLD, EEG/MEG)
    * - :doc:`horn`
      - Harmonic Oscillator Recurrent Networks (HORN) for sequence learning
+   * - :doc:`orchestration`
+     - Simulator driver and composable objective builders for fitting
    * - :doc:`utilities`
      - Utility functions for common operations
 
@@ -78,6 +80,12 @@ Quick Navigation
       :link-type: doc
 
       Harmonic oscillator recurrent networks for temporal sequences
+
+   .. grid-item-card:: Orchestration
+      :link: orchestration
+      :link-type: doc
+
+      Simulator run loop and composable objective builders for parameter fitting
 
    .. grid-item-card:: Utilities & Types
       :link: utilities
@@ -131,4 +139,5 @@ All models are unit-aware via ``brainunit``:
    coupling
    forward
    horn
+   orchestration
    utilities

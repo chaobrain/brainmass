@@ -282,3 +282,61 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
 - **Gotcha confirmed again:** drvfs file-tool persistence is bumpy — `git rm` on a worktree-modified
   file needs `-f`; and a package dir shadows a same-named stale `.py` at import time, so delete the
   old module *before* trusting the smoke test.
+
+### 2026-06-18 · goal-06 orchestration-simulator
+- **Headline — the in-package run loop now exists.** New `brainmass/simulator.py::Simulator` (100%
+  cov) and `brainmass/objectives.py` (100% cov) are the first orchestration layer (sub-project A1,
+  06→07→08). Both exported from `__init__` under a `# Orchestration layer` block (`Simulator` as a
+  class, `objectives` as a submodule). Suite **337→384 passed** (+47: 27 simulator + 20 objectives),
+  coverage **98.17%→98.42%**. No model API touched — the layer is purely additive.
+- **`Simulator(model, dt=None).run(duration, *, inputs, monitors, transient, sample_every,
+  batch_size, init_states, jit)` → plain `dict`** of `{monitor_name: stacked_traj, 'ts': time_axis}`.
+  It only *composes* the existing idiom (`environ.context(dt=)` → `init_all_states` →
+  `for_loop(step_run, arange(n))` → collect `.value`); reimplements nothing. Returns a dict (not a
+  Bunch) so it's a clean pytree through jit/grad/vmap. `sim.model` stays exposed.
+- **Ordering that matters inside `run` (cost us 16 failures, then fixed):** `dt` must be live in
+  `environ` *before* `init_all_states` because delay buffers size from `delay/dt` at init. BUT the
+  `monitors` validation (`hasattr(model, name)`) must run *after* init — state attrs like `x`/`V`
+  don't exist until `init_state`. So: resolve dt/steps/transient/sample_every and build `get_inputs`
+  (input-length check, dt-independent) BEFORE the `environ.context(dt=dt)` block; do `init_all_states`
+  then `_build_measure` INSIDE it. 07/08 closures that drive `.run` must respect this if they
+  pre-validate monitors.
+- **`monitors` polymorphism:** `None`→`{'output': update_return}`; `list[str]`→`getattr(model,name).value`
+  each; `callable(model)`→`{'output': fn(model)}` (derived observables like `lambda m: m.eeg()`);
+  `dict{name: str|callable}`. **`transient`** accepts a `Quantity` *or* an int step count;
+  **`sample_every=k`** is a post-hoc stride `[n_tr::k]` (NOT a substep loop — `for_loop` materialises
+  the whole trajectory anyway, so slicing is exact and ~free) and generalises the `JansenRitTR` TR
+  loop. **`ts` convention:** `ts[k]` = time at the *end* of the k-th recorded step (state is
+  post-`update`), i.e. `((arange(n_steps)+1)*dt)[n_tr::k]` → `ts[0]==dt`, `ts[-1]==duration`.
+- **array `inputs` must be jnp, not numpy** — `arr[i]` with a traced loop counter `i` fails on a
+  numpy array. Cast with `jnp.asarray` *unless* it's a `u.Quantity` (leave Quantities alone; casting
+  drops units). Then `get_inputs(i,t) = (arr[i],)`.
+- **Edge cases pinned (simulator_test.py, 27 tests):** dt unset→ValueError; non-integer
+  `duration/dt`→floor+`warnings.warn`; zero/negative duration→raise; `transient>=duration`→raise;
+  bad monitor name→raise (list *and* dict forms); wrong `inputs` length→raise; `sample_every<1`→raise.
+  Behavioural proofs: single-node run **bit-identical** to a hand-written `for_loop` (seeded,
+  `np.array_equal`); jit vs no-jit identical; units propagate (Montbrio `r`→Hz); `batch_size=4`→leading
+  batch axis `(T,4,N)`; `init_states=False` continues from current state; **`jax.grad` through
+  `run` ≈ FD** (rel 2e-2); whole-brain WilsonCowan+DiffusiveCoupling net matches a manual loop.
+- **`objectives.py` = builders, not metrics.** Each fn returns a small `callable(pred, target)` that's
+  jit/grad/vmap-safe and unit-aware, wrapping `braintools.metric` with zero re-implemented maths:
+  `timeseries_rmse` (unit-CHECKED subtraction — mV vs Hz raises), `fc_corr(as_loss=)`,
+  `fc_rmse`, `cosine_sim(as_loss=, epsilon=)`, `fcd(window_size=, step_size=, as_loss=)`, and
+  `combine(*(weight, objective))`→weighted sum. **`fcd` finally surfaces
+  `functional_connectivity_dynamics`** (was zero call sites — the long-flagged debt). `as_loss=True`
+  returns `1-score` (minimise); default returns the raw score (maximise). `_mag = u.get_magnitude`
+  strips units only where the metric is scale-invariant (FC/cosine), never on the RMSE subtraction.
+  This is the loss surface the goal-08 fitter will minimise; goal-07 (connectome `Network`) feeds
+  its trajectory straight into `Simulator.run` → `objectives.*`.
+- **Doctest gate decision (carrying goal-02's lesson forward):** wrote all examples as **bare `>>>`
+  napoleon blocks**, NOT `.. code-block:: python`. Only bare blocks (+`.. testcode::`) are executed
+  by `sphinx.ext.doctest` (`doctest_test_doctest_blocks="default"`); a `code-block` with `>>>` is
+  cosmetic and silently untested. CLAUDE.md asks for `.. code-block::` styling but the goal-02 ledger
+  + the live doctest gate win here — examples that aren't gated rot. `combine`'s example uses two
+  RMSE terms `(2.0+0.5)*1.0=2.5`, NOT an FC term: FC of an all-zeros (zero-variance) signal is `nan`.
+- **Example migrated:** `examples/000-getting-started.ipynb` Step 5 now uses
+  `brainmass.Simulator(node, dt).run(n_steps*dt, monitors=['x','y'], init_states=False)` instead of a
+  hand-written `step_run`/`for_loop` — bit-identical trajectory (verified). Kept `n_steps`/`indices`
+  defined in that cell because the downstream `visualization` cell and the `simulate_hope_model`
+  exploration cell read the **global** `indices`/`t_ms`; dropping them would break later cells.
+  (Notebooks are `nb_execution_mode="off"` — not run in CI — so verified the equivalence in a script.)
