@@ -17,6 +17,7 @@ import brainstate
 import braintools
 import brainunit as u
 import jax.numpy as jnp
+import numpy as np
 
 import brainmass
 
@@ -127,3 +128,56 @@ class TestVanDerPolOscillator:
         assert dy.shape == (1,)
         assert u.get_unit(dx).dim == (1 / u.ms).dim
         assert u.get_unit(dy).dim == (1 / u.ms).dim
+
+
+# --------------------------------------------------------------------------- #
+# Pre-refactor golden trajectory (goal-05 characterization)
+# --------------------------------------------------------------------------- #
+# Goal-05 re-parented ``VanDerPolStep`` onto the unified ``NeuralMassDynamics``
+# base; that refactor had to be behaviour-preserving. This pins a seeded,
+# deterministic 20-step ``exp_euler`` trajectory against values captured from
+# ``origin/main`` *before* the refactor. The trajectory was bit-identical
+# pre/post; ``rtol`` only guards future XLA/platform drift.
+_VDP_PRE_REFACTOR_GOLDEN = [
+    [0.010361060500144958, 0.008537974208593369, 0.00523275276646018, 0.01725160889327526],
+    [0.022566400468349457, 0.017678774893283844, 0.005750805605202913, 0.017678506672382355],
+    [0.03735793009400368, 0.028748206794261932, 0.006879125721752644, 0.018562445417046547],
+    [0.05516974255442619, 0.04207060858607292, 0.008747022598981857, 0.019999856129288673],
+    [0.07649889588356018, 0.05801885947585106, 0.011505509726703167, 0.022103385999798775],
+    [0.10191033780574799, 0.07701975852251053, 0.015330454334616661, 0.025004329159855843],
+    [0.13203904032707214, 0.09955871105194092, 0.02042597159743309, 0.02885531634092331],
+    [0.16758665442466736, 0.1261826753616333, 0.027027923613786697, 0.033833250403404236],
+    [0.20930832624435425, 0.15749940276145935, 0.035407256335020065, 0.04014238342642784],
+    [0.2579832077026367, 0.1941702961921692, 0.04587267339229584, 0.04801735281944275],
+    [0.3143593966960907, 0.23689216375350952, 0.05877183377742767, 0.05772586911916733],
+    [0.37906163930892944, 0.2863616645336151, 0.07448980212211609, 0.06957047432661057],
+    [0.4524499475955963, 0.3432137966156006, 0.0934428870677948, 0.08388856053352356],
+    [0.5344231128692627, 0.4079245924949646, 0.1160653829574585, 0.10104925185441971],
+    [0.6241783499717712, 0.4806699752807617, 0.14278653264045715, 0.12144548445940018],
+    [0.7199731469154358, 0.5611404180526733, 0.17399545013904572, 0.1454789787530899],
+    [0.8189802765846252, 0.6483305096626282, 0.2099941074848175, 0.1735360026359558],
+    [0.9173604249954224, 0.740352988243103, 0.250943124294281, 0.20595252513885498],
+    [1.010647177696228, 0.834363579750061, 0.29681113362312317, 0.24297016859054565],
+    [1.0944160223007202, 0.926695704460144, 0.3473435044288635, 0.2846883535385132],
+]
+
+
+def test_trajectory_matches_pre_refactor_golden():
+    """VanDerPolStep reproduces its pre-refactor seeded ``exp_euler`` trajectory."""
+    brainstate.environ.set(dt=0.1 * u.ms)
+    brainstate.random.seed(0)
+    np.random.seed(0)
+    model = brainmass.VanDerPolStep(in_size=2, mu=2.0)
+    brainstate.nn.init_all_states(model)
+    traj = []
+    for i in range(20):
+        with brainstate.environ.context(i=i, t=i * 0.1 * u.ms):
+            out = model.update(0.1, 0.0)
+        traj.append(np.asarray(u.get_magnitude(out)).reshape(-1))
+    got = np.stack(traj)
+    golden = np.asarray(_VDP_PRE_REFACTOR_GOLDEN)
+    assert got.shape == golden.shape
+    np.testing.assert_allclose(
+        got, golden, rtol=1e-5, atol=1e-6,
+        err_msg="vdp: trajectory drifted from pre-refactor golden",
+    )

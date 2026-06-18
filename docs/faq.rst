@@ -235,7 +235,7 @@ Fix: Ensure connectivity matrix matches node dimensions:
 
 **Error: "Module 'brainmass' has no attribute 'X'"**
 
-Fix: Check spelling or see :doc:`api/index` for available models.
+Fix: Check spelling or see :doc:`apis/index` for available models.
 
 
 Advanced Topics
@@ -285,6 +285,6 @@ See Also
 --------
 
 - :doc:`tutorials/index` - Tutorials for common tasks
-- :doc:`api/index` - Complete API reference
+- :doc:`apis/index` - Complete API reference
 - :doc:`examples/index` - Working examples
 - :doc:`developer/index` - For contributors

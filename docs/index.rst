@@ -94,7 +94,7 @@ Where to Start
       Browse the **Examples Gallery** for practical applications
 
    .. grid-item-card:: Need specific functionality?
-      :link: api/index
+      :link: apis/index
       :link-type: doc
 
       Check the **API Reference** for detailed documentation
@@ -127,7 +127,7 @@ Documentation Structure
       Jupyter notebooks with practical applications
 
    .. grid-item-card:: API Reference
-      :link: api/index
+      :link: apis/index
       :link-type: doc
 
       Complete API documentation
@@ -163,6 +163,6 @@ BrainX Ecosystem
    :caption: Additional Resources
 
    faq
-   api/index
+   apis/index
    changelog
 
