@@ -67,6 +67,7 @@ shutil.copy('../changelog.md', './changelog.md')
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
+    'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
@@ -144,7 +145,14 @@ html_last_updated_fmt = ""
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
-jupyter_execute_notebooks = "off"
+
+# Notebooks under ``examples/`` are NOT executed at build time, on purpose: every notebook
+# already carries embedded outputs, several are large (``003-jansen-rit`` / ``008-horn`` ~2 MB),
+# and ``100-modeling_resting_state_MEG_data`` downloads HCP sample data via kagglehub on demand.
+# Documentation is kept honest instead by ``sphinx.ext.doctest`` (docstring ``>>>`` examples plus
+# tutorial ``.. testcode::`` blocks); goal-03 wires these checks into CI.
+nb_execution_mode = "off"          # myst-nb >= 0.13 (current)
+jupyter_execute_notebooks = "off"  # legacy alias, kept for older myst-nb
 thebe_config = {
     "repository_url": "https://github.com/binder-examples/jupyter-stacks-datascience",
     "repository_branch": "master",
@@ -154,8 +162,23 @@ html_theme_options = {
     'show_toc_level': 2,
 }
 
-# -- Options for myst ----------------------------------------------
+# -- Options for doctest (sphinx.ext.doctest) ----------------------
+#
+# ``make doctest`` (and goal-03's CI job) executes every docstring ``>>>`` example and every
+# ``.. testcode::`` block in the tutorials, so documented code cannot drift from the API again.
+# The setup below is prepended to each doctest group, giving examples the common imports and a
+# default integration step without per-example boilerplate. Examples needing a different ``dt``
+# (e.g. the dimensionless ``BOLDSignal``) reset it locally.
+doctest_global_setup = """
+import brainmass
+import brainstate
+import brainunit as u
+import jax
+import jax.numpy as jnp
+import numpy as np
+brainstate.environ.set(dt=0.1 * u.ms)
+"""
 
-autodoc_default_options = {
-    'exclude-members': '....,default_rng',
-}
+# Test bare ``>>>`` doctest blocks (the NumPy-doc ``Examples`` sections) in addition to the
+# explicit ``.. testcode::`` / ``.. doctest::`` directives.
+doctest_test_doctest_blocks = "default"
