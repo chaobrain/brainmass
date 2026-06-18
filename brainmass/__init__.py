@@ -96,6 +96,9 @@ from .wilson_cowan import (
     WilsonCowanThreePopulationStep,
 )
 from .wong_wang import WongWangStep
+# Orchestration layer
+from . import objectives
+from .simulator import Simulator
 
 __all__ = [
     '__version__',
@@ -169,6 +172,10 @@ __all__ = [
     'HORNStep',
     'HORNSeqLayer',
     'HORNSeqNetwork',
+
+    # Orchestration layer
+    'Simulator',
+    'objectives',
 ]
 
 
