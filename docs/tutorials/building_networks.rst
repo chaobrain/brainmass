@@ -25,55 +25,50 @@ A brain network consists of:
 Simple Network Example
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-``DiffusiveCoupling`` reads each node's state through a *prefetch* (here a delayed
-read of ``x``), multiplies the pairwise differences by the connectivity, and returns
-a per-node current you feed back into ``update``:
+:class:`~brainmass.Network` wires a node model into a delay-coupled whole-brain
+network: it zeros the connectivity diagonal, turns a distance matrix into
+conduction delays (``distance / speed``), prefetches each region's delayed state,
+and feeds the :class:`~brainmass.DiffusiveCoupling` current back into the node.
+The :class:`~brainmass.Simulator` then drives it -- the whole loop that used to be
+hand-written collapses to a few lines:
 
 .. testcode::
 
    import brainmass
    import braintools
    import jax.numpy as jnp
-   import numpy as np
    import brainunit as u
    import brainstate
 
    brainstate.environ.set(dt=0.1 * u.ms)
    N_regions = 10
 
-   # 1. Create node dynamics
+   # 1. Node dynamics for all regions
    nodes = brainmass.HopfStep(
        in_size=N_regions,
        w=0.2,   # intrinsic angular frequency (dimensionless normal-form parameter)
        a=0.1,
    )
 
-   # 2. Create structural connectivity (no self-connections)
-   W = jnp.ones((N_regions, N_regions)) * 0.05
-   W = W.at[jnp.diag_indices(N_regions)].set(0.)
+   # 2. Structural connectivity and inter-region distances (synthetic)
+   W = jnp.ones((N_regions, N_regions)) * 0.05         # Network zeros the diagonal
+   distance = jnp.ones((N_regions, N_regions)) * 2.0   # mm
 
-   # 3. Wire coupling: every target reads each source's delayed ``x``
-   delays = jnp.ones((N_regions, N_regions)) * (1.0 * u.ms)
-   src_idx = np.tile(np.arange(N_regions)[None, :], (N_regions, 1))
-   x_delayed = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())
-   x_local = nodes.prefetch('x')
-   coupling = brainmass.DiffusiveCoupling(x_delayed, x_local, conn=W, k=0.2)
-
-   # 4. Initialize (the coupling owns the delay buffer)
-   brainstate.nn.init_all_states(nodes)
-   brainstate.nn.init_all_states(coupling)
-
-   # 5. Simulation loop
-   def network_step(i):
-       with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
-           coupled_input = coupling.update()   # (N,) coupling current
-           nodes.update(coupled_input, 0.0)    # feed it as the x input
-           return nodes.x.value
-
-   network_activity = brainstate.transform.for_loop(
-       network_step,
-       np.arange(1000),
+   # 3. Build the delay-coupled network (couple the ``x`` state)
+   net = brainmass.Network(
+       nodes,
+       conn=W,
+       distance=distance,
+       speed=2.0,                # mm/ms -> 1 ms delays
+       coupled_var='x',
+       k=0.2,
+       delay_init=braintools.init.ZeroInit(),
    )
+
+   # 4. Drive it with the simulator (init + loop + collect handled for you)
+   sim = brainmass.Simulator(net, dt=0.1 * u.ms)
+   res = sim.run(100.0 * u.ms, monitors=lambda m: m.node.x.value)
+   network_activity = res['output']   # (1000, 10): (time steps, regions)
 
 
 Structural Connectivity

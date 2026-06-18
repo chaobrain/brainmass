@@ -4,13 +4,28 @@ Orchestration
 .. currentmodule:: brainmass
 
 The orchestration layer sits *on top of* the neural mass models. It provides the
-reusable run loop and the loss/score builders that earlier had to be hand-written
-in every example and tutorial:
+reusable run loop, connectome builder, and loss/score builders that earlier had to
+be hand-written in every example and tutorial:
 
+- :class:`Network` wires a node model into a delay-coupled whole-brain network.
 - :class:`Simulator` drives any model (single node or whole-brain network) and
   collects monitored trajectories into a unit-aware result.
 - :mod:`brainmass.objectives` composes :mod:`braintools.metric` into small,
   jit / grad / vmap-safe objective callables over those trajectories.
+
+
+Network
+-------
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+
+   Network
+
+.. autoclass:: Network
+   :members:
+   :special-members: __init__
 
 
 Simulator
