@@ -62,7 +62,7 @@ hand-written collapses to a few lines:
        speed=2.0,                # mm/ms -> 1 ms delays
        coupled_var='x',
        k=0.2,
-       delay_init=braintools.init.ZeroInit(),
+       delay_init=braintools.init.Constant(0.0),
    )
 
    # 4. Drive it with the simulator (init + loop + collect handled for you)

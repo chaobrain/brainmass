@@ -93,10 +93,10 @@ class HORNStep(Dynamics):
         Default is ``0.0`` (no amplitude feedback).
     x_init : Initializer, optional
         Initializer for the position state :math:`\mathbf{x}`.
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
     y_init : Initializer, optional
         Initializer for the velocity state :math:`\mathbf{y}`.
-        Default is ``braintools.init.ZeroInit()``.
+        Default is ``braintools.init.Constant(0.0)``.
 
     Attributes
     ----------
@@ -144,8 +144,8 @@ class HORNStep(Dynamics):
         omega: Parameter = 2. * math.pi / 28.,  # natural frequency
         gamma: Parameter = 0.01,  # damping
         v: Parameter = 0.0,  # Amplitude feedback
-        x_init: Initializer = braintools.init.ZeroInit(),
-        y_init: Initializer = braintools.init.ZeroInit(),
+        x_init: Initializer = braintools.init.Constant(0.0),
+        y_init: Initializer = braintools.init.Constant(0.0),
     ):
         super().__init__(in_size)
 

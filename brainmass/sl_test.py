@@ -39,8 +39,8 @@ class TestStuartLandauOscillator:
         ny = brainmass.OUProcess(4, sigma=0.0)
         m = brainmass.StuartLandauStep(
             in_size=4,
-            init_x=braintools.init.ZeroInit(),
-            init_y=braintools.init.ZeroInit(),
+            init_x=braintools.init.Constant(0.0),
+            init_y=braintools.init.Constant(0.0),
             noise_x=nx,
             noise_y=ny,
         )
@@ -86,8 +86,8 @@ class TestStuartLandauOscillator:
         ny = brainmass.OUProcess(2, sigma=0.0)
         m = brainmass.StuartLandauStep(
             in_size=2,
-            init_x=braintools.init.ZeroInit(),
-            init_y=braintools.init.ZeroInit(),
+            init_x=braintools.init.Constant(0.0),
+            init_y=braintools.init.Constant(0.0),
             noise_x=nx,
             noise_y=ny,
         )
@@ -108,8 +108,8 @@ class TestStuartLandauOscillator:
         ny = brainmass.OUProcess(sz, sigma=0.0)
         m = brainmass.StuartLandauStep(
             in_size=sz,
-            init_x=braintools.init.ZeroInit(),
-            init_y=braintools.init.ZeroInit(),
+            init_x=braintools.init.Constant(0.0),
+            init_y=braintools.init.Constant(0.0),
             noise_x=nx,
             noise_y=ny,
         )

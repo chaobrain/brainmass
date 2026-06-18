@@ -191,7 +191,7 @@ def test_conn_1d_flattened_matches_2d(dt, connectome):
         brainstate.random.seed(1)
         net = brainmass.Network(
             _det_hopf(n), conn=conn, coupled_var="x", k=0.3,
-            delay_init=braintools.init.ZeroInit(),
+            delay_init=braintools.init.Constant(0.0),
         )
         return np.asarray(_run(net, 20, jit=False)["output"])
 
@@ -207,7 +207,7 @@ def test_nonsymmetric_sc_respected(dt, connectome):
     def run(conn):
         net = brainmass.Network(
             _det_hopf(n), conn=conn, coupled_var="x", k=0.5,
-            delay_init=braintools.init.ZeroInit(),
+            delay_init=braintools.init.Constant(0.0),
         )
         return np.asarray(_run(net, 30, jit=False)["output"])
 
@@ -238,7 +238,7 @@ def test_instantaneous_differs_from_delayed(dt, connectome):
         brainstate.random.seed(2)
         net = brainmass.Network(
             _det_hopf(n), conn=conn, distance=distance, speed=speed,
-            coupled_var="x", k=0.6, delay_init=braintools.init.ZeroInit(),
+            coupled_var="x", k=0.6, delay_init=braintools.init.Constant(0.0),
         )
         return np.asarray(_run(net, 60, jit=False)["output"])
 
@@ -256,7 +256,7 @@ def test_faster_speed_is_closer_to_instantaneous(dt, connectome):
         brainstate.random.seed(3)
         net = brainmass.Network(
             _det_hopf(n), conn=conn, distance=distance, speed=speed,
-            coupled_var="x", k=0.6, delay_init=braintools.init.ZeroInit(),
+            coupled_var="x", k=0.6, delay_init=braintools.init.Constant(0.0),
         )
         return np.asarray(_run(net, 60, jit=False)["output"])
 
@@ -279,7 +279,7 @@ def test_delay_units_plain_equals_quantity(dt, connectome):
         brainstate.random.seed(4)
         net = brainmass.Network(
             _det_hopf(n), conn=conn, distance=distance, speed=speed,
-            coupled_var="x", k=0.5, delay_init=braintools.init.ZeroInit(),
+            coupled_var="x", k=0.5, delay_init=braintools.init.Constant(0.0),
         )
         return np.asarray(_run(net, 30, jit=False)["output"])
 
@@ -319,7 +319,7 @@ def test_laplacian_coupling_runs_and_grad(dt, connectome):
     def loss(kval):
         net = brainmass.Network(
             _det_hopf(n), conn=connectome["SC"], coupling="laplacian",
-            coupled_var="x", k=Param(kval), delay_init=braintools.init.ZeroInit(),
+            coupled_var="x", k=Param(kval), delay_init=braintools.init.Constant(0.0),
         )
         xs = _run(net, 25, jit=False)["output"]
         return jnp.mean(u.get_magnitude(xs) ** 2)
@@ -347,7 +347,7 @@ def test_trainable_conn_param_passthrough(dt, connectome):
         # A Param conn is passed through untouched (and is trainable).
         net = brainmass.Network(
             _det_hopf(n), conn=Param(w * scale), coupled_var="x", k=0.5,
-            delay_init=braintools.init.ZeroInit(),
+            delay_init=braintools.init.Constant(0.0),
         )
         xs = _run(net, 25, jit=False)["output"]
         return jnp.mean(u.get_magnitude(xs) ** 2)
@@ -364,7 +364,7 @@ def test_prebuilt_laplacian_conn_param(dt, connectome):
     lap = brainmass.LaplacianConnParam(w, fit=False)
     net = brainmass.Network(
         _det_hopf(n), conn=lap, coupling="laplacian", coupled_var="x", k=0.3,
-        delay_init=braintools.init.ZeroInit(),
+        delay_init=braintools.init.Constant(0.0),
     )
     assert _run(net, 20, jit=False)["output"].shape == (20, n)
 
@@ -380,14 +380,14 @@ def test_network_level_noise_changes_trajectory(dt, connectome):
     brainstate.random.seed(5)
     quiet = brainmass.Network(
         _det_hopf(n), conn=conn, coupled_var="x", k=0.3,
-        delay_init=braintools.init.ZeroInit(),
+        delay_init=braintools.init.Constant(0.0),
     )
     quiet_out = np.asarray(_run(quiet, 30, jit=False)["output"])
 
     brainstate.random.seed(5)
     noisy = brainmass.Network(
         _det_hopf(n), conn=conn, coupled_var="x", k=0.3,
-        delay_init=braintools.init.ZeroInit(),
+        delay_init=braintools.init.Constant(0.0),
         noise=brainmass.OUProcess(n, sigma=0.05),
     )
     noisy_out = np.asarray(_run(noisy, 30, jit=False)["output"])
@@ -406,7 +406,7 @@ def test_gradient_through_k(dt, connectome):
     def loss(kval):
         net = brainmass.Network(
             _det_hopf(n), conn=conn, coupled_var="x", k=Param(kval),
-            delay_init=braintools.init.ZeroInit(),
+            delay_init=braintools.init.Constant(0.0),
         )
         xs = _run(net, 30, jit=False)["output"]
         return jnp.mean(u.get_magnitude(xs) ** 2)

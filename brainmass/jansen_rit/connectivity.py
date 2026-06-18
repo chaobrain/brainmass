@@ -270,7 +270,7 @@ class LaplacianConnV2(Module):
         self,
         dynamics: Dynamics,
         delays: Array,
-        delay_init: Callable = braintools.init.ZeroInit(),
+        delay_init: Callable = braintools.init.Constant(0.0),
         weight: Initializer = braintools.init.KaimingNormal(),
     ):
         super().__init__()

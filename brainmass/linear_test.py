@@ -35,8 +35,8 @@ class TestThresholdLinearModel:
     def test_state_initialization_and_reset(self):
         m = brainmass.ThresholdLinearStep(
             in_size=4,
-            init_E=braintools.init.ZeroInit(),
-            init_I=braintools.init.ZeroInit(),
+            init_E=braintools.init.Constant(0.0),
+            init_I=braintools.init.Constant(0.0),
         )
         m.init_state()
         assert m.E.value.shape == (4,)
@@ -61,8 +61,8 @@ class TestThresholdLinearModel:
     def test_update_basic_and_nonnegativity(self):
         m = brainmass.ThresholdLinearStep(
             in_size=2,
-            init_E=braintools.init.ZeroInit(),
-            init_I=braintools.init.ZeroInit(),
+            init_E=braintools.init.Constant(0.0),
+            init_I=braintools.init.Constant(0.0),
         )
         m.init_state()
 
@@ -86,14 +86,14 @@ class TestThresholdLinearModel:
         m1 = brainmass.ThresholdLinearStep(
             in_size=1,
             beta_E=0.05,
-            init_E=braintools.init.ZeroInit(),
-            init_I=braintools.init.ZeroInit(),
+            init_E=braintools.init.Constant(0.0),
+            init_I=braintools.init.Constant(0.0),
         )
         m2 = brainmass.ThresholdLinearStep(
             in_size=1,
             beta_E=0.20,
-            init_E=braintools.init.ZeroInit(),
-            init_I=braintools.init.ZeroInit(),
+            init_E=braintools.init.Constant(0.0),
+            init_I=braintools.init.Constant(0.0),
         )
         m1.init_state()
         m2.init_state()
@@ -106,8 +106,8 @@ class TestThresholdLinearModel:
         sz = (2, 3)
         m = brainmass.ThresholdLinearStep(
             in_size=sz,
-            init_E=braintools.init.ZeroInit(),
-            init_I=braintools.init.ZeroInit(),
+            init_E=braintools.init.Constant(0.0),
+            init_I=braintools.init.Constant(0.0),
         )
         m.init_state(batch_size=4)
         with brainstate.environ.context(dt=0.1 * u.ms):

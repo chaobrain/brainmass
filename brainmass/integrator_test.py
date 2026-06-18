@@ -56,14 +56,14 @@ SWEEP = {
     "fhn": dict(
         build=lambda method: brainmass.FitzHughNagumoStep(
             2, method=method,
-            init_V=braintools.init.Constant(0.1), init_w=braintools.init.ZeroInit()),
+            init_V=braintools.init.Constant(0.1), init_w=braintools.init.Constant(0.0)),
         drive=lambda m: m.update(V_inp=0.3),
         read=lambda m: m.V.value,
     ),
     "montbrio": dict(
         build=lambda method: brainmass.MontbrioPazoRoxinStep(
             2, method=method,
-            init_r=braintools.init.ZeroInit(unit=u.Hz), init_v=braintools.init.ZeroInit()),
+            init_r=braintools.init.Constant(0.0 * u.Hz), init_v=braintools.init.Constant(0.0)),
         drive=lambda m: m.update(v_inp=0.5),
         read=lambda m: m.r.value,
     ),
@@ -112,7 +112,7 @@ def _hopf_linear_decay_final(method, dt_ms, a=-1.0, x0=1.0, T_ms=5.0):
     brainstate.environ.set(dt=dt_ms * u.ms)
     m = brainmass.HopfStep(
         1, a=a, w=0.0, beta=0.0, method=method,
-        init_x=braintools.init.Constant(x0), init_y=braintools.init.ZeroInit())
+        init_x=braintools.init.Constant(x0), init_y=braintools.init.Constant(0.0))
     brainstate.nn.init_all_states(m)
     n = int(round(T_ms / dt_ms))
     out = _simulate_last(m, lambda mm: mm.update(0.0, 0.0), lambda mm: mm.x.value, n)

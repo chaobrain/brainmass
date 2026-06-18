@@ -85,7 +85,7 @@ class BrownianNoise(Noise):
         in_size: brainstate.typing.Size,
         mean: Parameter = None,
         sigma: Parameter = 1. * u.nA,
-        init: Callable = braintools.init.ZeroInit(unit=u.nA)
+        init: Callable = braintools.init.Constant(0.0 * u.nA)
     ):
         super().__init__(in_size=in_size)
 
@@ -250,7 +250,7 @@ class OUProcess(Noise):
             self.varshape
         )
         self.tau = Param.init(tau, self.varshape)
-        self.init = braintools.init.ZeroInit(unit=u.get_unit(sigma)) if init is None else init
+        self.init = braintools.init.Constant(0.0 * u.get_unit(sigma)) if init is None else init
 
     def init_state(self, batch_size=None, **kwargs):
         self.x = brainstate.HiddenState.init(self.init, self.varshape, batch_size)

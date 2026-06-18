@@ -64,10 +64,10 @@ class ThresholdLinearStep(Dynamics):
         Inhibitory gain (dimensionless). Default is ``0.351``.
     init_E : Callable, optional
         Parameter  for the excitatory rate state ``E``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     init_I : Callable, optional
         Parameter  for the inhibitory rate state ``I``. Default is
-        ``braintools.init.ZeroInit()``.
+        ``braintools.init.Constant(0.0)``.
     noise_E : Noise or None, optional
         Additive noise process for the E population. If provided, called each
         update and added to ``E_inp``. Default is ``None``.
@@ -106,8 +106,8 @@ class ThresholdLinearStep(Dynamics):
         tau_I: Parameter  = 1e-2 * u.second,
         beta_E: Parameter  = .066,
         beta_I: Parameter  = .351,
-        init_E: Callable = braintools.init.ZeroInit(),
-        init_I: Callable = braintools.init.ZeroInit(),
+        init_E: Callable = braintools.init.Constant(0.0),
+        init_I: Callable = braintools.init.Constant(0.0),
         noise_E: Noise = None,
         noise_I: Noise = None,
     ):

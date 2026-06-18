@@ -50,7 +50,7 @@ per-node coupling current:
    # Each target reads every source's (delayed) ``x`` -> shape (N, N)
    delays = jnp.ones((N, N)) * (1.0 * u.ms)
    src_idx = np.tile(np.arange(N)[None, :], (N, 1))
-   x_src = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())
+   x_src = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.Constant(0.0))
    x_self = nodes.prefetch('x')
 
    coupling = brainmass.DiffusiveCoupling(x_src, x_self, conn=W, k=0.5)

@@ -101,8 +101,8 @@ class HopfStep(XY_Oscillator):
         noise_y: Noise = None,
 
         # initialization
-        init_x: Callable = braintools.init.ZeroInit(),
-        init_y: Callable = braintools.init.ZeroInit(),
+        init_x: Callable = braintools.init.Constant(0.0),
+        init_y: Callable = braintools.init.Constant(0.0),
         method: str = 'exp_euler',
     ):
         super().__init__(
