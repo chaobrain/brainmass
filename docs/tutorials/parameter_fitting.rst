@@ -3,6 +3,13 @@ Parameter Fitting
 
 This tutorial covers optimizing model parameters to match empirical data.
 
+.. note::
+
+   The snippets on this page are *schematic*: parameter fitting requires empirical data and a
+   full simulation driver, so the optimization examples below are illustrative and not executed
+   in the documentation build. For the runnable simulation building blocks they rely on (model
+   construction, stepping, coupling, BOLD) see :doc:`quickstart` and :doc:`building_networks`.
+
 
 Overview
 --------

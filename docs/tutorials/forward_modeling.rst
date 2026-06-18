@@ -3,6 +3,14 @@ Forward Modeling
 
 Forward models map neural activity to observable neuroimaging signals (BOLD, EEG, MEG).
 
+.. note::
+
+   The snippets on this page are *schematic*: they sketch the forward-modeling workflow and
+   in places assume empirical data or a network driver, so they are not executed in the
+   documentation build. For runnable, current-API forward-model code see the
+   Balloon-Windkessel BOLD section of :doc:`quickstart` and the ``LeadFieldModel`` examples in
+   :doc:`../api/forward`.
+
 
 Overview
 --------
