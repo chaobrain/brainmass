@@ -26,6 +26,7 @@ from brainmass.horn import HORN_TR
 
 def _seq(T, n, seed=0):
     brainstate.random.seed(seed)
+    np.random.seed(seed)  # the sequence below uses numpy's RNG, not brainstate's
     return jnp.asarray(np.random.randn(T, n).astype('float32'))
 
 
@@ -51,6 +52,7 @@ class TestHORNSeqLayer:
 
     def test_delayed_path(self):
         brainstate.environ.set(dt=0.1 * u.ms)
+        np.random.seed(0)  # deterministic delay matrix
         delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype('float32')) * u.ms
         m = brainmass.HORNSeqLayer(3, 5, delay=delay)
         brainstate.nn.init_all_states(m)
@@ -98,6 +100,7 @@ class TestHORN_TR:
     def test_rec_types(self, rec_type, with_delay):
         brainstate.environ.set(dt=0.1 * u.ms)
         n = 5
+        np.random.seed(0)  # deterministic delay matrix
         delay = (jnp.asarray(np.random.randint(1, 4, size=(n, n)).astype('float32')) * u.ms
                  if with_delay else None)
         kwargs = dict(tr=0.5 * u.ms)
@@ -110,6 +113,7 @@ class TestHORN_TR:
 
     def test_unknown_rec_type_raises(self):
         brainstate.environ.set(dt=0.1 * u.ms)
+        np.random.seed(0)  # deterministic delay matrix
         delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype('float32')) * u.ms
         with pytest.raises(ValueError):
             HORN_TR(5, delay=delay, rec_type='nope')

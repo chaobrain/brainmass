@@ -89,3 +89,19 @@ tpu = [
 
 [tool.setuptools.dynamic]
 version = { attr = "brainmass._version.__version__" }
+
+
+[tool.coverage.run]
+branch = true
+source = ["brainmass"]
+omit = [
+    "*_test.py",
+    "*/conftest.py",
+    "*/_version.py",
+]
+
+[tool.coverage.report]
+# CI fails if total coverage drops below this gate (goal-04 testing rigor).
+fail_under = 90
+show_missing = true
+precision = 2

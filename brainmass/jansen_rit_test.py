@@ -198,6 +198,7 @@ class TestJansenRitModel:
 
     def test_eeg_output_signal(self):
         """Test EEG output signal computation."""
+        brainstate.environ.set(dt=1e-4 * u.second)  # self-contained: do not rely on leaked dt
         model = brainmass.JansenRitStep(in_size=1)
         model.init_state()
 
@@ -231,9 +232,9 @@ class TestJansenRitModel:
         indices = np.arange(n_steps)
         outputs = brainstate.transform.for_loop(step_run, indices)
 
-        # Check for oscillatory behavior
-        # The signal should not be constant
-        # assert u.math.std(outputs) > 0.1 * u.mV
+        # Check for oscillatory behavior: the signal must not be constant (it has
+        # a substantial transient before settling).
+        assert u.math.std(outputs) > 0.1 * u.mV
 
         # Check that states remain within reasonable bounds
         assert jnp.all(jnp.abs(model.M.value / u.mV) < 50.)
@@ -262,13 +263,15 @@ class TestJansenRitModel:
             out = brainstate.transform.for_loop(functools.partial(step_run, Ip=Ip), np.arange(5000))
             final_outputs.append(out[-1])
 
-        # Higher inputs should generally lead to larger output magnitudes
-        output_magnitudes = [u.math.abs(out) for out in final_outputs]
-
-        # # At least some progression with input level
-        # assert output_magnitudes[-1] >= output_magnitudes[0]
-        #
-        # print("[PASS] Input response test passed")
+        # The Jansen-Rit steady-state |output| is *not* monotonic in the pyramidal
+        # drive (the original `out[-1] >= out[0]` assertion was therefore wrong and
+        # was disabled). The meaningful, robust property is *responsiveness*: distinct
+        # drive levels must produce distinct, finite steady states.
+        final_mags = np.array([float(u.math.abs(out)[0] / u.mV) for out in final_outputs])
+        assert np.all(np.isfinite(final_mags)), "all steady-state responses must be finite"
+        assert final_mags.max() - final_mags.min() > 0.1, (
+            "model should respond to the input level (outputs span > 0.1 mV)"
+        )
 
     def test_parameter_sensitivity(self):
         """Test sensitivity to key parameters."""
@@ -371,7 +374,7 @@ class TestJansenRitModel:
         print("=" * 40)
         print("All JansenRit2Window tests passed! [PASS]")
 
-    def test_demo_alpha_rhythm(self, plot=True):
+    def test_demo_alpha_rhythm(self, plot=False):
         """Demonstrate alpha rhythm generation."""
         brainstate.environ.set(dt=0.0001 * u.second)  # 0.1 ms
 
@@ -428,9 +431,14 @@ class TestJansenRitModel:
             plt.show()
             plt.close()
 
-        return time, outputs
+        # The alpha-rhythm parameter set must produce a finite, non-trivial EEG
+        # transient before the model settles (full-trajectory std measured at
+        # ~0.27 mV; assert well above the post-settle float32 floor of ~1e-7 mV).
+        assert outputs.shape == (n_steps, 1)
+        assert u.math.all(u.math.isfinite(outputs))
+        assert u.math.std(outputs) > 0.05 * u.mV
 
-    def test_demo_seizure_like_activity(self, plot=True):
+    def test_demo_seizure_like_activity(self, plot=False):
         """Demonstrate seizure-like activity with modified parameters."""
         brainstate.environ.set(dt=0.0001 * u.second)  # 0.1 ms
 
@@ -468,7 +476,11 @@ class TestJansenRitModel:
             plt.show()
             plt.close()
 
-        return time, outputs
+        # The high-gain "seizure" parameter set drives a finite but much larger
+        # excursion than the alpha set (full-trajectory std measured at ~4 mV).
+        assert outputs.shape == (n_steps, 1)
+        assert u.math.all(u.math.isfinite(outputs))
+        assert u.math.std(outputs) > 0.5 * u.mV
 
 
 class TestJansenRitTR:
@@ -478,6 +490,7 @@ class TestJansenRitTR:
     def _make(n=3, tr=1e-3 * u.second, dt=1e-4 * u.second, seed=0):
         brainstate.environ.set(dt=dt)
         brainstate.random.seed(seed)
+        np.random.seed(seed)  # sc/delay/w below use numpy's RNG
         sc = jnp.asarray(np.random.rand(n, n))
         sc = sc - jnp.diag(jnp.diag(sc))
         delay = jnp.asarray(np.random.randint(1, 5, size=(n, n)).astype(float))
@@ -541,6 +554,7 @@ class TestJansenRitTRMask:
         n = 3
         brainstate.environ.set(dt=1e-4 * u.second)
         brainstate.random.seed(0)
+        np.random.seed(0)  # sc/delay/w/mask below use numpy's RNG
         sc = jnp.asarray(np.random.rand(n, n))
         sc = sc - jnp.diag(jnp.diag(sc))
         delay = jnp.asarray(np.random.randint(1, 5, size=(n, n)).astype(float))
@@ -558,6 +572,7 @@ class TestJansenRitTRMask:
 
 def _jr_seq(T, n, seed=0):
     brainstate.random.seed(seed)
+    np.random.seed(seed)  # the sequence below uses numpy's RNG, not brainstate's
     return jnp.asarray(np.random.randn(T, n).astype('float32'))
 
 
@@ -575,6 +590,7 @@ class TestJansenRitLayer:
     def test_delayed_path_and_record_state(self):
         from brainmass.jansen_rit import JansenRitLayer
         brainstate.environ.set(dt=1e-4 * u.second)
+        np.random.seed(0)  # deterministic delay matrix
         delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
         m = JansenRitLayer(n_input=3, n_hidden=5, delay=delay)
         brainstate.nn.init_all_states(m)
@@ -589,6 +605,7 @@ class TestJansenRit2LayerAndNetwork:
     def test_jansen_rit2_layer_record_state(self):
         from brainmass.jansen_rit import JansenRit2Layer
         brainstate.environ.set(dt=1e-4 * u.second)
+        np.random.seed(0)  # deterministic delay matrix
         delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
         m = JansenRit2Layer(n_input=3, n_hidden=5, delay=delay)
         brainstate.nn.init_all_states(m)
@@ -605,6 +622,7 @@ class TestJansenRit2LayerAndNetwork:
     def test_network_single_and_multi_layer(self):
         from brainmass.jansen_rit import JansenRitNetwork
         brainstate.environ.set(dt=1e-4 * u.second)
+        np.random.seed(0)  # deterministic delay matrix
         delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
         net = JansenRitNetwork(n_input=3, n_hidden=5, n_output=2, delay=delay)
         brainstate.nn.init_all_states(net)
@@ -623,6 +641,7 @@ class TestJansenRit2LayerAndNetwork:
     def test_network_multi_layer_unit_chaining_bug(self):
         from brainmass.jansen_rit import JansenRitNetwork
         brainstate.environ.set(dt=1e-4 * u.second)
+        np.random.seed(0)  # deterministic delay matrix
         delay = jnp.asarray(np.random.randint(1, 4, size=(5, 5)).astype(float)) * u.ms
         net = JansenRitNetwork(n_input=3, n_hidden=[5, 5], n_output=2, delay=delay)
         brainstate.nn.init_all_states(net)

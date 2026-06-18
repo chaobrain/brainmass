@@ -25,6 +25,7 @@ import brainmass
 
 def _make(normalize=True, demean=True, M=3, N=5, seed=0):
     brainstate.random.seed(seed)
+    np.random.seed(seed)  # the lead-field matrix below uses numpy's RNG
     lm = jnp.asarray(np.random.randn(M, N).astype('float32'))
     readout = brainmass.LeadfieldReadout(
         lm=lm,

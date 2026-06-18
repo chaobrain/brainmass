@@ -48,7 +48,7 @@ jobs:
           pip install .  --no-cache-dir
       - name: Test with pytest
         run: |
-          pytest brainmass/
+          pytest brainmass/ --cov=brainmass --cov-report=term-missing --cov-fail-under=90
 
 
   test_macos:
