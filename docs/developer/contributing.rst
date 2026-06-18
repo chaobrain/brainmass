@@ -25,11 +25,17 @@ Development Setup
       git clone https://github.com/YOUR_USERNAME/brainmass.git
       cd brainmass
 
-3. Install in development mode:
+3. Install in development mode with the test and documentation dependencies:
 
    .. code-block:: bash
 
-      pip install -e .[dev,doc]
+      pip install -e .
+      pip install -r requirements-doc.txt
+
+   ``requirements-doc.txt`` includes ``requirements-dev.txt`` (which in turn includes the
+   runtime ``requirements.txt``), so this single command pulls in the runtime, test, and
+   documentation dependencies. (Consolidated ``[dev,doc]`` install extras are planned -- see
+   the roadmap.)
 
 4. Create a branch:
 
@@ -51,15 +57,17 @@ Code Guidelines
 **Documentation:**
 
 - Add docstrings to all public functions/classes
-- Use Google-style docstrings
-- Include examples in docstrings
+- Use NumPy-style docstrings (match the existing modules; see :doc:`documentation`)
+- Include runnable examples in docstrings
 - Update relevant tutorial/API docs
 
 **Testing:**
 
+- Tests are co-located with the source as ``brainmass/<module>_test.py`` (there is no
+  separate top-level ``tests/`` directory)
 - Write tests for new features
 - Ensure existing tests pass
-- Aim for >80% code coverage
+- Aim for >90% code coverage
 
 
 Pull Request Process
@@ -67,10 +75,10 @@ Pull Request Process
 
 1. **Before submitting:**
 
-   - Run tests: ``pytest tests/``
+   - Run tests: ``pytest brainmass/``
    - Check code style: ``ruff check brainmass/``
    - Build docs: ``make -C docs html``
-   - Update CHANGELOG
+   - Update ``changelog.md``
 
 2. **PR description:**
 
@@ -88,17 +96,20 @@ Pull Request Process
 Testing
 -------
 
+Tests live next to the code they exercise, named ``brainmass/<module>_test.py``.
+
 Run all tests:
 
 .. code-block:: bash
 
-   pytest tests/
+   pytest brainmass/
 
-Run specific test:
+Run the tests for a single module, or a single test class/method:
 
 .. code-block:: bash
 
-   pytest tests/test_models.py::test_hopf_oscillator
+   pytest brainmass/hopf_test.py
+   pytest brainmass/hopf_test.py::TestHopfModel
 
 
 Documentation
@@ -173,8 +184,8 @@ Release Process
 
 (For maintainers)
 
-1. Update version in ``pyproject.toml``
-2. Update ``CHANGELOG.md``
+1. Update the version in ``brainmass/_version.py`` (``pyproject.toml`` reads it dynamically)
+2. Update ``changelog.md``
 3. Create release tag
 4. Build and publish to PyPI
 
