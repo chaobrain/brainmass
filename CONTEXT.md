@@ -134,3 +134,54 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
     from-CWD. (Recovered with `git -C <main> checkout HEAD -- <file>`.)
   - Bumpy `Edit`-tool persistence was observed on drvfs earlier; `Write` (whole-file) and
     Bash read-modify-write (`.count()==1` guard) are reliable.
+
+### 2026-06-18 · goal-02 docs-integrity
+- **API drift killed (grep over `docs/` + README now empty):** renamed every legacy class
+  reference to its canonical `*Step` (`HopfOscillator`→`HopfStep`, `WilsonCowanModel`→
+  `WilsonCowanStep`, `WongWangModel`→`WongWangStep`, `JansenRitModel`→`JansenRitStep`,
+  `FitzHughNagumoModel`→`FitzHughNagumoStep`, `ThresholdLinearModel`→`ThresholdLinearStep`,
+  `StuartLandauOscillator`→`StuartLandauStep`, `VanDerPolOscillator`→`VanDerPolStep`,
+  `QIF`/`QIFModel`→`MontbrioPazoRoxinStep`). Left untouched: real classes (`LeadFieldModel`,
+  EEG/MEG), pedagogical placeholders (`MyModel`/`CustomOscillator`), HORN's real `omega`
+  param, Kuramoto's `omega_mean`/`omega_std`, and **historical changelog entries** (0.0.4/0.0.5
+  legitimately shipped the old names — do NOT rewrite release notes; the DoD grep is scoped to
+  the live `docs/` tree, not `changelog.md`).
+- **`HopfStep` has no `omega`/`u.Hz` arg** — it takes a *dimensionless* `w` (normal-form angular
+  frequency). All `HopfStep(omega=…*u.Hz)` calls in docs were never-runnable; fixed to `w=`.
+- **Real `DiffusiveCoupling` API** (docs were full of the imagined `DiffusiveCoupling(conn=W,k=)`
+  + `coupling(src,tgt)` form): construct from prefetch refs —
+  `nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())` (gives the
+  `(N,N)` source read the impl REQUIRES) + `nodes.prefetch('x')` (the `(N,)` self read), then
+  `DiffusiveCoupling(x_src, x_self, conn=W, k=…)`; drive with `coupling.update()` inside
+  `environ.context(i=,t=)`. A plain `(N,)` source read raises `incompatible shape … expected
+  (...,N,N)`. Verified runnable in quickstart + building_networks + adding_coupling.
+- **Imagined whole-brain API still littering tutorials (NOT a real API):** `nodes.S_E.value`,
+  `nodes.update(S_E_ext=…)`, `nodes.noise_E=…` assume a Wong-Wang/DMF that doesn't exist
+  (`WongWangStep` has `S1`/`S2`, `update(coherence=)`, `noise_s1`/`noise_s2`). These live in the
+  data-dependent tutorials (forward_modeling, parameter_fitting, building_networks whole-brain
+  example) — marked **schematic / not executed** with a `.. note::` per the goal's allowance,
+  rather than rewritten. A future orchestration goal (06–08) that adds a real `Network`/`Simulator`
+  should revisit and make them runnable.
+- **Docs are now self-checking via `sphinx.ext.doctest`** (lightest robust option chosen over
+  notebook execution, which stays `nb_execution_mode="off"`). Key mechanics:
+  - `.. testcode::` = execute-only (no output match); bare `>>>` napoleon blocks ARE checked
+    for output because `doctest_test_doctest_blocks = "default"`. `.. code-block:: python` with
+    `>>>` is NOT tested — only bare doctest blocks and `testcode` are.
+  - `doctest_global_setup` imports ONLY `brainmass` (+ brainstate/u/jax/np/plt, `Agg`, `dt`).
+    So docstring `>>>` examples MUST be self-contained: qualify `brainmass.HORNSeqNetwork`, not
+    bare `HORNSeqNetwork`. **`doctest.DocTestFinder` over the package gives FALSE PASSES here** —
+    it uses each module's own globals (bare class names resolve), so it missed `horn.py`'s bare
+    `HORNSeqNetwork`. `sphinx-build -b doctest docs docs/_build/doctest` is the ONLY authoritative
+    gate. Final: **48 tests, 0 failures**.
+  - In bare `>>>` blocks, `init_all_states()`/`brainstate.nn.init_all_states(m)` RETURN the module
+    (repr prints → doctest mismatch). Capture with `_ = …`. (In `.. testcode::` it's harmless.)
+- **Deliverables:** README runnable Quick Start + citation `0.0.4`→`0.0.6`; `changelog.md` 0.0.6
+  entry (goal-01 fixes + this docs work); `contributing.rst` corrected (NumPy not Google
+  docstrings; no `tests/` dir — tests are co-located `brainmass/<m>_test.py`, `pytest brainmass/`;
+  `.[dev,doc]` extras don't exist yet → install via `requirements-doc.txt`, consolidated extras
+  are goal-03); `conf.py` single `autodoc_default_options`. `pytest brainmass/` still green
+  (229 passed, 1 xfailed).
+- **Gotcha for next goal:** the manual git worktree at `.claude/worktrees/goal-02-docs-integrity`
+  must be committed-to early — a native/empty worktree got auto-cleaned ("unchanged") mid-session.
+  And the same drvfs absolute-path trap as goal-01: file tools with an absolute path to the MAIN
+  checkout write to main, not the worktree.

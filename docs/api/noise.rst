@@ -71,7 +71,7 @@ The most common pattern is to attach noise directly to model attributes:
    import brainunit as u
 
    # Create model
-   model = brainmass.WilsonCowanModel(in_size=10)
+   model = brainmass.WilsonCowanStep(in_size=10)
 
    # Attach noise to specific populations
    model.noise_E = brainmass.OUProcess(
@@ -302,7 +302,7 @@ Common Patterns
 
 .. code-block:: python
 
-   model = brainmass.WilsonCowanModel(in_size=10)
+   model = brainmass.WilsonCowanStep(in_size=10)
 
    # Stronger noise for excitatory population
    model.noise_E = brainmass.OUProcess(in_size=10, sigma=0.8 * u.Hz, tau=20. * u.ms)
@@ -319,7 +319,7 @@ Common Patterns
    drive = brainmass.PinkNoise(in_size=1, sigma=0.5 * u.Hz)
    drive.init_all_states()
 
-   model = brainmass.HopfOscillator(in_size=1)
+   model = brainmass.HopfStep(in_size=1)
    model.init_all_states()
 
    # Apply as external input

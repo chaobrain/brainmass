@@ -184,7 +184,7 @@ Most brainmass models accept unit quantities:
    import brainmass
    import brainunit as u
 
-   model = brainmass.WilsonCowanModel(
+   model = brainmass.WilsonCowanStep(
        in_size=10,
        tau_E=10. * u.ms,    # with units
        tau_I=20. * u.ms,
@@ -200,16 +200,17 @@ Internal states maintain units:
 
 .. code-block:: python
 
-   model = brainmass.HopfOscillator(
+   model = brainmass.HopfStep(
        in_size=5,
-       omega=10 * u.Hz,
+       w=0.2,  # intrinsic angular frequency (dimensionless)
    )
    model.init_all_states()
 
    model.update()
 
-   # States have units if specified
-   x = model.x.value  # has units from model definition
+   # In the normal-form Hopf model the state is dimensionless; models such as
+   # JansenRitStep instead keep their internal states in physical units (e.g. mV).
+   x = model.x.value
    y = model.y.value
 
 

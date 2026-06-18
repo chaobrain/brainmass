@@ -220,24 +220,35 @@ class LeadFieldModel(nn.Module):
 
     Examples
     --------
+    >>> import brainmass
     >>> import brainunit as u
     >>> import jax.numpy as jnp
+    >>> M, R, T = 64, 68, 200          # sensors, regions, time steps
 
-    >>> # constants
-    >>> M, R, T = 64, 68, 2000
+    EEG: lead field in V/(nA*m), shape ``(R, M)``.
 
-    >>> # EEG example: lead field in V/(nA*m)
-    >>> L = jnp.ones((R, M)) * u.volt / (u.nA * u.meter)
-    >>> # Suppose NMM observable is in mV; choose scale to map mV -> nA*m
-    >>> scale = 0.1 * u.nA * u.meter / u.volt     # toy number
-    >>> model = LeadFieldModel(L=L, scale=scale, sensor_unit=u.volt, dipole_unit=u.nA * u.meter)
-    >>> nmm_obs = 50.0 * jnp.ones((T, R)) * u.mV # (T, R) in mV
-    >>> y = model(nmm_obs)  # Quantity with unit "V", shape (T, M)
+    >>> L = jnp.ones((R, M)) * (u.volt / (u.nA * u.meter))
+    >>> model = brainmass.LeadFieldModel(
+    ...     in_size=(R,), out_size=(M,), L=L,
+    ...     sensor_unit=u.volt, dipole_unit=u.nA * u.meter,
+    ...     scale=0.1 * u.nA * u.meter / u.volt,   # map the (mV-scale) observable to a dipole moment
+    ... )
+    >>> nmm_obs = 50.0 * jnp.ones((T, R)) * u.mV   # region observable, (T, R)
+    >>> y = model.update(nmm_obs)                   # sensor-space signal, (T, M)
+    >>> y.shape
+    (200, 64)
 
-    >>> # MEG example: lead field in T/(nA*m)
-    >>> L_u = jnp.ones((R, M)) * u.tesla * (u.nA * u.meter)
-    >>> model_u = LeadFieldModel(L=L_u,  sensor_unit=u.volt, dipole_unit=u.nA*u.meter, scale=u.nA*u.meter/u.tesla)
-    >>> y2 = model_u(50.0 * jnp.ones((T, R)) * u.tesla)
+    MEG: lead field in T/(nA*m); use the tesla sensor unit.
+
+    >>> L_meg = jnp.ones((R, M)) * (u.tesla / (u.nA * u.meter))
+    >>> model_meg = brainmass.LeadFieldModel(
+    ...     in_size=(R,), out_size=(M,), L=L_meg,
+    ...     sensor_unit=u.tesla, dipole_unit=u.nA * u.meter,
+    ...     scale=0.1 * u.nA * u.meter / u.mV,
+    ... )
+    >>> y_meg = model_meg.update(50.0 * jnp.ones((T, R)) * u.mV)
+    >>> y_meg.shape
+    (200, 64)
 
 
     Parameters

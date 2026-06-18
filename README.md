@@ -62,6 +62,38 @@ pip install BrainX[tpu]
 ```
 
 
+## Quick Start
+
+Simulate a single brain region with the Hopf oscillator model. The integration time step
+``dt`` is global state set once through ``brainstate.environ`` -- it is **not** a model argument:
+
+```python
+import brainmass
+import brainstate
+import brainunit as u
+import numpy as np
+
+# dt is a global, set once through the environment (not a model argument)
+brainstate.environ.set(dt=0.1 * u.ms)
+
+# Create a single-region Hopf oscillator in the limit-cycle regime (a > 0)
+model = brainmass.HopfStep(in_size=1, a=0.25, w=0.2)
+model.init_all_states()
+
+# Advance the model one step at a time, recording the x-coordinate
+def step(i):
+    with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+        model.update()
+        return model.x.value
+
+x = brainstate.transform.for_loop(step, np.arange(1000))
+print(x.shape)  # (1000, 1)
+```
+
+See the [Quickstart tutorial](https://brainx.chaobrain.com/brainmass/tutorials/quickstart.html)
+for noise, multi-region networks, coupling, and forward (BOLD/EEG/MEG) modeling.
+
+
 ## Citation
 
 If you use BrainMass in your research, please cite:
@@ -71,7 +103,7 @@ If you use BrainMass in your research, please cite:
   title={BrainMass: Whole-brain modeling with differentiable neural mass models},
   author={BrainMass Developers},
   url={https://github.com/chaobrain/brainmass},
-  version={0.0.4},
+  version={0.0.6},
   year={2025}
 }
 ```

@@ -1,5 +1,51 @@
 # Release Notes
 
+## Version 0.0.6 (2026-06-18)
+
+### Bug Fixes
+
+- `coupling.py` — fixed a method/attribute name collision in `LaplacianConnParam` (the
+  `normalize` precompute method shadowed the `normalize` mode string) that broke Laplacian
+  connectivity normalization when it was actually exercised.
+- `jansen_rit.py` `JansenRitTR.update` — fixed the time-resolution sub-step closure, which
+  read `inp_M_tr`/`inp_E_tr`/`inp_I_tr` before they were assigned (it only worked by a
+  late-binding accident).
+- `noise.py` `BrownianNoise.update` — corrected the increment scaling so variance grows with
+  `dt` (`sigma * sqrt(dt) * noise`) instead of collapsing to `sigma`.
+- `noise.py` colored noise — corrected the spectral exponents of `BlueNoise` and
+  `VioletNoise` to be consistent with the `1/f^β` definitions and their docstrings.
+- `forward_model.py` `LeadFieldModel` — fixed docstring/shape drift and a dangling
+  `self._noise_cov_q` reference in `_sample_noise` (the Cholesky factor `_noise_conv_Lc`).
+- `jansen_rit.py` — corrected the `s_max` docstring (2.5 Hz → 5.0 Hz) to match the code and
+  the literature value `2·e0` (Jansen & Rit 1995).
+
+### Code Quality
+
+- Deduplicated the `AdditiveConn`/`DelayedAdditiveConn` recurrent-connection classes into a
+  single source of truth in `coupling.py`.
+- Replaced a `brainmass.delay_index` self-import in `jansen_rit.py` with the local definition.
+- Converted remaining Google-style docstrings to NumPy style (`utils.py`, `leadfield.py`,
+  `wong_wang.py`) and documented when to use `LeadFieldModel` (unit-aware physical forward
+  operator) versus `LeadfieldReadout` (lightweight trainable EEG head).
+
+### Documentation
+
+- Eliminated API drift across the documentation: every legacy `*Oscillator`/`*Model`/`QIF`
+  class reference now uses its canonical `*Step` name (e.g. `HopfOscillator` → `HopfStep`,
+  `WilsonCowanModel` → `WilsonCowanStep`, `QIF` → `MontbrioPazoRoxinStep`).
+- Rewrote the Quickstart and other hero examples to run against the current API, and enabled
+  `sphinx.ext.doctest` so docstring examples and key tutorial snippets are executed and
+  verified at build time. Data-dependent tutorials are explicitly marked as non-executed.
+- Merged the duplicated `autodoc_default_options` in `docs/conf.py` (the second definition
+  had been silently disabling member documentation).
+- Added a runnable Quick Start snippet to the README and corrected the citation version to
+  match the package version.
+
+### Tests
+
+- Added regression tests (written test-first) covering the corrected coupling, Jansen-Rit,
+  noise, and forward-model behavior.
+
 ## Version 0.0.5 (2026-01-07)
 
 ### Core Architecture

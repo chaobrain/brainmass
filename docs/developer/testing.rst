@@ -53,7 +53,7 @@ Basic Test
 
    def test_hopf_oscillator():
        # Create model
-       model = brainmass.HopfOscillator(in_size=10, omega=10)
+       model = brainmass.HopfStep(in_size=10, w=0.2)
 
        # Initialize
        model.init_all_states()
@@ -73,7 +73,7 @@ Parametrized Tests
 
    @pytest.mark.parametrize("in_size", [1, 10, 100])
    def test_model_shapes(in_size):
-       model = brainmass.WilsonCowanModel(in_size=in_size)
+       model = brainmass.WilsonCowanStep(in_size=in_size)
        model.init_all_states()
 
        output = model.update(rE_inp=0.5, rI_inp=0.2)
@@ -87,7 +87,7 @@ Batch Testing
 
    @pytest.mark.parametrize("batch_size", [None, 1, 32])
    def test_batching(batch_size):
-       model = brainmass.HopfOscillator(in_size=5, omega=10)
+       model = brainmass.HopfStep(in_size=5, w=0.2)
        model.init_all_states(batch_size=batch_size)
 
        output = model.update()

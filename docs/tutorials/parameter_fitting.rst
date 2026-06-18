@@ -3,6 +3,13 @@ Parameter Fitting
 
 This tutorial covers optimizing model parameters to match empirical data.
 
+.. note::
+
+   The snippets on this page are *schematic*: parameter fitting requires empirical data and a
+   full simulation driver, so the optimization examples below are illustrative and not executed
+   in the documentation build. For the runnable simulation building blocks they rely on (model
+   construction, stepping, coupling, BOLD) see :doc:`quickstart` and :doc:`building_networks`.
+
 
 Overview
 --------
@@ -111,7 +118,7 @@ Best for non-differentiable objectives:
 
    # Define simulation function
    def simulate_network(coupling_strength):
-       nodes = brainmass.WongWangModel(in_size=90)
+       nodes = brainmass.WongWangStep(in_size=90)
        coupling = brainmass.DiffusiveCoupling(conn=SC, k=coupling_strength)
        bold = brainmass.BOLDSignal(in_size=90)
 
@@ -377,7 +384,7 @@ Full FC-Based Parameter Fitting
        T = 600000  # 10 min at 1ms
 
        # Create network
-       nodes = brainmass.WongWangModel(in_size=N)
+       nodes = brainmass.WongWangStep(in_size=N)
        coupling = brainmass.DiffusiveCoupling(conn=SC, k=coupling_k)
        nodes.noise_E = brainmass.OUProcess(
            in_size=N,

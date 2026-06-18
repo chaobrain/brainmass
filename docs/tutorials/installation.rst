@@ -126,7 +126,7 @@ After installation, verify that everything works:
    print(f"brainmass version: {brainmass.__version__}")
 
    # Test basic functionality
-   model = brainmass.HopfOscillator(in_size=10, omega=10 * u.Hz)
+   model = brainmass.HopfStep(in_size=10, w=0.2)
    model.init_all_states()
    output = model.update()
 

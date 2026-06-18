@@ -3,6 +3,15 @@ Building Multi-Region Networks
 
 This tutorial covers creating and simulating large-scale brain networks with multiple regions.
 
+.. note::
+
+   Except for the first **Simple Network Example** (which is executed as part of the
+   documentation build), the snippets on this page are *schematic*: they illustrate
+   the structure of a whole-brain workflow and depend on external data files
+   (e.g. ``jnp.load('AAL90_SC.npy')``) or omit boilerplate wiring, so they are not
+   run during the build. For a complete, copy-pasteable coupling example see
+   :doc:`quickstart`.
+
 
 Basic Network Setup
 -------------------
@@ -16,46 +25,54 @@ A brain network consists of:
 Simple Network Example
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: python
+``DiffusiveCoupling`` reads each node's state through a *prefetch* (here a delayed
+read of ``x``), multiplies the pairwise differences by the connectivity, and returns
+a per-node current you feed back into ``update``:
+
+.. testcode::
 
    import brainmass
+   import braintools
    import jax.numpy as jnp
+   import numpy as np
    import brainunit as u
    import brainstate
 
+   brainstate.environ.set(dt=0.1 * u.ms)
    N_regions = 10
 
-   # 1. Create node dynamics (uncoupled)
-   nodes = brainmass.HopfOscillator(
+   # 1. Create node dynamics
+   nodes = brainmass.HopfStep(
        in_size=N_regions,
-       omega=2 * jnp.pi * 10 * u.Hz,
+       w=0.2,   # intrinsic angular frequency (dimensionless normal-form parameter)
        a=0.1,
    )
 
-   # 2. Create structural connectivity
+   # 2. Create structural connectivity (no self-connections)
    W = jnp.ones((N_regions, N_regions)) * 0.05
-   W = W.at[jnp.diag_indices(N_regions)].set(0.)  # no self-connections
+   W = W.at[jnp.diag_indices(N_regions)].set(0.)
 
-   # 3. Create coupling
-   coupling = brainmass.DiffusiveCoupling(conn=W, k=0.2)
+   # 3. Wire coupling: every target reads each source's delayed ``x``
+   delays = jnp.ones((N_regions, N_regions)) * (1.0 * u.ms)
+   src_idx = np.tile(np.arange(N_regions)[None, :], (N_regions, 1))
+   x_delayed = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())
+   x_local = nodes.prefetch('x')
+   coupling = brainmass.DiffusiveCoupling(x_delayed, x_local, conn=W, k=0.2)
 
-   # 4. Initialize
-   nodes.init_all_states()
-   coupling.init_all_states()
+   # 4. Initialize (the coupling owns the delay buffer)
+   brainstate.nn.init_all_states(nodes)
+   brainstate.nn.init_all_states(coupling)
 
    # 5. Simulation loop
    def network_step(i):
-       x = nodes.x.value
-       coupled_input = coupling(x, x)
-
-       output = nodes.update()
-       nodes.x.value += coupled_input
-
-       return output
+       with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
+           coupled_input = coupling.update()   # (N,) coupling current
+           nodes.update(coupled_input, 0.0)    # feed it as the x input
+           return nodes.x.value
 
    network_activity = brainstate.transform.for_loop(
        network_step,
-       jnp.arange(1000)
+       np.arange(1000),
    )
 
 
@@ -152,7 +169,7 @@ Using Anatomical Atlases
    SC_AAL90 = jnp.load('AAL90_SC.npy')  # from DTI
 
    # Create network
-   nodes = brainmass.WilsonCowanModel(in_size=N_AAL90)
+   nodes = brainmass.WilsonCowanStep(in_size=N_AAL90)
    coupling = brainmass.DiffusiveCoupling(conn=SC_AAL90, k=0.1)
 
 
@@ -200,14 +217,14 @@ Different Models per Region
 
    # Thalamus: fast oscillators
    N_thal = 10
-   thalamus = brainmass.HopfOscillator(
+   thalamus = brainmass.HopfStep(
        in_size=N_thal,
-       omega=2 * jnp.pi * 40 * u.Hz,  # 40 Hz
+       w=0.3,  # faster intrinsic frequency than the cortical subsystem
    )
 
    # Cortex: excitatory-inhibitory dynamics
    N_cort = 80
-   cortex = brainmass.WilsonCowanModel(in_size=N_cort)
+   cortex = brainmass.WilsonCowanStep(in_size=N_cort)
 
    # Coupling between subsystems
    W_thal_cort = jnp.ones((N_cort, N_thal)) * 0.1  # thalamus → cortex
@@ -312,7 +329,7 @@ Whole-Brain Resting-State Simulation
    SC = jnp.load('AAL90_SC_normalized.npy')
 
    # Create components
-   nodes = brainmass.WongWangModel(in_size=N_regions)
+   nodes = brainmass.WongWangStep(in_size=N_regions)
    coupling = brainmass.DiffusiveCoupling(conn=SC, k=coupling_strength)
 
    # Add noise for spontaneous activity

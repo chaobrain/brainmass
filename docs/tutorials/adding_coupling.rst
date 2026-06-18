@@ -5,6 +5,14 @@ This tutorial focuses on coupling mechanisms for connecting brain regions in net
 
 See :doc:`building_networks` for general network setup. This guide covers coupling details.
 
+.. note::
+
+   The first **Diffusive Coupling** example below is executed as part of the documentation
+   build and shows the real construction API. The later snippets are *conceptual*: they use a
+   shorthand ``coupling(source, target)`` form to focus on the mathematics of each coupling
+   type and are not executed. In real code a coupling is always constructed from *prefetch*
+   references to a node module's state, as in the first example and in :doc:`quickstart`.
+
 
 Coupling Types
 --------------
@@ -18,19 +26,40 @@ Drives nodes toward their neighbors' states:
 
    C_i = k \sum_j W_{ij} (x_j - x_i)
 
-.. code-block:: python
+A ``DiffusiveCoupling`` is built from two prefetch reads of the node state: a (possibly
+delayed) read of every *source* node and a read of each *target* (self) node. It returns a
+per-node coupling current:
+
+.. testcode::
 
    import brainmass
+   import braintools
+   import brainstate
+   import brainunit as u
    import jax.numpy as jnp
+   import numpy as np
 
-   W = jnp.ones((10, 10)) * 0.1  # connectivity matrix
-   W = W.at[jnp.diag_indices(10)].set(0.)
+   brainstate.environ.set(dt=0.1 * u.ms)
+   N = 10
 
-   coupling = brainmass.DiffusiveCoupling(conn=W, k=0.5)
-   coupling.init_all_states()
+   nodes = brainmass.HopfStep(in_size=N, a=0.25, w=0.2)
 
-   # Use in network
-   coupled_input = coupling(source_activity, target_activity)
+   W = jnp.ones((N, N)) * 0.1  # connectivity matrix
+   W = W.at[jnp.diag_indices(N)].set(0.)  # no self-connections
+
+   # Each target reads every source's (delayed) ``x`` -> shape (N, N)
+   delays = jnp.ones((N, N)) * (1.0 * u.ms)
+   src_idx = np.tile(np.arange(N)[None, :], (N, 1))
+   x_src = nodes.prefetch_delay('x', delays, src_idx, init=braintools.init.ZeroInit())
+   x_self = nodes.prefetch('x')
+
+   coupling = brainmass.DiffusiveCoupling(x_src, x_self, conn=W, k=0.5)
+
+   brainstate.nn.init_all_states(nodes)
+   brainstate.nn.init_all_states(coupling)
+
+   with brainstate.environ.context(i=0, t=0. * u.ms):
+       coupled_input = coupling.update()  # (N,) per-node coupling current
 
 
 Additive Coupling

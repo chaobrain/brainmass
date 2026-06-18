@@ -39,7 +39,7 @@ Usage Questions
 
 **Q: Which model should I use for fMRI?**
 
-A: Use :class:`WongWangModel` or :class:`WilsonCowanModel`. They have slow synaptic dynamics suitable for BOLD timescales. See :doc:`tutorials/choosing_models`.
+A: Use :class:`WongWangStep` or :class:`WilsonCowanStep`. They have slow synaptic dynamics suitable for BOLD timescales. See :doc:`tutorials/choosing_models`.
 
 
 **Q: How do I fit parameters to my data?**
@@ -217,7 +217,7 @@ Fix: Call ``model.init_all_states()`` before ``model.update()``
 
 .. code-block:: python
 
-   model = brainmass.HopfOscillator(in_size=10)
+   model = brainmass.HopfStep(in_size=10)
    model.init_all_states()  # Required!
    model.update()
 
@@ -229,7 +229,7 @@ Fix: Ensure connectivity matrix matches node dimensions:
 .. code-block:: python
 
    N = 90
-   nodes = brainmass.HopfOscillator(in_size=N)
+   nodes = brainmass.HopfStep(in_size=N)
    W = jnp.ones((N, N))  # Must be (N, N)
 
 
