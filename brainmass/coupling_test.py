@@ -292,6 +292,7 @@ class TestSharedRecurrentConn:
         brainstate.environ.set(dt=0.1 * u.ms)
         model = brainmass.HORNStep(4)
         brainstate.nn.init_all_states(model)
+        np.random.seed(0)  # deterministic delay matrix
         delay = jnp.asarray(np.random.randint(1, 4, size=(4, 4)).astype('float32')) * u.ms
         conn = DelayedAdditiveConn(model, delay_time=delay, state='y')
         brainstate.nn.init_all_states(conn)

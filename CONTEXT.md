@@ -60,6 +60,13 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
 - `forward_model.py` `LeadFieldModel` — docstring/shape drift; `_sample_noise` references a
   nonexistent `self._noise_cov_q`.
 - `jansen_rit.py` — `s_max` default mismatch (docstring 2.5 Hz vs code 5.0 Hz).
+- `qif.py` `MontbrioPazoRoxinStep.update` (~line 260, non-`exp_euler` branch) — calls
+  `ode_<method>_step((r, v), 0.*u.ms, r_inp, v_inp)` and **omits `self.derivative`** as the
+  first positional arg, so `braintools.quad.ode_rk2_step`/`ode_rk4_step` get the state tuple
+  where the vector field should be → `TypeError: input function should be callable`. Only the
+  default `exp_euler` path works; `method='rk2'|'rk4'` is dead. Found in goal-04 (integrator
+  sweep), parked as **2 strict `xfail`s** in `integrator_test.py` (so the fix flips them to
+  pass). Fix in goal-05.
 
 ## Known drift / debt
 
@@ -185,3 +192,38 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   must be committed-to early — a native/empty worktree got auto-cleaned ("unchanged") mid-session.
   And the same drvfs absolute-path trap as goal-01: file tools with an absolute path to the MAIN
   checkout write to main, not the worktree.
+
+### 2026-06-18 · goal-04 testing-rigor
+- **Headline delivered — gradients now tested.** New `gradient_test.py` (23 tests) proves AD flows
+  through a `for_loop` sim for Hopf/WilsonCowan/JansenRit/Montbrio/FitzHughNagumo: grad-vs-FD,
+  `jax.test_util.check_grads(modes=['rev'])`, vmap-batched grads, zero-noise-limit, and
+  determinism-under-seeding. Net suite **229→311 passed (+3 xfail)**; coverage **77%→97.85%**,
+  every module ≥ 91.8%.
+- **Differentiable-test recipe (reuse this):** build the model *inside* the loss with the swept
+  scalar as `Param(p, fit=True)`, `brainstate.random.seed(0)` FIRST (purity — unseeded `Uniform`
+  init silently breaks check_grads/FD), run `for_loop`, reduce with `jnp.sum(u.get_magnitude(xs)**2)`
+  (**must** strip units or grad carries mV²/Hz² and FD comparison explodes). Pick a param the loss
+  is actually sensitive to: Montbrio grad wrt `J` at rest is ~1e-6 (FD noise drowns it) — swept
+  `eta` with a `v_inp=1.0` drive instead (AD=FD=0.1378). FD tol `rel=2e-2, abs=1e-6`.
+- **exp_euler is EXACT on linear ODEs** → use as analytic oracle (`integrator_test.py` asserts
+  err<1e-5 on linear decay, plus convergence-order bands exp_euler≈1 / rk2≈2). rk4 on smooth
+  nonlinear systems floors at float32 round-off ~8e-7, not 1e-12 — don't assert tighter.
+- **Systemic seeding bug found across the suite:** helpers seeded `brainstate.random` but built data
+  with `np.random.*` (uncontrolled). Both RNGs must be seeded. Fixed in noise/coupling/horn/
+  jansen_rit/leadfield/wong_wang tests; conftest `seeded` fixture seeds both.
+- **conftest extended (not replaced):** autouse `_isolate_environ_dt` snapshots/restores global
+  `environ['dt']` — this leakage was real (`jansen_rit` `test_eeg_output_signal` had been passing
+  only on a dt leaked from an earlier test). Plus `dt`/`seeded`/`connectome` fixtures, all
+  `indirect=`-parametrizable. `matplotlib.use("Agg")` at import top makes `plt.show()` a no-op.
+- **Dead tests repaired:** 5 commented `test_stability_long_simulation` (WC variants) uncommented +
+  converted slow `for i in range(10000)` python loops → jitted `for_loop` (all stay bounded <0.5);
+  Jansen/WongWang `plot=True` demos flipped to `plot=False` default (+ seeded WongWang) and given
+  finiteness/transient/bounded-gating asserts instead of bare `return`. A wrong commented Jansen
+  assertion (`out[-1] >= out[0]`; output is non-monotonic) was replaced with a responsiveness check.
+- **Coverage gate is now standard `pytest-cov`** (`pyproject [tool.coverage] fail_under=90, branch,
+  omit *_test.py`; CI Linux job runs `--cov=brainmass --cov-fail-under=90`; macOS/Win stay plain).
+  **The goal-01 drvfs coverage-SIGABRT did NOT recur** — full suite under plain `pytest --cov` ran
+  clean on `/mnt/d` (EXIT=0), so the `dev/superpowers/run_cov.py` C-ext-ordering workaround was
+  needed only locally before and is NOT shipped. `pytest-cov`+`coverage` added to requirements-dev.
+- **For goal-05:** see the new `qif.py` entry under *Known latent bugs* — the 2 strict `xfail`s in
+  `integrator_test.py` flip to pass the moment `self.derivative` is restored.

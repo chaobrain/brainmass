@@ -120,6 +120,7 @@ class TestOUProcess:
     def test_statistical_properties_mean_reversion(self):
         """Test that the process shows mean reversion over time"""
         brainstate.environ.set(dt=0.1 * u.ms)
+        brainstate.random.seed(0)  # deterministic so the tolerances below are meaningful
 
         # Start with non-zero initial condition
         noise = brainmass.OUProcess(1, mean=0.0 * u.nA, sigma=0.1 * u.nA, tau=10.0 * u.ms)
@@ -130,17 +131,25 @@ class TestOUProcess:
             with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
                 return noise.update()
 
-        # Run for many steps to observe mean reversion
+        # Run for many steps to observe mean reversion (100 ms = 10 tau).
         xs = brainstate.transform.for_loop(step_run, np.arange(1000))
 
-        # The final values should be closer to mean than initial
-        final_mean = np.mean(xs[-100:])  # Average of last 100 steps
-        assert abs(final_mean) < 4.0 * u.nA, "Process should revert toward mean over time"
+        # The process must revert to near its mean of 0 (started at 5 nA). The old
+        # bound of 4 nA was so loose it would pass even with badly-scaled noise.
+        final_mean = np.mean(xs[-100:])
+        assert abs(final_mean) < 0.5 * u.nA, "Process should revert toward mean over time"
+
+        # The stationary fluctuation scale must match the noise amplitude. A broken
+        # increment (e.g. the historical sqrt(dt) cancellation bug) would shift this
+        # by orders of magnitude.
+        tail_std = float(np.std(xs[-500:].mantissa))
+        assert 0.03 < tail_std < 0.15, f"stationary std {tail_std:.3f} nA is off-scale"
 
     def test_statistical_properties_with_nonzero_mean(self):
         """Test that process converges to specified non-zero mean"""
         brainstate.environ.set(dt=0.1 * u.ms)
 
+        brainstate.random.seed(0)  # deterministic mean estimate
         target_mean = 2.0 * u.nA
         noise = brainmass.OUProcess(1, mean=target_mean, sigma=0.5 * u.nA, tau=5.0 * u.ms)
         noise.init_state()
@@ -152,9 +161,10 @@ class TestOUProcess:
         # Run simulation
         xs = brainstate.transform.for_loop(step_run, np.arange(2000))
 
-        # Check convergence to target mean
-        final_mean = u.math.mean(xs[-200:]).mantissa  # Average of last 200 steps
-        assert abs(final_mean - 2.0) < 0.5, f"Mean should converge to {target_mean}, got {final_mean}"
+        # Check convergence to target mean (averaging the second half for a stable
+        # estimate of the stationary mean).
+        final_mean = u.math.mean(xs[1000:]).mantissa
+        assert abs(final_mean - 2.0) < 0.3, f"Mean should converge to {target_mean}, got {final_mean}"
 
     def test_different_time_steps(self):
         """Test behavior with different time step sizes"""
@@ -189,6 +199,7 @@ class TestOUProcess:
 
     def test_batch_processing_independence(self):
         """Test that batch samples are independent"""
+        brainstate.random.seed(0)
         batch_size = 100
         noise = brainmass.OUProcess(1, sigma=2.0 * u.nA, tau=10.0 * u.ms)
         noise.init_state(batch_size=batch_size)
@@ -217,6 +228,7 @@ class TestOUProcess:
     def test_integration_long_simulation(self):
         """Test stability over long simulation"""
         brainstate.environ.set(dt=0.1 * u.ms)
+        brainstate.random.seed(0)
 
         noise = brainmass.OUProcess(1, mean=1.0 * u.nA, sigma=0.5 * u.nA, tau=20.0 * u.ms)
         noise.init_state()
@@ -228,13 +240,21 @@ class TestOUProcess:
         # Long simulation
         xs = brainstate.transform.for_loop(step_run, np.arange(10000))
 
-        # Check that values remain bounded (shouldn't explode to infinity)
+        # Check that values remain bounded (shouldn't explode to infinity). The old
+        # bound of 50 nA was ~25x the actual excursion; a much tighter bound still
+        # passes the well-behaved process but catches a runaway/explosion.
         assert u.math.all(u.math.isfinite(xs)), "All values should remain finite"
-        assert u.math.max(u.math.abs(xs)) < 50.0 * u.nA, "Values should remain reasonably bounded"
+        assert u.math.max(u.math.abs(xs)) < 5.0 * u.nA, "Values should remain reasonably bounded"
+
+        # The stationary mean/std must match the configured drift and amplitude.
+        assert abs(np.mean(xs[5000:].mantissa) - 1.0) < 0.2, "should fluctuate about mean 1 nA"
+        assert 0.2 < float(np.std(xs[5000:].mantissa)) < 0.7, "stationary std off-scale"
 
 
 class TestNoise:
     def test1(self):
+        """A long OU run stays finite and bounded (no plotting needed)."""
+        brainstate.random.seed(0)
         noise = brainmass.OUProcess(1)
         noise.init_state()
 
@@ -244,10 +264,9 @@ class TestNoise:
             return noise.x.value
 
         xs = brainstate.transform.for_loop(step_run, np.arange(100000))
-        # Remove plotting for automated testing
-        # plt.plot(xs)
-        # plt.show()
-        # plt.close()
+        assert u.math.all(u.math.isfinite(xs)), "OU process should remain finite"
+        # Default sigma=1 nA, tau=10 ms: excursions stay well within ~10 nA.
+        assert u.math.max(u.math.abs(xs)) < 10.0 * u.nA
 
 
 class TestGaussianAndWhiteNoise:

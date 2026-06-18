@@ -22,6 +22,36 @@ import numpy as np
 import brainmass
 
 
+def _assert_decision_traces(n_steps, r1_trace, r2_trace, S1_trace, S2_trace):
+    """Shared assertions for the Wong-Wang decision-making demo trajectories.
+
+    Each demo seeds the RNG and integrates the two-population decision network.
+    A valid run must (a) stay finite, (b) keep the synaptic gating variables in
+    their physical ``[0, 1]`` range, and (c) actually accumulate evidence -- the
+    gating must rise meaningfully above its zero initial condition rather than
+    staying flat, confirming the decision dynamics ran.
+    """
+    for trace in (r1_trace, r2_trace, S1_trace, S2_trace):
+        assert trace.shape == (n_steps, 1)
+        assert u.math.all(u.math.isfinite(trace))
+
+    # Firing rates are non-negative.
+    assert u.math.all(u.get_magnitude(r1_trace) >= 0.0)
+    assert u.math.all(u.get_magnitude(r2_trace) >= 0.0)
+
+    # Synaptic gating stays within [0, 1] (allow a tiny float tolerance).
+    for S in (S1_trace, S2_trace):
+        Sm = u.get_magnitude(S)
+        assert u.math.all(Sm >= -1e-6) and u.math.all(Sm <= 1.0 + 1e-6)
+
+    # Evidence accumulated: at least one population's gating climbed clear of 0.
+    peak_gating = max(
+        float(u.math.max(u.get_magnitude(S1_trace))),
+        float(u.math.max(u.get_magnitude(S2_trace))),
+    )
+    assert peak_gating > 0.1, "decision dynamics did not accumulate evidence"
+
+
 class TestWongWangModel:
 
     def test_initialization(self):
@@ -275,9 +305,10 @@ class TestWongWangModel:
         print("=" * 40)
         print("All WongWangStep tests passed! ✓")
 
-    def test_demo_decision_making(self, plot=True):
+    def test_demo_decision_making(self, plot=False):
         """Demonstrate decision-making behavior."""
         brainstate.environ.set(dt=0.0001 * u.second)
+        brainstate.random.seed(0)  # decision dynamics are noise-driven
 
         model = brainmass.WongWangStep(in_size=1)
         model.init_state()
@@ -319,11 +350,12 @@ class TestWongWangModel:
             plt.show()
             plt.close()
 
-        return time, r1_trace, r2_trace, S1_trace, S2_trace
+        _assert_decision_traces(n_steps, r1_trace, r2_trace, S1_trace, S2_trace)
 
-    def test_demo_decision_making_ms(self, plot=True):
+    def test_demo_decision_making_ms(self, plot=False):
         """Demonstrate decision-making behavior."""
         brainstate.environ.set(dt=0.1 * u.ms)
+        brainstate.random.seed(0)  # decision dynamics are noise-driven
 
         model = brainmass.WongWangStep(in_size=1, tau_S=100. * u.ms)
         model.init_state()
@@ -365,9 +397,12 @@ class TestWongWangModel:
             plt.show()
             plt.close()
 
-    def test_demo_decision_making_ms_v3(self, plot=True):
+        _assert_decision_traces(n_steps, r1_trace, r2_trace, S1_trace, S2_trace)
+
+    def test_demo_decision_making_ms_v3(self, plot=False):
         """Demonstrate decision-making behavior."""
         brainstate.environ.set(dt=0.1 * u.ms)
+        brainstate.random.seed(0)  # decision dynamics are noise-driven
 
         model = brainmass.WongWangStep(in_size=1, tau_S=0.1 * u.second)
         model.init_state()
@@ -408,3 +443,5 @@ class TestWongWangModel:
             plt.tight_layout()
             plt.show()
             plt.close()
+
+        _assert_decision_traces(n_steps, r1_trace, r2_trace, S1_trace, S2_trace)
