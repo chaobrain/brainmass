@@ -236,6 +236,8 @@ cython_debug/
 # brainx-sphinx-header build artifacts
 docs/_brand/
 docs/_static/css/brainx-header.css
+docs/_static/css/brainx-footer.css
 docs/_static/js/brainx-header.js
+docs/_static/js/brainx-footer.js
 /tutorials/data/
 /tutorials/

@@ -16,7 +16,11 @@
 import brainstate
 import braintools
 import brainunit as u
+import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
+from brainstate.nn import Param
 
 import brainmass
 
@@ -139,3 +143,141 @@ class TestThresholdLinearModel:
             assert False, "Expected assertion for invalid init_I"
         except AssertionError:
             pass
+
+    def test_noise_paths_change_trajectory(self):
+        # Exercise the noise_E / noise_I injection branches of update().
+        brainstate.random.seed(0)
+        n = 3
+        m = brainmass.ThresholdLinearStep(
+            n,
+            noise_E=brainmass.GaussianNoise(n, sigma=0.05),
+            noise_I=brainmass.GaussianNoise(n, sigma=0.05),
+        )
+        m.init_state()
+        with brainstate.environ.context(dt=0.1 * u.ms):
+            e1 = m.update(E_inp=1.0, I_inp=1.0)
+        m_clean = brainmass.ThresholdLinearStep(n)
+        m_clean.init_state()
+        with brainstate.environ.context(dt=0.1 * u.ms):
+            e2 = m_clean.update(E_inp=1.0, I_inp=1.0)
+        assert e1.shape == (n,)
+        assert not jnp.allclose(e1, e2)
+
+
+# ===========================================================================
+# LinearStep (TVB ``Linear`` model): dx/dt = gamma * x + coupling.
+#
+# Validation:
+# - ``test_linear_rhs_matches_reference`` — the RHS equals the embedded TVB
+#   transcription to rtol 1e-6 (equation-level reference regression).
+# - ``test_linear_matches_analytic_decay`` — with zero coupling the activity
+#   relaxes as the closed-form x(t) = x0 * exp(gamma * t); the (exact for linear
+#   systems) exp-Euler step reproduces it (corr >= 0.99, tight RMSE).
+# ===========================================================================
+def _linear_reference(x, *, gamma, coupling):
+    """Reference dx/dt per unit time, transcribed from tvboptim ``Linear``."""
+    return gamma * x + coupling
+
+
+def _mag_per_ms(quantity):
+    """Strip the 1/ms unit a brainmass RHS carries -> dimensionless per-time value."""
+    return u.get_magnitude(quantity * u.ms)
+
+
+def test_linear_rhs_matches_reference(seeded):
+    n = 6
+    rng = np.random.default_rng(0)
+    gamma = -7.0
+    model = brainmass.LinearStep(n, gamma=gamma)
+    model.init_all_states()
+    for _ in range(20):
+        x = jnp.asarray(rng.uniform(-3.0, 3.0, size=n))
+        coup = jnp.asarray(rng.uniform(-2.0, 2.0, size=n))
+        model.x.value = x
+        (dx,) = model.derivative((x,), 0.0 * u.ms, coup)
+        ref = _linear_reference(x, gamma=gamma, coupling=coup)
+        np.testing.assert_allclose(_mag_per_ms(dx), np.asarray(ref), rtol=1e-6, atol=1e-6)
+
+
+def test_linear_matches_analytic_decay(dt):
+    """Zero-coupling relaxation matches x(t) = x0 * exp(gamma t) (exp-Euler is exact)."""
+    gamma, x0, n_steps = -5.0, 0.8, 200
+    model = brainmass.LinearStep(1, gamma=gamma, init_x=braintools.init.Constant(x0))
+    out = brainmass.Simulator(model, dt=dt).run(n_steps * dt, monitors=["x"], jit=True)
+    x_bm = np.asarray(out["x"]).reshape(-1)
+
+    dt_ms = u.get_magnitude(dt / u.ms)
+    t = (np.arange(n_steps) + 1) * dt_ms  # Simulator records post-step values
+    x_ref = x0 * np.exp(gamma * t)
+
+    corr = np.corrcoef(x_bm, x_ref)[0, 1]
+    assert corr >= 0.99, f"corr={corr}"
+    np.testing.assert_allclose(x_bm, x_ref, rtol=1e-4, atol=1e-6)
+
+
+def test_linear_converges_to_forced_fixed_point(dt):
+    """With constant coupling c, the activity settles to the fixed point -c/gamma."""
+    gamma, c = -4.0, 2.0
+    model = brainmass.LinearStep(1, gamma=gamma, init_x=braintools.init.Constant(0.0))
+    out = brainmass.Simulator(model, dt=dt).run(
+        4000 * dt, monitors=["x"], inputs=lambda i, t: c
+    )
+    x_final = float(np.asarray(out["x"]).reshape(-1)[-1])
+    np.testing.assert_allclose(x_final, -c / gamma, rtol=1e-3, atol=1e-3)
+
+
+@pytest.mark.parametrize("method", ["exp_euler", "rk4"])
+def test_linear_integrator_paths_bounded(method, dt):
+    model = brainmass.LinearStep(3, method=method)
+    out = brainmass.Simulator(model, dt=dt).run(100 * dt, monitors=["x"])
+    assert jnp.all(jnp.isfinite(out["x"]))
+
+
+def test_linear_shapes_and_units():
+    n = 4
+    model = brainmass.LinearStep(n)
+    model.init_all_states()
+    assert model.x.value.shape == (n,)
+    (dx,) = model.derivative((model.x.value,), 0.0 * u.ms, 0.0)
+    assert u.get_unit(dx * u.ms).is_unitless
+
+
+def test_linear_batched(dt):
+    n, b = 3, 5
+    model = brainmass.LinearStep(n)
+    out = brainmass.Simulator(model, dt=dt).run(20 * dt, monitors=["x"], batch_size=b)
+    assert out["x"].shape[-2:] == (b, n)
+
+
+def test_linear_noise_changes_trajectory(seeded, dt):
+    n = 3
+    model = brainmass.LinearStep(n, noise_x=brainmass.GaussianNoise(n, sigma=0.1))
+    out_noisy = brainmass.Simulator(model, dt=dt).run(50 * dt, monitors=["x"])
+    model_clean = brainmass.LinearStep(n)
+    out_clean = brainmass.Simulator(model_clean, dt=dt).run(50 * dt, monitors=["x"])
+    assert not jnp.allclose(out_noisy["x"], out_clean["x"])
+
+
+def test_linear_invalid_args():
+    with pytest.raises(AssertionError):
+        brainmass.LinearStep(1, init_x=None)
+    with pytest.raises(AssertionError):
+        brainmass.LinearStep(1, noise_x=object())
+
+
+def test_linear_gradient_ad_vs_fd(dt):
+    """AD through Simulator.run wrt gamma matches a finite-difference estimate."""
+    n_steps = 80
+
+    def loss(gamma_val):
+        brainstate.random.seed(0)
+        model = brainmass.LinearStep(1, gamma=Param(gamma_val, fit=True),
+                                     init_x=braintools.init.Constant(1.0))
+        out = brainmass.Simulator(model, dt=dt).run(n_steps * dt, monitors=["x"], jit=False)
+        return jnp.sum(u.get_magnitude(out["x"]) ** 2)
+
+    g0 = -3.0
+    g_ad = jax.grad(loss)(g0)
+    eps = 1e-3
+    g_fd = (loss(g0 + eps) - loss(g0 - eps)) / (2 * eps)
+    np.testing.assert_allclose(np.asarray(g_ad), np.asarray(g_fd), rtol=2e-2, atol=1e-4)

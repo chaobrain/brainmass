@@ -20,11 +20,13 @@ import braintools
 import brainunit as u
 from brainstate.nn import Dynamics, Param
 
+from ._base import NeuralMassDynamics
 from .noise import Noise
 from .typing import Parameter
 
 __all__ = [
     'ThresholdLinearStep',
+    'LinearStep',
 ]
 
 
@@ -184,3 +186,152 @@ class ThresholdLinearStep(Dynamics):
         I = brainstate.nn.exp_euler_step(dI, self.I.value)
         self.I.value = u.math.maximum(I, 0.)
         return self.E.value
+
+
+class LinearStep(NeuralMassDynamics):
+    r"""Linear neural-mass node with damping (TVB ``Linear`` model).
+
+    A single-state linear model with a damping coefficient, used in The Virtual
+    Brain as a canonical baseline for validating simulation pipelines and network
+    coupling without nonlinear complications [1]_. Despite its simplicity it is a
+    genuine network node: the long-range and local coupling enter additively.
+
+    .. math::
+
+       \frac{dx}{dt} = \gamma\,x + c,
+
+    where :math:`x` is the (dimensionless) node activity, :math:`\gamma` the
+    damping coefficient, and :math:`c` the summed coupling/external input. For a
+    stable node :math:`\gamma` must be negative and its magnitude should exceed the
+    node's in-degree; with :math:`c = 0` the activity relaxes exponentially,
+    :math:`x(t) = x_0 e^{\gamma t}`.
+
+    This is distinct from :class:`~brainmass.ThresholdLinearStep`, which is a
+    two-population (E/I) *threshold*-linear rate model.
+
+    Parameters
+    ----------
+    in_size : brainstate.typing.Size
+        Spatial shape of the node. An ``int`` or tuple of ``int``; ``gamma``
+        broadcasts to this shape.
+    gamma : Parameter, optional
+        Damping coefficient (dimensionless). Must be negative for stability.
+        Default is ``-10.0``.
+    init_x : Callable, optional
+        Initializer for the activity state ``x``. Default is
+        ``braintools.init.Constant(0.01)``.
+    noise_x : Noise or None, optional
+        Additive noise process. If provided, its output is added to the input
+        ``x_inp`` at each update. Default is ``None``.
+    method : str, optional
+        Integration method, ``'exp_euler'`` (default) or any ``braintools.quad``
+        method (e.g. ``'rk4'``). The exponential-Euler step is *exact* for this
+        linear system.
+
+    Attributes
+    ----------
+    x : brainstate.HiddenState
+        Node activity (dimensionless). Shape ``(batch?,) + in_size``.
+
+    Notes
+    -----
+    The state is dimensionless and :meth:`dx` carries unit ``1/ms``, so an
+    exponential-Euler step with ``dt`` in milliseconds is consistent (the
+    convention shared by the other ``*Step`` models in this package).
+
+    References
+    ----------
+    .. [1] P. Sanz-Leon, S. A. Knock, A. Spiegler, V. K. Jirsa (2015). Mathematical
+       framework for large-scale brain network modeling in The Virtual Brain.
+       NeuroImage, 111, 385-430. https://doi.org/10.1016/j.neuroimage.2015.01.002
+
+    Examples
+    --------
+    .. code-block:: python
+
+       >>> import brainmass
+       >>> import brainstate
+       >>> import brainunit as u
+       >>> model = brainmass.LinearStep(in_size=1, gamma=-5.0)
+       >>> _ = brainstate.nn.init_all_states(model)
+       >>> with brainstate.environ.context(dt=0.1 * u.ms):
+       ...     x = model.update()
+       >>> x.shape
+       (1,)
+    """
+    __module__ = 'brainmass'
+
+    def __init__(
+        self,
+        in_size: brainstate.typing.Size,
+        gamma: Parameter = -10.0,
+        init_x: Callable = braintools.init.Constant(0.01),
+        noise_x: Noise = None,
+        method: str = 'exp_euler',
+    ):
+        super().__init__(in_size)
+        self.gamma = Param.init(gamma, self.varshape)
+
+        assert callable(init_x), 'init_x must be callable'
+        assert isinstance(noise_x, Noise) or noise_x is None, 'noise_x must be a Noise instance or None'
+        self.init_x = init_x
+        self.noise_x = noise_x
+        self.method = method
+
+    def init_state(self, batch_size=None, **kwargs):
+        """Allocate the activity state ``x``.
+
+        Parameters
+        ----------
+        batch_size : int or None, optional
+            Optional leading batch dimension. If ``None``, no batch dimension is
+            used. Default is ``None``.
+        """
+        self.x = brainstate.HiddenState.init(self.init_x, self.varshape, batch_size)
+
+    def dx(self, x, x_inp):
+        """Right-hand side for the activity ``x``.
+
+        Parameters
+        ----------
+        x : array-like
+            Current activity (dimensionless).
+        x_inp : array-like or scalar
+            Summed coupling/external input (includes noise if enabled).
+
+        Returns
+        -------
+        array-like
+            Time derivative ``dx/dt`` with unit ``1/ms``.
+        """
+        return (self.gamma.value() * x + x_inp) / u.ms
+
+    def derivative(self, state, t, x_inp):
+        (x,) = state
+        return (self.dx(x, x_inp),)
+
+    def update(self, x_inp=None):
+        """Advance the node by one time step.
+
+        Parameters
+        ----------
+        x_inp : array-like or scalar or None, optional
+            Summed coupling/external input. If ``None``, treated as zero. If
+            ``noise_x`` is set, its output is added. Default is ``None``.
+
+        Returns
+        -------
+        array-like
+            The updated activity ``x``, same shape as the internal state.
+        """
+        x_inp = 0.0 if x_inp is None else x_inp
+        if self.noise_x is not None:
+            x_inp = x_inp + self.noise_x()
+
+        (x,) = self._solve_step(
+            exp_euler_specs=((self.dx, self.x.value, x_inp),),
+            ode_state=(self.x.value,),
+            ode_inputs=(x_inp,),
+        )
+        self.x.value = x
+        return x

@@ -496,3 +496,75 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   Our docstring `Examples` (21 `>>>` lines across the 3 classes) pass via `DocTestFinder` (0 failures).
   NB `doctest.testmod(mod)`/`pytest --doctest-modules` reported 0 — they mis-filter re-exported classes by
   `__module__`; `DocTestFinder().find(cls)` is the reliable local doctest check.
+
+### 2026-06-19 · goal-10 tvb-models-canonical
+
+- **Closed model parity with tvboptim** by adding four canonical/E-I nodes on the unified
+  `NeuralMassDynamics` base, same embedded-reference-oracle pattern as goal-09:
+  - **`Generic2dOscillatorStep`** `(V, W)` — Sanz-Leon et al. (2015). 12 params via setattr loop;
+    cubic-nullcline `dV = d·tau·(−f·V³+e·V²+g·V+α·W+γ·(I+V_inp))`, `dW = (d/tau)·(a+b·V+c·V²−β·W)`.
+    Validated against the analytic bistable fixed point (`d=1`, `b=0`, `c=−5`, `e=3`, `f=1` →
+    `V*=(−1−√5)/2≈−1.618`, `W*=V*³−3V*²`) + excitable input-integration shift; **regime
+    boundaries are sharp** — the excitable `I=2.0` probe failed to settle at sped-up `d=1.0`
+    (Hopf at high drive), so the test uses `d=0.2` with `I=0` vs `I=3`.
+  - **`WongWangExcInhStep`** `(S_E, S_I)` — Deco et al. (2014). **Distinct from `WongWangStep`**
+    (the reduced *decision-making* `(S1,S2)` model): resolved by reading `wong_wang.py` first.
+    Naive TVB transfer `H(x)=(a·x−b)/(1−exp(−d·(a·x−b)))` has a removable singularity at
+    `a·x−b=0`, but the physiological regime sits at `x_e_scaled≈−7` throughout, so the naive
+    form is safe; resting FP ≈ 3 Hz excitatory rate matches Deco 2014. `H_e()`/`H_i()` expose rates.
+  - **`LorenzStep`** `(x, y, z)` — Lorenz (1963). Chaos test asserts positive Lyapunov / exponential
+    divergence. **float32 gotcha:** perturbation `1e-8` is *below* float32 epsilon (~1e-7) so both
+    trajectories were bit-identical (separation 0.0) — use `eps=1e-3`. Docstring notes
+    `dt=0.01*u.ms` ≡ classic dimensionless `dt=0.01`.
+  - **`LinearStep`** `(x)` — TVB `Linear`, `dx/dt=γx+coupling`. Validated against closed-form
+    `x(t)=x0·exp(γt)` (exp-Euler is *exact* for linear systems) + forced FP `−c/γ`. Distinct from
+    the two-population `ThresholdLinearStep`. **Simulator gotcha:** constant input must be a
+    callable `inputs=lambda i,t: c` — a bare `(c,)` is read as an array of shape `(n_steps,…)`.
+- **⚠ User mid-session override: "remove TVB TVBOPTIM comparison tests."** Deleted the gated
+  `@requires_tvb`/`@requires_tvboptim` placeholder tests **and** the gating machinery
+  (`importlib.util.find_spec`, `_HAS_TVB`, `requires_*`) from goal-09's
+  `coombes_byrne_test.py`/`epileptor_test.py`/`larter_breakspear_test.py` too (this worktree merges
+  to main). The embedded-oracle RHS-fidelity tests STAY (they compare against transcriptions, not
+  live TVB). So goal-09's lesson above about `@requires_tvb` is now historical — those gates are gone.
+- **goal-10b (folded into this PR per user): converted the narrative RST guides → Jupyter notebooks.**
+  Scope (user-chosen): `tutorials/*` + `developer/*` + `faq` only; `apis/*` stay autosummary RST;
+  index hubs stay. Wrote a tuned `rst2nb.py` (dev/, gitignored): top-level `.. testcode::` /
+  `.. code-block:: python` → code cells; prose/`note`/`math`/`list-table`/`tab-set` → MyST
+  colon-fence/`$$`/`{role}` markdown; bash/text code-blocks → fenced markdown; prepend a
+  `remove-cell`-tagged setup cell (`%matplotlib inline` + the old `doctest_global_setup` imports + `dt`).
+  Toctrees/`:doc:` resolve by **extension-less docname**, so deleting `quickstart.rst` + adding
+  `quickstart.ipynb` auto-resolved — **no toctree edits needed**.
+- **⚠ Notebook execution must use the worktree brainmass, not the kernel's installed one.**
+  `jupyter nbconvert --execute` runs the `python3` kernel with cwd = the notebook's dir, which
+  imported a *stale* site-packages brainmass (pre-goal-06: no `objectives`/`Network`). Fix:
+  `PYTHONPATH=<worktree-root> jupyter nbconvert …`. (sphinx `-b doctest` is unaffected — conf.py puts
+  the package on `sys.path`.)
+- **Executing the notebooks surfaced — and we then repaired — real pre-existing doc drift** the
+  doctest gate never caught (those examples were `.. code-block::`, not `.. testcode::`, so were never
+  run). First pass: 7/14 executed clean. The other 7 had genuine API drift / missing-`.npy` /
+  intentional fragments. **User chose "repair drift now"** → fixed 5 in parallel (one subagent per
+  notebook, *execution as the correctness gate* — each must `nbconvert --execute` to exit 0): updated
+  `WilsonCowanStep` kwargs (`c_EE`→`wEE/wEI/…`), the prefetch `DiffusiveCoupling`/`AdditiveCoupling`
+  API, `KuramotoNetwork(omega,K)` (not `omega_mean/std`), lead-field shapes+units, and the BOLD driver
+  (`WongWangExcInhStep`/`WilsonCowanStep`, since `WongWangStep` is the reduced `S1/S2` decision model
+  with no `S_E`); replaced `.npy` loads with seeded inline matrices. **12/14 now execute** with embedded
+  outputs; `faq` (intentional error-demo fragments) and `developer/architecture`
+  (`brainstate.ShardingMode`, absent in the pinned version) stay unexecuted.
+- **⚠ Subagent-repair gotchas worth keeping:** (a) `jupyter nbconvert --execute` uses the kernel's
+  *installed* brainmass unless you pass `PYTHONPATH=<worktree>` — stale package = phantom failures.
+  (b) A *deterministic* Wong-Wang network collapses all regions to one fixed point → zero-variance BOLD
+  → `nan` FC; fix with per-region `OUProcess` noise **and** an explicit `brainstate.random.seed(...)`.
+  (c) `DiffusiveCoupling` needs the source prefetch to yield `(N, N)` (each target reads every source),
+  so `prefetch_delay` with a tiled `src_idx` is required — a plain `prefetch('x')` raises a shape error.
+  (d) `KuramotoNetwork.omega` is **dimensionless** (passing `u.Hz` raises `UnitMismatchError` — it
+  divides by `u.ms` internally). (e) lead-field `L` shape is `(in_size, out_size)` carrying unit
+  `sensor_unit / dipole_unit`.
+- **Doctest drive-by:** before the conversion, fixed goal-06's 4 `parameter_fitting.rst` `.. testcode::`
+  failures with `.. testoutput:: :options: +ELLIPSIS` (stochastic `fitted k = …`); that file is now a
+  notebook so the fix lives only in history, but the technique (ELLIPSIS testoutput for non-deterministic
+  prints) is the right tool when a `testcode` block must print.
+- **Parity table (brainmass ⊇ tvboptim node library):** FitzHugh-Nagumo, Hopf, Stuart-Landau,
+  Van der Pol, Wilson-Cowan family, Jansen-Rit, Montbrió-Pazó-Roxin, Kuramoto (canonical, pre-existing) ·
+  Epileptor, Larter-Breakspear, Coombes-Byrne (complex, goal-09) · Generic2dOscillator,
+  WongWang-ExcInh, Lorenz, Linear (canonical/E-I, goal-10). brainmass additionally has HORN + forward
+  models (BOLD/EEG/MEG lead fields) with no tvboptim equivalent.
