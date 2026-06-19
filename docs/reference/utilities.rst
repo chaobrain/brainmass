@@ -1,9 +1,10 @@
-Utility Functions
+Utilities & Types
 =================
 
 .. currentmodule:: brainmass
 
-``brainmass`` provides several utility functions for common operations in neural mass modeling.
+``brainmass`` provides several utility functions for common operations in neural mass
+modeling, plus a handful of type aliases used throughout the public signatures.
 
 
 API Reference
@@ -17,6 +18,34 @@ API Reference
    sigmoid
    bounded_input
    process_sequence
+   delay_index
+
+:func:`delay_index` converts a delay (in time units) into an integer buffer index for
+the circular delay buffers that delayed coupling reads from.
+
+
+Type Aliases
+------------
+
+These aliases annotate the public model / coupling signatures. They are ordinary
+``typing`` constructs (not classes), so pass any value matching the alias.
+
+.. data:: Initializer
+
+   ``Union[Callable, brainstate.typing.ArrayLike]`` -- a parameter/state initializer:
+   either an array-like value or a callable ``shape -> array`` (e.g. a
+   :mod:`braintools.init` initializer).
+
+.. data:: Array
+
+   ``brainstate.typing.ArrayLike`` -- any array-like input (NumPy / JAX array, scalar,
+   or a unit-carrying :class:`brainunit.Quantity`).
+
+.. data:: Parameter
+
+   ``Union[Callable, brainstate.typing.ArrayLike, brainstate.nn.Param]`` -- a model
+   parameter: an array-like value, an initializer callable, or a wrapped
+   :class:`~brainstate.nn.Param` (constrainable / trainable).
 
 
 Model discovery

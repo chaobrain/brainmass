@@ -179,10 +179,15 @@ Oscillator Models
    :nosignatures:
    :template: classtemplate.rst
 
+   XY_Oscillator
    HopfStep
    VanDerPolStep
    StuartLandauStep
    KuramotoNetwork
+
+:class:`XY_Oscillator` is the shared two-variable ``(x, y)`` planar-oscillator base
+that :class:`HopfStep`, :class:`StuartLandauStep` and :class:`VanDerPolStep` specialise;
+instantiate the concrete subclasses for simulations.
 
 
 **Example: Hopf Oscillator**
@@ -253,7 +258,12 @@ Rate-Based Models
 
    WilsonCowanStep
    JansenRitStep
+   JansenRitTR
    WongWangStep
+
+:class:`JansenRitTR` wraps :class:`JansenRitStep` with an inner dt-substep loop that
+emits one output sample per acquisition repetition time (TR) -- the in-package
+precedent for TR-rate observation.
 
 
 **Example: Wilson-Cowan Model**
@@ -298,6 +308,35 @@ The Jansen-Rit model simulates EEG-like signals from a cortical column with thre
    )
 
    # The output represents pyramidal membrane potential (EEG proxy)
+
+
+Wilson-Cowan Variants
+^^^^^^^^^^^^^^^^^^^^^^
+
+Beyond the canonical :class:`WilsonCowanStep`, ``brainmass`` ships a family of
+Wilson-Cowan variants that swap the activation nonlinearity, normalisation, or add
+adaptation / explicit delays / a third population. They share the same
+``(rE, rI)``-style state and ``update`` contract.
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+   :template: classtemplate.rst
+
+   WilsonCowanNoSaturationStep
+   WilsonCowanSymmetricStep
+   WilsonCowanSimplifiedStep
+   WilsonCowanLinearStep
+   WilsonCowanDivisiveStep
+   WilsonCowanDivisiveInputStep
+   WilsonCowanDelayedStep
+   WilsonCowanAdaptiveStep
+   WilsonCowanThreePopBase
+   WilsonCowanThreePopulationStep
+
+:class:`WilsonCowanThreePopBase` is the shared base for the three-population
+variant; instantiate :class:`WilsonCowanThreePopulationStep` (or another concrete
+variant) for simulations.
 
 
 Spiking Network Reductions
