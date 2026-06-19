@@ -29,7 +29,14 @@ import brainunit as u
 import numpy as np
 from brainstate.nn import Param
 
-from .coupling import DiffusiveCoupling, AdditiveCoupling, LaplacianConnParam
+from .coupling import (
+    DiffusiveCoupling,
+    AdditiveCoupling,
+    SigmoidalCoupling,
+    HyperbolicTangentCoupling,
+    SigmoidalJansenRitCoupling,
+    LaplacianConnParam,
+)
 from .utils import delay_index
 
 __all__ = [
@@ -65,12 +72,18 @@ class Network(brainstate.nn.Module):
         Conduction speed. If ``distance`` carries length units and ``speed`` carries
         ``length / time`` units the delay is unit-correct; if both are plain numbers
         the quotient is interpreted as milliseconds (matching the examples).
-    coupling : {'diffusive', 'additive', 'laplacian'}, default 'diffusive'
+    coupling : {'diffusive', 'additive', 'laplacian', 'sigmoidal', 'tanh', \
+'sigmoidal_jansen_rit'}, default 'diffusive'
         Coupling kernel. ``'diffusive'`` uses
         :class:`~brainmass.DiffusiveCoupling` (``k * sum_j conn_ij (x_j - x_i)``);
         ``'additive'`` uses :class:`~brainmass.AdditiveCoupling`
         (``k * sum_j conn_ij x_j``); ``'laplacian'`` wraps ``conn`` in a
-        :class:`~brainmass.LaplacianConnParam` and applies it additively.
+        :class:`~brainmass.LaplacianConnParam` and applies it additively. The
+        nonlinear forms ``'sigmoidal'`` (:class:`~brainmass.SigmoidalCoupling`),
+        ``'tanh'`` (:class:`~brainmass.HyperbolicTangentCoupling`) and
+        ``'sigmoidal_jansen_rit'`` (:class:`~brainmass.SigmoidalJansenRitCoupling`)
+        apply their nonlinearity to the same delayed source read, with ``k`` as the
+        global strength (TVB ``G``; ``G ≡ k``).
     coupled_var : str
         Name of the node state variable to couple (e.g. ``'rE'``, ``'x'``, ``'V'``).
         Validated at initialisation; an unknown name raises ``ValueError``.
@@ -156,10 +169,16 @@ class Network(brainstate.nn.Module):
                 else LaplacianConnParam(conn_for_coupling)
             )
             self.coupling = AdditiveCoupling(src, lap, k=k)
+        elif coupling == 'sigmoidal':
+            self.coupling = SigmoidalCoupling(src, conn_for_coupling, k=k)
+        elif coupling == 'tanh':
+            self.coupling = HyperbolicTangentCoupling(src, conn_for_coupling, k=k)
+        elif coupling == 'sigmoidal_jansen_rit':
+            self.coupling = SigmoidalJansenRitCoupling(src, conn_for_coupling, k=k)
         else:
             raise ValueError(
-                f"coupling must be 'diffusive', 'additive' or 'laplacian'; "
-                f"got {coupling!r}."
+                f"coupling must be 'diffusive', 'additive', 'laplacian', 'sigmoidal', "
+                f"'tanh' or 'sigmoidal_jansen_rit'; got {coupling!r}."
             )
 
     # ------------------------------------------------------------------ helpers

@@ -25,8 +25,14 @@ from ._xy_model import (
 from .coupling import (
     DiffusiveCoupling,
     AdditiveCoupling,
+    SigmoidalCoupling,
+    HyperbolicTangentCoupling,
+    SigmoidalJansenRitCoupling,
     diffusive_coupling,
     additive_coupling,
+    sigmoidal_coupling,
+    hyperbolic_tangent_coupling,
+    sigmoidal_jansen_rit_coupling,
     laplacian_connectivity,
     LaplacianConnParam,
 )
@@ -197,8 +203,14 @@ __all__ = [
     # Coupling mechanisms
     'DiffusiveCoupling',
     'AdditiveCoupling',
+    'SigmoidalCoupling',
+    'HyperbolicTangentCoupling',
+    'SigmoidalJansenRitCoupling',
     'diffusive_coupling',
     'additive_coupling',
+    'sigmoidal_coupling',
+    'hyperbolic_tangent_coupling',
+    'sigmoidal_jansen_rit_coupling',
     'laplacian_connectivity',
     'LaplacianConnParam',
 
