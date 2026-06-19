@@ -34,14 +34,14 @@ jobs:
           from pathlib import Path
           import re
           init = Path('brainmass/_version.py').read_text(encoding='utf-8')
-          m = re.search(r"__version__\s*=\s*['"]([^'"]+)['"]", init)
+          m = re.search(r'__version__\s*=\s*"([^"]+)"', init)
           print(m.group(1) if m else '')
           PY
           )
           echo "Release tag: $TAG"
           echo "Package version: $VERSION"
           if [ -z "$VERSION" ]; then
-            echo "Could not determine version from brainmass/__init__.py" >&2
+            echo "Could not determine version from brainmass/_version.py" >&2
             exit 1
           fi
           if [ "$TAG" != "$VERSION" ]; then
