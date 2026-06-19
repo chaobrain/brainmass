@@ -11,10 +11,21 @@ Overview
 --------
 
 Coupling maps activity from source nodes to target nodes via a structural connectivity matrix.
-Two fundamental coupling forms are provided:
+``brainmass`` provides both **linear** and **nonlinear** coupling forms, matching the canonical
+TVB coupling library:
 
-1. **Diffusive Coupling**: Proportional to the difference between connected nodes
-2. **Additive Coupling**: Directly sums weighted inputs from connected nodes
+1. **Diffusive Coupling**: Proportional to the difference between connected nodes (TVB *Difference*)
+2. **Additive / Linear Coupling**: Weighted sum of neighbour inputs, with optional bias (TVB *Linear*)
+3. **Sigmoidal Coupling**: Logistic nonlinearity applied *after* the network sum (TVB *Sigmoidal*)
+4. **Hyperbolic-Tangent Coupling**: Symmetric ``tanh`` saturation *after* the sum (TVB *HyperbolicTangent*)
+5. **Sigmoidal Jansen-Rit Coupling**: Jansen-Rit firing-rate sigmoid applied *before* the sum
+   (TVB *SigmoidalJansenRit*)
+
+.. note::
+
+   ``brainmass`` names the global coupling strength ``k``; TVB / tvboptim call it ``G``. The two
+   are identical: **G ≡ k**. New trainable scalars (``slope``, ``midpoint``, ``cmin``/``cmax``,
+   ``r``, ``b``) go through ``Param.init`` and are constrainable / fittable like ``k``.
 
 
 Coupling Types
@@ -30,9 +41,18 @@ Coupling Types
    * - Diffusive
      - :math:`k \sum_j W_{ij} (x_j - x_i)`
      - Drives nodes toward neighbors' states
-   * - Additive
-     - :math:`k \sum_j W_{ij} x_j`
-     - Weighted sum of neighbor inputs
+   * - Additive / Linear
+     - :math:`k \sum_j W_{ij} x_j + b`
+     - Weighted sum of neighbor inputs (+ bias)
+   * - Sigmoidal
+     - :math:`k\,\sigma\!\big(s\,(a\sum_j W_{ij} x_j + b - m)\big)`
+     - Logistic saturation after the sum
+   * - Hyperbolic Tangent
+     - :math:`k\,\tanh\!\big(s\sum_j W_{ij} x_j\big)`
+     - Symmetric saturation after the sum
+   * - Sigmoidal Jansen-Rit
+     - :math:`k \sum_j W_{ij}\,\sigma_{\mathrm{JR}}(x_j)`
+     - Firing-rate sigmoid before the sum
 
 
 Mathematical Details
@@ -55,13 +75,45 @@ This can be rewritten using the graph Laplacian :math:`\mathbf{L}`:
 
 where :math:`L_{ij} = \delta_{ij} \sum_k W_{ik} - W_{ij}`.
 
-**Additive Coupling**
+**Additive / Linear Coupling**
 
 The additive coupling input is:
 
 .. math::
 
-   C_i = k \sum_{j=1}^{N} W_{ij} x_j = k (\mathbf{W}^T \mathbf{x})_i
+   C_i = k \sum_{j=1}^{N} W_{ij} x_j + b = k (\mathbf{W}^T \mathbf{x})_i + b
+
+where :math:`b` is an optional offset (default :math:`0`, which reproduces the bias-free
+coupling exactly). This is TVB's *Linear* coupling.
+
+**Nonlinear Couplings**
+
+Three nonlinear forms close parity with the TVB coupling library. The *post-nonlinearity*
+forms apply a saturating function to the network sum:
+
+.. math::
+
+   \text{Sigmoidal:}\quad
+   C_i &= k\,\sigma\!\Big(s\,\big(a\textstyle\sum_j W_{ij} x_j + b - m\big)\Big),
+   \qquad \sigma(z) = \frac{1}{1 + e^{-z}} \\[4pt]
+   \text{Hyperbolic Tangent:}\quad
+   C_i &= k\,\tanh\!\Big(s\textstyle\sum_j W_{ij} x_j\Big)
+
+with slope :math:`s`, midpoint :math:`m`, input scaling :math:`a` and offset :math:`b`. The
+*pre-nonlinearity* Jansen-Rit form applies a firing-rate sigmoid to each source **before**
+summation:
+
+.. math::
+
+   C_i = k \sum_j W_{ij}\,\sigma_{\mathrm{JR}}(x_j),
+   \qquad
+   \sigma_{\mathrm{JR}}(x) = c_{\min} + \frac{c_{\max} - c_{\min}}{1 + e^{\,r\,(m - x)}}
+
+where :math:`x_j` is the presynaptic source (e.g. the Jansen-Rit :math:`y_1 - y_2`),
+:math:`r` the steepness and :math:`m` the half-activation potential. Because the
+transcendental functions require dimensionless arguments, their input is reduced to its
+magnitude; the post-nonlinearity output then carries the units of :math:`k`, and the
+Jansen-Rit output the units of :math:`k\,W`.
 
 
 Connectivity Matrix Conventions
@@ -92,6 +144,9 @@ Class-Based Coupling
 
    DiffusiveCoupling
    AdditiveCoupling
+   SigmoidalCoupling
+   HyperbolicTangentCoupling
+   SigmoidalJansenRitCoupling
 
 
 **Example: Diffusive Coupling**
@@ -140,6 +195,9 @@ Functional Coupling
 
    diffusive_coupling
    additive_coupling
+   sigmoidal_coupling
+   hyperbolic_tangent_coupling
+   sigmoidal_jansen_rit_coupling
 
 
 Functional APIs provide stateless coupling for imperative use:
@@ -364,6 +422,17 @@ Common Issues
 **Self-Connections:**
 - Diagonal elements ``W[i, i]`` represent self-connections
 - Often set to zero to avoid redundant self-coupling
+
+
+References
+----------
+
+- Jansen, B. H., & Rit, V. G. (1995). Electroencephalogram and visual evoked potential
+  generation in a mathematical model of coupled cortical columns. *Biological Cybernetics*,
+  73(4), 357-366. (Sigmoidal Jansen-Rit coupling.)
+- Sanz-Leon, P., Knock, S. A., Spiegler, A., & Jirsa, V. K. (2015). Mathematical framework
+  for large-scale brain network modeling in The Virtual Brain. *NeuroImage*, 111, 385-430.
+  (TVB *Sigmoidal* / *HyperbolicTangent* / *Linear* / *Difference* couplings.)
 
 
 See Also

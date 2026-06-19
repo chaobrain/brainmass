@@ -568,3 +568,61 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   Epileptor, Larter-Breakspear, Coombes-Byrne (complex, goal-09) · Generic2dOscillator,
   WongWang-ExcInh, Lorenz, Linear (canonical/E-I, goal-10). brainmass additionally has HORN + forward
   models (BOLD/EEG/MEG lead fields) with no tvboptim equivalent.
+
+### 2026-06-19 · goal-11 coupling-parity
+
+- **Closed coupling parity with tvboptim** — three nonlinear `function + Module` pairs added to
+  `coupling.py`, mirroring the existing kernel+thin-Module pattern exactly (no new base class):
+  - **`sigmoidal_coupling` / `SigmoidalCoupling`** (TVB *Sigmoidal*, **post**-nonlinearity):
+    `c = k·σ(slope·(a·Σ_j w_ij x_j + b − midpoint))`, defaults `k=1,a=1,b=0,slope=1,midpoint=0`.
+  - **`hyperbolic_tangent_coupling` / `HyperbolicTangentCoupling`** (TVB *HyperbolicTangent*, **post**):
+    `c = k·tanh(scale·Σ_j w_ij x_j)`, defaults `k=0.5,scale=2.0`; saturates to `±k`.
+  - **`sigmoidal_jansen_rit_coupling` / `SigmoidalJansenRitCoupling`** (TVB *SigmoidalJansenRit*,
+    **pre**-nonlinearity): `c = k·Σ_j w_ij·σ_JR(x_j)`, `σ_JR(x)=cmin+(cmax−cmin)/(1+e^{r(midpoint−x)})`,
+    defaults `k=1,cmin=0,cmax=0.005,midpoint=6.0,r=0.56`. Source `x_j` is whatever the caller
+    prefetches (e.g. JR `y1−y2`).
+  - **Linear bias** added to `additive_coupling`/`AdditiveCoupling`: `c = k·Σ_j w_ij x_j + b`
+    (default `b=0.0`).
+- **`G ≡ k` convention:** brainmass keeps `k` for the global strength; tvboptim/TVB call it `G`.
+  Documented `G ≡ k` in every new docstring + the docs page note. New trainable scalars
+  (`slope`,`midpoint`,`cmin`,`cmax`,`r`,`a`,`b`) all go through `Param.init`.
+- **pre- vs post-nonlinearity split is the key design axis:** post-forms (sigmoid/tanh) apply the
+  saturating fn to the *summed* network input → output carries `k`'s unit; the JR pre-form applies
+  σ_JR to each *source* before weighting → output carries `k·conn`'s unit (σ is dimensionless).
+- **Back-compat win — `Param.init(float)` returns a `Const`, NOT a trainable `ParamState`.** So the
+  new default `b=0.0` (and all new default scalars) add **zero** trainable params — goal-08 Fitter's
+  `states(ParamState)` is unaffected. Trainable only when the caller passes an explicit `Param(...)`.
+  Confirmed: `m.states(ParamState)` lists only explicit `Param`s, never `Param.init(float)` Consts.
+- **`Quantity(nA) + 0.0` does NOT raise in brainunit** (treats `+0.0` as the additive identity),
+  so `additive_coupling`'s new `+ b` is **bit-for-bit** identical for both dimensionless and
+  unit-carrying coupling at the default — no gating needed. Verified `np.array_equal` (b=0 == old).
+- **Nonlinear kernels strip units for the transcendental** via `u.get_magnitude` on the σ/tanh
+  argument (`u.math.tanh`/`sigmoid` raise on a unitful Quantity) — same house style as Jansen-Rit.
+  Output units come back via the `k *` (post) / `k * (conn * σ)` (pre) multiply.
+- **conn handling for the new (additive-style, no target `y`) couplings:** shared helper
+  `_coupling_conn_xmat` accepts 2-D `(N_out,N_in)` **or** a 1-D **square**-flattened `(N*N,)` conn
+  (infers `n=isqrt(size)`; non-square 1-D raises — there's no `y` to disambiguate `N_out`, unlike
+  `diffusive_coupling`). `additive_coupling` kept its 2-D-only body untouched (back-compat); only
+  appended `+ b`.
+- **Network integration:** extended `Network`'s `coupling=` dispatch with `'sigmoidal'`/`'tanh'`/
+  `'sigmoidal_jansen_rit'` (each plugs the delayed `(N,N)` `src` read into the new Module exactly
+  like `AdditiveCoupling`). 2-node `HopfStep` nets run clean under `Simulator` (instantaneous + with
+  `distance/speed` delays). ⚠ `Network.__init__` calls `prefetch_delay`, which reads `dt` from
+  `environ` **at construction time** — tests must `environ.set(dt=…)` *before* building the Network
+  (the docstring example relies on `doctest_global_setup`'s `dt`).
+- **No tvboptim reference-regression test was added.** tvboptim isn't importable in this env, and the
+  goal-10 user override ("remove TVB/TVBOPTIM comparison tests") removed the gating machinery from
+  earlier goals; tvboptim's coupling math is plain-array identical to ours, so the **closed-form
+  oracles are the gate** (sigmoid@0 input `=k·σ(−slope·midpoint)`; tanh→`±k`; σ_JR@midpoint
+  `=k·Σw·(cmin+cmax)/2`, far-limits → `cmin`/`cmax`). If a future goal wants live regression: match
+  weights/params and `allclose` (tvboptim `Bunch(G,a,b,slope,midpoint)` / `Bunch(G,cmin,cmax,
+  midpoint,r)` map 1:1 to our kwargs, `G→k`).
+- **Coverage:** `coupling.py` 95.93% / `network.py` 100% (the new helper + 3 kernels + 3 Modules +
+  bias are **100%** covered; the 6 residual `coupling.py` misses are *pre-existing* diffusive/additive
+  guards + laplacian's unknown-normalize raise). Full suite **552 → 558 passed** (24 new coupling
+  tests incl. closed-form, gradient-FD on k/slope/midpoint/b, units, batched, 1-D-flattened-conn &
+  flattened-x, delayed-source-via-Network, constrained-`Param` round-trip). Local doctest via
+  `DocTestFinder().find()` = 24/24 (the reliable check; `--doctest-modules` mis-filters re-exports).
+- **Deferred (candidate follow-ons):** `KuramotoCoupling` (phase coupling `k·Σ w_ij·sin(θ_j−θ_i)`)
+  and the hierarchical `SubspaceCoupling` (per-subpopulation coupling) — both out of scope here;
+  observation models are goal-12. No new `Delayed*` twins (delays stay upstream via `prefetch_delay`).
