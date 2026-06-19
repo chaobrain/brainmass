@@ -820,3 +820,50 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   warnings on the new pages are the **same pre-existing cosmetic class** every reference page emits;
   `make html` build still **succeeds** with 0 broken cross-refs from the new pages. Cross-refs use
   absolute docnames (`:doc:`/reference/viz``) per goal-13a's rule.
+
+### 2026-06-19 · goal-13c getting-started
+
+- **Three notebooks rewritten/authored** (docs-only, source diff vs `origin/main` empty):
+  `getting_started/installation.ipynb` (refresh: CPU/CUDA12/CUDA13/TPU tabs, prominent **`[viz]`**
+  extra, BrainX-ecosystem table, verify-step now runs one `Simulator` step), `quickstart.ipynb`
+  (full REWRITE to the high-level API — no hand-rolled `for_loop`), `key_concepts.ipynb` (NEW
+  mental-model page). All execute top-to-bottom **exit 0** with real embedded outputs (quickstart
+  embeds 4 `_images/*.png`); `make html` = **111 warning/error lines, byte-identical to the
+  baseline** (zero new toctree/orphan/broken-ref), all pre-existing autosummary + Network-docstring
+  warnings unchanged.
+- **Canonical "hello world" the quickstart settled on** (reuse as the program's reference idiom):
+  `node = brainmass.HopfStep(in_size=1, a=0.25, w=0.3)` → `brainmass.Simulator(node, dt=0.1*u.ms)
+  .run(200*u.ms, monitors=['x','y'], transient=20*u.ms)` → `brainmass.viz.plot_timeseries(res['x'],
+  ts=res['ts'])`. The **HopfStep limit cycle is the house demo model** (cheap, 2-state, visually
+  obvious, has a phase portrait). One-line noise = add `noise_x=brainmass.OUProcess(in_size, sigma,
+  tau)` at construction (the `Simulator` call is unchanged). 2-region teaser = first 2 rows/cols of
+  `datasets.load_dataset('example_connectome')` → `brainmass.Network(node, conn=W, distance=D,
+  speed=10*u.mm/u.ms, coupling='diffusive', coupled_var='x', k=0.5)`, monitored with
+  `monitors=lambda m: m.node.x.value`.
+- **Canonical 1-param gradient Fitter teaser** (well-conditioned, ~6 s): fit the Hopf bifurcation
+  parameter `a` so the settled **RMS amplitude** matches a target derived from `example_signal`
+  region-0. Mark trainable with `a=Param(0.05, fit=True)` (`from brainstate.nn import Param`), pass a
+  `loss_fn(m) -> ((amp - target)**2, amp)` to `brainmass.Fitter(model, braintools.optim.Adam(lr=0.05),
+  loss_fn=...)`, `.fit(n_steps=50)`. Converges `a: 0.05→1.03`, loss `0.30→3e-7`.
+  **DO NOT** fit a Hopf *time series* point-by-point with `timeseries_rmse` — limit-cycle phase
+  mismatch makes the RMSE flat/degenerate and the grad backend returns `a=nan, loss=0`. Fit a
+  **scalar summary** (amplitude / FC / spectrum), not the raw trajectory, for any oscillatory model.
+- **⚠ API ergonomics friction worth a follow-up (the one real bug this goal hit):**
+  `brainmass.Network(..., distance=, speed=)` calls `node.prefetch_delay(...)` **at construction
+  time**, which sizes the delay buffer from `brainstate.environ.get_dt()` → **constructing a
+  delay-coupled Network raises `KeyError: 'dt'` unless a *global* `dt` is already set**, even though
+  `Simulator(model, dt=...)` supplies `dt` at run time. Workaround in every notebook: call
+  `brainstate.environ.set(dt=0.1*u.ms)` once in the imports cell (matches `conf.py`'s
+  `doctest_global_setup`). Follow-up candidate: let `Network` defer delay-buffer sizing to
+  `init_state`/first `update` (where the Simulator's `environ.context(dt=)` is live), or accept an
+  explicit `dt=`/`delay_steps=` arg, so a `Network` is constructible without touching global env state.
+- **Execution gotcha for ALL goal-13 notebook goals:** the site-packages `brainmass` is **stale
+  (0.0.5, no Simulator/Network/Fitter/datasets)**. `jupyter nbconvert --execute` runs with the
+  notebook's dir on `sys.path[0]`, so it imports the stale wheel and everything blows up. Execute with
+  **`PYTHONPATH=<worktree-root> jupyter nbconvert --to notebook --execute --inplace <nb>`** so the
+  worktree source (0.0.6) wins. A plain `python -c` from the repo root happens to work (cwd `''` on
+  path) but nbconvert does not — always set `PYTHONPATH`.
+- **Minor:** `datasets.example_connectome.labels` are `np.str_` objects, so `list(conn.labels)` prints
+  as `[np.str_('R0'), ...]` in cell output (harmless; pass straight to `viz` as `labels=`).
+  `Simulator.run`'s `'ts'` is unit-aware (`u.ms`); `viz.plot_timeseries(res['x'], ts=res['ts'])`
+  strips it automatically.
