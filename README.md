@@ -139,8 +139,8 @@ If you use BrainMass in your research, please cite:
   title={BrainMass: Whole-brain modeling with differentiable neural mass models},
   author={BrainMass Developers},
   url={https://github.com/chaobrain/brainmass},
-  version={0.0.6},
-  year={2025}
+  version={0.1.0},
+  year={2026}
 }
 ```
 

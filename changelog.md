@@ -1,10 +1,46 @@
 # Release Notes
 
-## Unreleased
+## Version 0.1.0 (2026-06-19)
 
-### New Features and Models
+This is a milestone release: brainmass grows from a collection of neural-mass *models* into a
+complete, end-to-end **differentiable whole-brain modeling toolkit**. It adds a high-level
+orchestration and fitting layer, reaches feature parity with The Virtual Brain's node /
+coupling / observation libraries, and ships a fully restructured, persona-driven documentation
+site. Because gradients flow through the entire *simulate → observe → score* pipeline, model
+parameters can be recovered by gradient descent — not only by grid or evolutionary search.
 
-- **Model parity (TVB mean-field), sub-project F.** Brought brainmass to model parity with the
+### Highlights
+
+- **High-level API** — `Simulator`, `Network`, and `Fitter` turn a model, a connectome, and a
+  target into a few lines of code, with a single `Fitter` exposing three optimizer backends
+  (gradient, gradient-free, and Bayesian).
+- **Model parity with TVB** — seven new literature-faithful mean-field models, bringing the
+  built-in catalogue to 17 model families.
+- **Coupling & observation parity** — nonlinear couplings plus a convolution-based HRF-BOLD
+  forward model with swappable haemodynamic kernels.
+- **A new documentation site** — reorganized around the Diátaxis quadrants with on-ramps for
+  beginners, experimentalists, and modelers, plus a Data-Driven Modeling showcase.
+
+### Orchestration and Fitting
+
+- **`Simulator`** — a JIT-friendly driver that rolls a model forward with `brainstate.transform`
+  (no Python step loops), records the selected variables, and returns stacked trajectories. It is
+  the single entry point used throughout the tutorials and gallery.
+- **`Network`** — a connectome builder that wires neural-mass nodes through a coupling and an
+  (optionally delayed) connectivity matrix, handling delay-buffer sizing and unit-safe
+  broadcasting.
+- **`Fitter` / `FitResult`** — one fitter, three interchangeable optimizer backends:
+  gradient-based (Optax, backpropagating through the ODE solve), gradient-free (Nevergrad), and
+  Bayesian (scikit-optimize). `FitResult` carries the recovered parameters, the loss history, and
+  the fitted simulation for inspection.
+- **`brainmass.objectives`** — composable, differentiable loss terms for data fitting:
+  `timeseries_rmse`, `fc_corr` / `fc_rmse`, `cosine_sim`, functional-connectivity-dynamics
+  distances (`fcd`, `fcd_distribution`, `fcd_ks`, `fcd_wasserstein`, `ks_distance`,
+  `wasserstein_1d`), and a `combine` helper for weighted multi-term objectives.
+
+### Models
+
+- **Model parity with TVB (mean-field node library).** Brought brainmass to model parity with the
   tvboptim node library, adding seven literature-faithful models on the unified
   `NeuralMassDynamics` base. Each ships equations + numbered references in the docstring,
   `exp_euler`-default integration (with `braintools.quad` alternatives), unit/shape/dtype/
@@ -13,7 +49,7 @@
   short-horizon RK4 trajectory against that same reference (correlation ≥ 0.99), plus
   always-on dynamical-feature assertions.
 
-  Complex mean-field models (goal-09):
+  Complex mean-field models:
   - `EpileptorStep` — Jirsa et al. (2014). Six state variables `(x1, y1, z, x2, y2, g)` whose
     slow permittivity variable `z` autonomously drives seizure onset/offset; `x0` sets
     epileptogenicity. `lfp()` (`x2 - x1`) proxy.
@@ -22,7 +58,7 @@
   - `CoombesByrneStep` — Coombes & Byrne (2019). Next-generation (exact) mean field of θ/QIF
     networks in `(r, v)` form; reduces to `MontbrioPazoRoxinStep` (`J = 0`) when `k = 0`.
 
-  Canonical / excitatory–inhibitory models (goal-10):
+  Canonical / excitatory–inhibitory models:
   - `Generic2dOscillatorStep` — Sanz-Leon et al. (2015). TVB's flexible planar oscillator
     `(V, W)` whose polynomial-nullcline coefficients select the regime (excitable, bistable,
     Morris-Lecar-like).
@@ -34,19 +70,47 @@
   - `LinearStep` — TVB `Linear` node, `dx/dt = gamma*x + coupling` (distinct from the
     two-population `ThresholdLinearStep`).
 
+### Coupling
+
+- **Nonlinear coupling parity (TVB).** Added three differentiable nonlinear coupling functions
+  alongside the existing `DiffusiveCoupling` / `AdditiveCoupling`, each available both as a
+  `State`-carrying class and a pure functional helper: `SigmoidalCoupling` / `sigmoidal_coupling`,
+  `HyperbolicTangentCoupling` / `hyperbolic_tangent_coupling`, and `SigmoidalJansenRitCoupling` /
+  `sigmoidal_jansen_rit_coupling` (the pre/post-synaptic sigmoid used by Jansen–Rit networks).
+  `AdditiveCoupling` gained an additive-bias term so node inputs can be offset directly.
+
+### Observation and Forward Models
+
+- **Convolution-based HRF-BOLD parity.** `HRFBold` convolves population activity with a
+  haemodynamic response kernel to produce BOLD signals, with four swappable kernels behind a
+  shared `HRFKernel` interface — `GammaHRFKernel`, `DoubleExponentialHRFKernel`,
+  `MixtureOfGammasHRFKernel`, and `FirstOrderVolterraHRFKernel` (a Balloon–Windkessel
+  linearization). This complements the existing physiological Balloon `BOLDSignal`.
+- **`TemporalAverage`** — a lightweight observation operator that block-averages high-rate neural
+  activity down to the imaging sampling rate (e.g. ms → TR), keeping fitting targets and
+  simulations on a common time base.
+
+### Architecture and Internals
+
+- Unified the two-variable model classes onto a single shared base and split the larger
+  `jansen_rit` and `horn` modules into packages, cutting duplication across the model zoo.
+- Co-located tests as sibling `*_test.py` files next to the code under test, and added a
+  differentiability / determinism / coverage safety net so gradient flow and reproducibility are
+  exercised in CI.
+
 ### Documentation
 
 - Converted the narrative guides (`tutorials/*` and `developer/*` plus the FAQ) from
-  reStructuredText to executable Jupyter notebooks, matching the existing `examples/*.ipynb`
-  format and enabling thebe/live cells. In the process, **repaired pre-existing API drift** in
+  reStructuredText to executable Jupyter notebooks with thebe/live cells enabled. In the
+  process, **repaired pre-existing API drift** in
   several guides that the doctest gate never caught (those examples were display-only
   `code-block`s): updated `WilsonCowanStep` recurrent-coupling kwargs (`c_EE` → `wEE`/`wEI`/…),
   the prefetch-based `DiffusiveCoupling`/`AdditiveCoupling` construction API, `KuramotoNetwork`
   (`omega`/`K` instead of `omega_mean`/`omega_std`), lead-field shapes/units, and the
   resting-state BOLD driver (`WongWangExcInhStep`/`WilsonCowanStep` instead of the reduced
   decision-making `WongWangStep`); replaced missing `.npy` connectivity loads with seeded
-  inline synthetic matrices. 12 of the 14 guides now execute with embedded outputs; `faq` and
-  `developer/architecture` ship unexecuted (intentional error-demo fragments / an advanced
+  inline synthetic matrices. Nearly every narrative guide now executes with embedded outputs (a
+  couple ship unexecuted by design: intentional error-demo fragments and one advanced
   `brainstate` API not present in the pinned version).
 - Documented the four new canonical/E-I models in `reference/models.rst` (comparison table,
   autosummary, and runnable usage examples), and disambiguated the `WongWangStep` (reduced
