@@ -1,5 +1,24 @@
 # Release Notes
 
+## Version 0.1.1 (2026-06-19)
+
+A compatibility release that unblocks installing brainmass alongside the rest of the
+BrainX ecosystem (notably `brainpy` 2.8.0, which requires `braintools>=0.3.0`).
+
+### Changed
+
+- **Dependencies** — raised the `braintools` constraint from `<0.2.0` to `>=0.3.0`.
+  brainmass 0.1.0 capped `braintools` below `0.2.0` because `braintools` 0.2.0
+  introduced an `init.param` batched-initialization regression that double-prepended
+  the batch axis (returning `(B, B, N)` instead of `(B, N)`). That regression was
+  fixed upstream in `braintools` 0.3.0 (`init.param` no longer double-applies the
+  batch dimension), so brainmass now requires the fixed release. This resolves the
+  `braintools` version conflict between brainmass and `brainpy` 2.8.0, allowing the
+  full ecosystem to co-install.
+
+No source or public-API changes; behavior is identical to 0.1.0 on a correctly
+resolved dependency set.
+
 ## Version 0.1.0 (2026-06-19)
 
 This is a milestone release: brainmass grows from a collection of neural-mass *models* into a

@@ -59,10 +59,11 @@ dependencies = [
     'jax',
     'brainstate>=0.2.9',
     'brainunit',
-    # braintools 0.2.0's init.param double-prepends the batch axis under
-    # batched init_state (gives (B, B, N) instead of (B, N)); pin below it
-    # until the upstream fix is released.
-    'braintools<0.2.0',
+    # braintools 0.2.0 had an init.param batched-init regression (double-prepended
+    # the batch axis, giving (B, B, N) instead of (B, N)). Fixed upstream in
+    # braintools 0.3.0 (init.param no longer double-applies the batch dimension),
+    # so require the fixed release.
+    'braintools>=0.3.0',
 ]
 dynamic = ['version']
 

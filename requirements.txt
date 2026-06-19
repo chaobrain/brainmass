@@ -1,7 +1,7 @@
 numpy
 jax
 brainunit
-# braintools 0.2.0 has a batched-init regression (init.param double-prepends
-# the batch axis); pin below it until the upstream fix is released.
-braintools<0.2.0
+# braintools 0.2.0 had a batched-init regression (init.param double-prepended
+# the batch axis); fixed upstream in braintools 0.3.0, so require the fixed release.
+braintools>=0.3.0
 brainstate>=0.2.9
