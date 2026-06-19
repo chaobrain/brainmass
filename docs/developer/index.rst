@@ -35,6 +35,41 @@ Getting Started
       Testing guidelines and practices
 
 
+Extending brainmass
+-------------------
+
+These guides document the **stable extension contracts** — the public APIs you
+build custom pieces against, so they slot into the orchestration layer (and
+future data-driven tooling) exactly like the built-ins.
+
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card:: Building a Data-Driven Workflow
+      :link: building_a_data_driven_workflow
+      :link-type: doc
+
+      The extension playbook: trainable params → custom loss → Fitter / training loop → vmap
+
+   .. grid-item-card:: Extending Noise
+      :link: extending_noise
+      :link-type: doc
+
+      Implement custom noise processes
+
+   .. grid-item-card:: Creating a Coupling
+      :link: creating_a_coupling
+      :link-type: doc
+
+      Implement a new network coupling (prefetch/delay contract)
+
+   .. grid-item-card:: Creating an Objective
+      :link: creating_an_objective
+      :link-type: doc
+
+      Write a composable loss that works across all Fitter backends
+
+
 
 Quick Start for Contributors
 -----------------------------
@@ -118,6 +153,9 @@ See Also
    contributing
    architecture
    creating_models
+   building_a_data_driven_workflow
+   creating_a_coupling
+   creating_an_objective
    extending_noise
    testing
    documentation
