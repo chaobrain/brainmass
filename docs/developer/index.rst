@@ -97,7 +97,7 @@ Quick Start for Contributors
 
    .. code-block:: bash
 
-      pytest tests/
+      pytest brainmass/
       make -C docs html
 
 5. **Submit Pull Request:**

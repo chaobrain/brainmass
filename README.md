@@ -64,34 +64,70 @@ pip install BrainX[tpu]
 
 ## Quick Start
 
-Simulate a single brain region with the Hopf oscillator model. The integration time step
-``dt`` is global state set once through ``brainstate.environ`` -- it is **not** a model argument:
+Simulate a single brain region with the Hopf oscillator model. The high-level
+``Simulator`` drives the compiled run loop and collects the monitored trajectories into a
+unit-aware result dict -- no hand-written stepping required. The integration time step
+``dt`` is supplied to the ``Simulator``:
 
 ```python
 import brainmass
-import brainstate
 import brainunit as u
-import numpy as np
-
-# dt is a global, set once through the environment (not a model argument)
-brainstate.environ.set(dt=0.1 * u.ms)
 
 # Create a single-region Hopf oscillator in the limit-cycle regime (a > 0)
-model = brainmass.HopfStep(in_size=1, a=0.25, w=0.2)
-model.init_all_states()
+node = brainmass.HopfStep(in_size=1, a=0.25, w=0.3)
 
-# Advance the model one step at a time, recording the x-coordinate
-def step(i):
-    with brainstate.environ.context(i=i, t=i * brainstate.environ.get_dt()):
-        model.update()
-        return model.x.value
+# Run for 200 ms, dropping the first 20 ms transient, recording x and y
+sim = brainmass.Simulator(node, dt=0.1 * u.ms)
+res = sim.run(200 * u.ms, monitors=['x', 'y'], transient=20 * u.ms)
 
-x = brainstate.transform.for_loop(step, np.arange(1000))
-print(x.shape)  # (1000, 1)
+print(res['x'].shape)  # (1800, 1)
+
+# Plot the limit cycle (matplotlib via the optional [viz] extra)
+brainmass.viz.plot_timeseries(res['x'], ts=res['ts'])
 ```
 
-See the [Quickstart tutorial](https://brainx.chaobrain.com/brainmass/tutorials/quickstart.html)
-for noise, multi-region networks, coupling, and forward (BOLD/EEG/MEG) modeling.
+Wiring a whole-brain network and fitting a parameter are just as direct:
+
+```python
+import brainmass
+import brainunit as u
+from brainstate.nn import Param
+
+# A delay-coupled network from a bundled example connectome
+conn = brainmass.datasets.load_dataset('example_connectome')
+net = brainmass.Network(
+    brainmass.HopfStep(in_size=conn.weights.shape[0], a=0.1, w=0.3),
+    conn=conn.weights, distance=conn.distances, speed=10 * u.mm / u.ms,
+    coupling='diffusive', coupled_var='x', k=0.5,
+)
+
+# Fit a model parameter to data with gradients (or swap to Nevergrad / SciPy)
+node = brainmass.HopfStep(in_size=1, a=Param(0.1, fit=True), w=0.3)
+fitter = brainmass.Fitter(node, loss_fn=my_loss)   # backend='grad' | 'nevergrad' | 'scipy'
+result = fitter.fit(n_steps=50)
+```
+
+### Documentation
+
+The full documentation is organized for different goals:
+
+- **[Getting Started](https://brainx.chaobrain.com/brainmass/getting_started/index.html)** —
+  installation, a five-minute [quickstart](https://brainx.chaobrain.com/brainmass/getting_started/quickstart.html),
+  key concepts, and persona learning paths.
+- **[Tutorials](https://brainx.chaobrain.com/brainmass/tutorials/index.html)** — a sequential
+  path from a first simulation to building networks, forward modeling, fitting, and training.
+- **[How-To Guides](https://brainx.chaobrain.com/brainmass/howto/index.html)** — task-focused
+  recipes (choose a model, work with units, accelerate, custom coupling/objective, sweeps, analysis).
+- **[Concepts](https://brainx.chaobrain.com/brainmass/concepts/index.html)** — the *why*:
+  neural mass models, differentiable programming, architecture, coupling/delays, forward models.
+- **[Data-Driven Modeling](https://brainx.chaobrain.com/brainmass/data_driven/index.html)** —
+  the flagship guided path through the differentiable, data-driven workflow.
+- **[Gallery](https://brainx.chaobrain.com/brainmass/gallery/index.html)** — a runnable model
+  zoo (one demo per model family) and end-to-end case studies.
+- **[API Reference](https://brainx.chaobrain.com/brainmass/reference/index.html)** — every
+  public symbol, organized by category.
+- **[Developer Guide](https://brainx.chaobrain.com/brainmass/developer/index.html)** —
+  contributing and the extension playbooks (custom models, couplings, objectives, workflows).
 
 
 ## Citation

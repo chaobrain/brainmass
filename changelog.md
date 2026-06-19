@@ -48,9 +48,32 @@
   inline synthetic matrices. 12 of the 14 guides now execute with embedded outputs; `faq` and
   `developer/architecture` ship unexecuted (intentional error-demo fragments / an advanced
   `brainstate` API not present in the pinned version).
-- Documented the four new canonical/E-I models in `apis/models.rst` (comparison table,
+- Documented the four new canonical/E-I models in `reference/models.rst` (comparison table,
   autosummary, and runnable usage examples), and disambiguated the `WongWangStep` (reduced
   decision-making) vs `WongWangExcInhStep` (two-population resting-state) rows.
+- **Reorganized the documentation around the Diátaxis quadrants** with persona on-ramps and a
+  data-driven showcase. The new top-level sections are **Getting Started** (installation,
+  quickstart, key concepts, learning paths), **Tutorials** (a sequential 8-part path),
+  **How-To Guides** (7 task recipes), **Concepts** (5 explanation pages), **Data-Driven
+  Modeling** (the flagship guided path + roadmap), **Gallery** (a 17-model zoo + 5 case
+  studies), **API Reference**, and **Developer**. Every model family now has a runnable demo,
+  closing the long-standing gap where 9 models had no user-facing example. All narrative guides
+  are executable Jupyter notebooks with real embedded outputs.
+- **Path moves / redirects.** The API reference moved from `apis/` to `reference/`, the
+  Quickstart moved from `tutorials/quickstart` to `getting_started/quickstart`, and the
+  existing tutorial notebooks were split across `getting_started/`, `howto/`, and a renumbered
+  `tutorials/01_…08_` sequence (all via `git mv`, history preserved). In-notebook and `:doc:`
+  cross-references were rewritten to absolute docnames (leading slash) so they survive future
+  moves. Bookmarks to the old `apis/index` and `tutorials/quickstart` paths should be updated
+  to `reference/index` and `getting_started/quickstart` respectively.
+- **Retired the legacy flat `examples/` notebook tree** (17 notebooks), now fully superseded by
+  the in-tree `docs/gallery/` model zoo and case studies. The KaggleHub-backed MEG example was
+  reworked as a `gallery/case_studies/resting_state_meg` demo that uses the bundled synthetic
+  connectome instead of downloading external data.
+- **New ergonomics surfaced in the API reference and used throughout the docs:**
+  `brainmass.datasets` (a bundled synthetic connectome / signal / task plus an extensible
+  dataset registry), `brainmass.viz` (thin matplotlib plotting helpers, behind the optional
+  `[viz]` extra), and `brainmass.list_models()` (a curated model catalogue with `to_table()`).
 
 ## Version 0.0.6 (2026-06-18)
 

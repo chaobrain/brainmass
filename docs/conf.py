@@ -152,12 +152,12 @@ html_last_updated_fmt = ""
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-# Notebooks (``examples/`` plus the converted ``tutorials/`` and ``developer/`` guides) are NOT
-# executed at build time, on purpose: each carries embedded outputs, several are large
-# (``003-jansen-rit`` / ``008-horn`` ~2 MB), and ``100-modeling_resting_state_MEG_data`` downloads
-# HCP sample data via kagglehub on demand. The self-contained guide notebooks are executed once at
-# authoring time (so their outputs are real); documentation is kept honest by ``sphinx.ext.doctest``
-# (docstring ``>>>`` examples, run in CI by goal-03).
+# Notebooks (the ``tutorials/``, ``howto/``, ``concepts/``, ``developer/`` guides plus the
+# ``gallery/`` model-zoo and case-study demos) are NOT executed at build time, on purpose: each
+# carries embedded outputs and several are large. The self-contained guide notebooks are executed
+# once at authoring time (so their outputs are real); documentation is kept honest by
+# ``sphinx.ext.doctest`` (docstring ``>>>`` examples, run in CI by goal-03). (The legacy flat
+# ``examples/`` tree was retired in goal-13m; its demos now live under ``docs/gallery/``.)
 nb_execution_mode = "off"          # myst-nb >= 0.13 (current)
 jupyter_execute_notebooks = "off"  # legacy alias, kept for older myst-nb
 thebe_config = {
