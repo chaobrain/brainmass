@@ -286,7 +286,7 @@ chaos / positive Lyapunov sign, AD-vs-FD gradients).
 
 With goal-10 merged, brainmass is at **model parity** with the tvboptim node library across
 the complex mean-field and canonical-oscillator families (see the comparison table in
-``docs/apis/models.rst``).
+``docs/reference/models.rst``).
 
 ---
 

@@ -2,7 +2,13 @@
 ============================
 
 `brainmass <https://github.com/chaobrain/brainmass>`_ implements neural mass models with `brainstate <https://github.com/chaobrain/brainstate>`_,
-enabling whole-brain modeling with differentiable programming and JAX.
+enabling whole-brain modeling with **differentiable programming** and JAX.
+
+Where other whole-brain toolkits run forward simulations and fit parameters with
+grid or evolutionary search, brainmass backpropagates *through the ODE solve*: it
+brings gradient-based fitting, high-dimensional parameter fields, GPU/TPU batching,
+and the ability to **train** neural-mass-style networks on tasks — all unit-safe and
+end-to-end from parameters to BOLD / EEG / MEG signals.
 
 
 ----
@@ -17,26 +23,77 @@ Features
       :class-card: sd-border-0
       :shadow: md
 
-      13+ neural mass models from phenomenological oscillators to physiological population models,
-      covering EEG, MEG, and fMRI applications
+      20+ neural mass models from phenomenological oscillators to physiological population
+      models, covering EEG, MEG, and fMRI applications
 
    .. grid-item-card:: Differentiable Optimization
       :class-card: sd-border-0
       :shadow: md
 
-      Fit model parameters to empirical data using gradient-based (JAX) or gradient-free (Nevergrad) optimization
+      Fit model parameters to empirical data using gradient-based (JAX) or gradient-free
+      (Nevergrad / SciPy) optimization through one ``Fitter``
 
    .. grid-item-card:: Forward Modeling
       :class-card: sd-border-0
       :shadow: md
 
-      Built-in BOLD hemodynamics and EEG/MEG lead-field models for linking neural activity to neuroimaging signals
+      Built-in BOLD hemodynamics and EEG/MEG lead-field models for linking neural activity
+      to neuroimaging signals
 
    .. grid-item-card:: Unit-Safe Computing
       :class-card: sd-border-0
       :shadow: md
 
-      Automatic dimensional analysis with ``brainunit`` prevents unit errors in scientific computing
+      Automatic dimensional analysis with ``brainunit`` prevents unit errors in scientific
+      computing
+
+
+----
+
+How brainmass compares
+^^^^^^^^^^^^^^^^^^^^^^^
+
+brainmass shares the neural-mass / whole-brain modeling space with
+`The Virtual Brain <https://www.thevirtualbrain.org/>`_ (TVB) and
+`neurolib <https://github.com/neurolib-dev/neurolib>`_. Its distinguishing design choice
+is a fully **differentiable, JAX-native** core. The table below is a deliberately
+conservative summary of capabilities at the time of writing; consult each project for
+its current state.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 20 20 20
+
+   * - Capability
+     - brainmass
+     - The Virtual Brain
+     - neurolib
+   * - Differentiable / gradient-based fitting (backprop through the solve)
+     - Yes
+     - No
+     - No
+   * - JAX backend with GPU / TPU acceleration
+     - Yes
+     - No
+     - No
+   * - In-package orchestration & fitting (``Simulator`` / ``Network`` / ``Fitter``)
+     - Yes
+     - Partial
+     - Partial
+   * - Unit-safe quantities (dimensional analysis)
+     - Yes
+     - No
+     - No
+   * - Next-generation / exact mean-field models (e.g. Montbrió-Pazó-Roxin, Coombes-Byrne)
+     - Yes
+     - Partial
+     - Partial
+   * - In-package BOLD + EEG/MEG forward models
+     - Yes
+     - Yes
+     - Partial
+
+The deeper rationale lives in :doc:`concepts/why_differentiable`.
 
 
 ----
@@ -70,73 +127,52 @@ Installation
 
           pip install -U brainmass[tpu]
 
-See :doc:`tutorials/installation` for detailed instructions.
+See :doc:`getting_started/installation` for detailed instructions.
 
 
 ----
 
-Where to Start
-^^^^^^^^^^^^^^
+Choose your path
+^^^^^^^^^^^^^^^^^
 
-.. grid:: 2
+brainmass serves three kinds of users. Pick the on-ramp that fits you — each is a
+signposted route through the documentation, detailed in :doc:`getting_started/learning_paths`.
+
+.. grid:: 3
    :gutter: 3
 
-   .. grid-item-card:: New to brainmass?
-      :link: tutorials/quickstart
+   .. grid-item-card:: Beginner
+      :link: getting_started/learning_paths
       :link-type: doc
 
-      Start with the **Quickstart Tutorial** for a 5-minute introduction
+      **New to neural mass models or brainmass.** Install, run a first simulation, and
+      build the mental model, then explore the model zoo.
 
-   .. grid-item-card:: Looking for examples?
-      :link: examples/index
+   .. grid-item-card:: Researcher
+      :link: getting_started/learning_paths
       :link-type: doc
 
-      Browse the **Examples Gallery** for practical applications
+      **Have empirical data (EEG / MEG / fMRI).** Map models to signals, fit them to your
+      data, analyze the results, and study the case studies.
 
-   .. grid-item-card:: Need specific functionality?
-      :link: apis/index
+   .. grid-item-card:: Modeler
+      :link: getting_started/learning_paths
       :link-type: doc
 
-      Check the **API Reference** for detailed documentation
-
-   .. grid-item-card:: Want to contribute?
-      :link: developer/index
-      :link-type: doc
-
-      Read the **Developer Guide** to get started
+      **Build and extend models.** Custom couplings and objectives, performance, and
+      differentiable / data-driven workflows.
 
 
 ----
 
-Documentation Structure
-^^^^^^^^^^^^^^^^^^^^^^^
+Data-Driven Modeling
+^^^^^^^^^^^^^^^^^^^^^
 
-.. grid:: 2
-   :gutter: 3
-
-   .. grid-item-card:: Tutorials
-      :link: tutorials/index
-      :link-type: doc
-
-      Step-by-step guides for common tasks
-
-   .. grid-item-card:: Examples
-      :link: examples/index
-      :link-type: doc
-
-      Jupyter notebooks with practical applications
-
-   .. grid-item-card:: API Reference
-      :link: apis/index
-      :link-type: doc
-
-      Complete API documentation
-
-   .. grid-item-card:: Developer Guide
-      :link: developer/index
-      :link-type: doc
-
-      Contributing and extending brainmass
+The flagship of brainmass is **data-driven modeling** — constructing, fitting, and
+training neural-mass networks against data. The :doc:`data_driven/index` hub curates a
+guided path through the differentiable workflow, and its roadmap reserves homes for the
+growth areas (model discovery / system identification, a task-shaped trainer, and
+simulation-based inference).
 
 
 ----
@@ -151,10 +187,33 @@ BrainX Ecosystem
 .. toctree::
    :hidden:
    :maxdepth: 2
-   :caption: Tutorials and Guides
+   :caption: Get Started
+
+   getting_started/index
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+   :caption: Learn
 
    tutorials/index
-   examples/index
+   howto/index
+   concepts/index
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+   :caption: Showcase
+
+   data_driven/index
+   gallery/index
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+   :caption: Reference
+
+   reference/index
    developer/index
 
 .. toctree::
@@ -163,6 +222,4 @@ BrainX Ecosystem
    :caption: Additional Resources
 
    faq
-   apis/index
    changelog
-

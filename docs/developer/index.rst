@@ -105,8 +105,8 @@ See Also
 --------
 
 - :doc:`../tutorials/index` - User tutorials
-- :doc:`../apis/index` - API reference
-- :doc:`../examples/index` - Example gallery
+- :doc:`../reference/index` - API reference
+- :doc:`../gallery/index` - Example gallery
 
 
 
