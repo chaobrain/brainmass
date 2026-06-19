@@ -58,6 +58,16 @@ from .larter_breakspear import LarterBreakspearStep
 from .lorenz import LorenzStep
 from .leadfield import LeadfieldReadout
 from .linear import ThresholdLinearStep, LinearStep
+# Convolution-based observation models (HRF BOLD, temporal averaging)
+from .observation import (
+    HRFKernel,
+    FirstOrderVolterraHRFKernel,
+    GammaHRFKernel,
+    DoubleExponentialHRFKernel,
+    MixtureOfGammasHRFKernel,
+    TemporalAverage,
+    HRFBold,
+)
 # Noise processes
 from .noise import (
     Noise,
@@ -174,6 +184,15 @@ __all__ = [
     'LeadFieldModel',
     'EEGLeadFieldModel',
     'MEGLeadFieldModel',
+
+    # Observation models (convolution BOLD, HRF kernels, temporal averaging)
+    'HRFKernel',
+    'FirstOrderVolterraHRFKernel',
+    'GammaHRFKernel',
+    'DoubleExponentialHRFKernel',
+    'MixtureOfGammasHRFKernel',
+    'TemporalAverage',
+    'HRFBold',
 
     # Coupling mechanisms
     'DiffusiveCoupling',

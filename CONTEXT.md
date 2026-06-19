@@ -568,3 +568,64 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   Epileptor, Larter-Breakspear, Coombes-Byrne (complex, goal-09) · Generic2dOscillator,
   WongWang-ExcInh, Lorenz, Linear (canonical/E-I, goal-10). brainmass additionally has HORN + forward
   models (BOLD/EEG/MEG lead fields) with no tvboptim equivalent.
+
+### 2026-06-19 · goal-12 observation-parity
+
+- **Closed the observation gap vs tvboptim** (sub-project F, observation slice). New module
+  `brainmass/observation.py` (+ `observation_test.py`, **100 %** cov): `HRFKernel` base + 4 closed-form
+  HRF kernels (`FirstOrderVolterraHRFKernel`, `GammaHRFKernel`, `DoubleExponentialHRFKernel`,
+  `MixtureOfGammasHRFKernel`), the convolution `HRFBold` observation, and the standalone
+  `TemporalAverage` monitor. Extended `objectives.py` (**100 %** cov) with the FCD-*distribution*
+  objectives. All exported top-level (`# Observation models` block in `__init__`); existing
+  `BOLDSignal` (Balloon ODE) and EEG/MEG lead fields **untouched**. Suite **586 → 607 passed**
+  (50 observation + 14 objectives + 2 import_compat; no regressions).
+- **Convolution-vs-Balloon BOLD guidance (documented in both classes + a forward.rst table):**
+  `HRFBold` = a single linear convolution `BOLD = k1·V0·(h * y_ds − 1)` (downsample→convolve→decimate)
+  — fast, simple, **differentiable in its scalar params** → the choice for *fitting*. `BOLDSignal` =
+  the 4-state Balloon-Windkessel ODE → the choice when biophysical realism matters. Empirically they
+  **track each other**: best-lag correlation **0.98** on a slow drive (zero-lag only 0.73 — the two
+  hemodynamics have different intrinsic latencies, so compare BOLD waveforms over a ±few-TR lag, the
+  standard way; a naive zero-lag corr under-measures agreement).
+- **Delegation audit (what braintools already had vs what we added):**
+  - **Reused** `braintools.metric.functional_connectivity_dynamics` (FCD matrix) — same call as goal-08's `fcd`.
+  - **Delegated to jax:** KDE → `jax.scipy.stats.gaussian_kde`; FFT conv → `jax.scipy.signal.fftconvolve`;
+    direct conv → `jnp.convolve`. **braintools.metric has no KDE/KS/Wasserstein/conv.**
+  - **Hand-implemented (the genuine gap, tiny cumsum-based):** `ks_distance(p,q)` = `max|cdf_p−cdf_q|`,
+    `wasserstein_1d(p,q,x)` = `Σ|cdf_p−cdf_q|·dx`. Both normalise cumsums internally so they accept
+    densities *or* histograms.
+- **`TemporalAverage` ↔ `Simulator`:** kept it a **standalone thin observation** (`TemporalAverage(period)
+  (signal, dt)`), NOT a `Simulator` change. It is the *averaging* (anti-aliased) complement to the
+  point-decimation `Simulator(sample_every=k)` — apply it as a post-transform on a run trajectory; it
+  is also the downsampler `HRFBold` uses internally. `y[k]=mean(signal[k·w:(k+1)·w])`, `w=round(period/dt)`,
+  `n_win=T//w`, trailing partial window dropped; `round(period/dt)<1` raises. Preserves units.
+- **FCD-distribution objective API** (the standard FCD fitting target = the *distribution* of FCD
+  off-diagonal values, not the matrix correlation `fcd` already had): primitives `fcd_distribution`
+  (KDE of the upper-triangle on a `[-0.99,0.99]` grid, normalised to ∫=1), `ks_distance`, `wasserstein_1d`;
+  builders `fcd_wasserstein(window_size,step_size,midpoints,bw_method,n_diag)` and `fcd_ks(...)` →
+  `loss(prediction,target)` (0 on identity). **KS vs Wasserstein differentiability:** KS is a `max`
+  (non-smooth — its grad is the indicator at the argmax) → use `fcd_ks` for *evaluation/reporting*;
+  `wasserstein_1d` is smooth/grad-friendly → `fcd_wasserstein` is the recommended *fitting* loss
+  (grad verified finite). Degenerate (constant, zero-variance) input → singular KDE → **`nan`** distance
+  (documented + tested).
+- **Validation = embedded-reference-oracle, NOT `requires_tvboptim` gating.** The goal-12 prompt asked
+  for a `requires_tvboptim` marker, but goal-10's standing user override deleted all tvboptim test-gating
+  machinery (this branch merges to main). Reconciled by following the goal-09/10 pattern: kernels checked
+  against **verbatim embedded transcriptions** of tvboptim's closed forms (always-on, no live import) +
+  analytic props (`h(0)=0`, peak=`a`, real underdamped `ω`); `HRFBold` against an **independent numpy +
+  `scipy.signal.fftconvolve`** reproduction (genuinely different libs, not a copy of the impl). scipy
+  cross-checks are always-on (scipy is a hard braintools dep, added to requirements-dev explicitly):
+  `ks_distance` is **exact** vs `scipy.stats.ks_2samp` (build per-value histograms on the pooled-sorted
+  unique grid so the normalised cumsums ARE the empirical CDFs scipy maximises); `wasserstein_1d` ≈
+  `scipy.stats.wasserstein_distance` on a fine grid (rtol 2e-2, it's a Riemann sum of ∫|ΔCDF|dx).
+- **Gotchas:** (a) `BOLDSignal` is dimensionless and needs a **unitless** `dt` in `environ` (its RK2 does
+  `t+dt`; a `Quantity` dt → `ms + 1` UnitMismatch) — drive it with `dt=0.01` while `HRFBold` gets the
+  matching real-time `10*u.ms`. (b) HRF kernels take `t` as a time `Quantity` (→ seconds) or a plain array
+  (assumed **ms**, the TVB convention); they return a **dimensionless** array; grad flows w.r.t. continuous
+  params (`tau_s`/`tau`/`λ`) when the kernel is built *inside* the differentiated fn (`n`/`duration` are
+  int-cast → non-diff, fine). (c) docstring Examples use `.. code-block:: python` + `>>>` (CLAUDE.md +
+  goal-09/10 model convention, validated by `DocTestFinder`); RST doc Examples use bare `>>>` (sphinx
+  `-b doctest` gate, 159 tests / 0 fail). No sphinx-doctest in CI (deploy-docs runs `-b html` only).
+- **brainmass now meets/exceeds tvboptim's observation set:** convolution BOLD + HRF-kernel family +
+  `TemporalAverage` + FCD-distribution objectives (this goal) · Balloon-Windkessel ODE BOLD + FC/FCD-matrix
+  objectives + `Simulator(sample_every=)` subsampling (pre-existing). **EEG/MEG lead-field forwards remain a
+  brainmass-only advantage** (tvboptim has none); sEEG/iEEG noted as future (tvboptim lacks them too).

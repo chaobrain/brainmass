@@ -10,3 +10,7 @@ matplotlib
 # nevergrad; it is only a braintools "testing" extra, so install it explicitly
 # for the brainmass test suite and the doctest examples.
 nevergrad
+# scipy is a transitive braintools dependency, but the FCD-distribution objective
+# tests (goal-12) cross-check ks_distance / wasserstein_1d against
+# scipy.stats.ks_2samp / wasserstein_distance, so depend on it explicitly.
+scipy
