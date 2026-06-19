@@ -123,6 +123,10 @@ from . import objectives
 from .fitter import Fitter, FitResult
 from .network import Network
 from .simulator import Simulator
+# API ergonomics: data registry, plotting helpers, model catalogue
+from . import datasets
+from . import viz
+from .list_models import ModelInfo, list_models
 
 __all__ = [
     '__version__',
@@ -225,6 +229,12 @@ __all__ = [
     'Fitter',
     'FitResult',
     'objectives',
+
+    # API ergonomics
+    'datasets',
+    'viz',
+    'ModelInfo',
+    'list_models',
 ]
 
 

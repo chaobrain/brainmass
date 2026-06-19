@@ -19,6 +19,33 @@ API Reference
    process_sequence
 
 
+Model discovery
+---------------
+
+.. autosummary::
+   :toctree: generated/
+
+   list_models
+   ModelInfo
+
+:func:`list_models` returns a list of typed :class:`ModelInfo` records -- one per
+public neural-mass model -- giving each model's name, category
+(phenomenological / physiological / network), number of state variables, and a
+one-line typical use case. It powers the ``howto/choose_a_model`` guide and is
+pleasant to scan in the REPL via ``brainmass.list_models.to_table()``.
+
+.. doctest::
+
+   >>> import brainmass
+   >>> models = brainmass.list_models()
+   >>> {m.name for m in models} >= {'HopfStep', 'JansenRitStep'}
+   True
+   >>> next(m for m in models if m.name == 'JansenRitStep').category
+   'physiological'
+   >>> print(brainmass.list_models.to_table())  # doctest: +ELLIPSIS
+   name...category...#states...use_case...
+
+
 sys2nd
 ^^^^^^
 

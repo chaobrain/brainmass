@@ -745,3 +745,78 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   broken-ref + orphan count by fixing `roadmap.md`, `../examples/examples/index`, and a dangling
   `reference/utilities.rst → 'types'` ref). Cleaning those source-docstring warnings is goal-13j/13m
   territory, not this docs-only goal.
+
+### 2026-06-19 · goal-13b api-ergonomics
+
+- **Headline — three small, tested, extensible conveniences the 13c–13l notebooks depend on.**
+  All exported top-level under a `# API ergonomics` block in `__init__` (+`__all__`):
+  `datasets`/`viz` as submodules, `list_models`/`ModelInfo` as names. New modules at **100.00%**
+  coverage (`datasets.py`/`viz.py`/`list_models.py`); full suite **607→692 passed** (+66 new:
+  25 datasets + 26 viz + 11 list_models — 62 listed earlier + the 4 edge-case adds), package
+  TOTAL **99.00%**, `make doctest` **208 tests / 0 failures**, `make html` **build succeeded**.
+- **FINAL public API signatures (pin these for 13c–13l):**
+  - `brainmass.datasets.register_dataset(name, loader, *, description=None) -> None`
+    (TypeError if `loader` not callable; ValueError on duplicate name).
+  - `brainmass.datasets.list_datasets() -> list[(name, description)]` (sorted by name).
+  - `brainmass.datasets.load_dataset(name)` → loader() result; **`KeyError`** (not ValueError) on
+    unknown name, message lists available names.
+  - `brainmass.datasets.load_dataset('example_connectome') -> Connectome(weights, distances, labels)`
+    NamedTuple: `weights` (8×8, symmetric, zero-diag, in [0,1]); `distances` **unit-aware `u.mm`**
+    (8×8, symmetric, zero-diag); `labels` `('R0'..'R7')`.
+  - `brainmass.datasets.load_dataset('example_signal') -> Signal(signal, dt, labels, fc)` NamedTuple:
+    `signal` (500, 8); `dt` **unit-aware `u.ms`** (=1.0 ms); `fc` (8×8 Pearson corr).
+  - `brainmass.datasets.delayed_match_task(n_samples=128, *, seq_len=10, n_symbols=4, seed=0)
+    -> (inputs[(N,seq_len,n_symbols) one-hot float], targets[(N,) int {0,1}])`. Balanced ~50/50,
+    deterministic per seed; `seq_len>=2`, `n_symbols>=2` else ValueError. `load_dataset(
+    'delayed_match_task')` returns the **default** task `(128,10,4)`.
+  - `brainmass.viz.{plot_timeseries(signal, ts=None, *, labels=None, ax=None, **kw),
+    plot_phase_portrait(x, y, *, ax=None, **kw), plot_connectivity(matrix, *, labels=None, ax=None,
+    cmap='viridis', colorbar=True, **kw), plot_functional_connectivity(data, *, is_matrix=False,
+    labels=None, ax=None, **kw), plot_power_spectrum(signal, dt, *, ax=None, loglog=True, **kw)}`.
+    Each accepts optional `ax=`, **returns the `Axes`**, strips units via `u.get_magnitude` for
+    plotting. `plot_functional_connectivity`/`plot_power_spectrum` surface
+    `braintools.metric.functional_connectivity` / `power_spectral_density` (NOT reimplemented).
+    `plot_power_spectrum`'s `dt`: a `u.Quantity` is converted to **ms**, a plain float used as-is.
+  - `brainmass.list_models() -> list[ModelInfo(name, category, n_state_vars, use_case)]` — 20 records
+    (the 17 documented in `reference/models.rst` + 3 HORN). `category ∈ {phenomenological,
+    physiological, network}` (Kuramoto+HORN are `network`). `brainmass.list_models.to_table() -> str`
+    (a `.to_table` attribute on the function object). `ModelInfo` is a NamedTuple, top-level exported.
+- **Bundled data location + invariants:** `brainmass/_data/{example_connectome,example_signal}.npz`
+  (2 KB + 33 KB, **synthetic**, zero third-party data). Regenerated deterministically by the
+  **committed** provenance script `brainmass/_data/_generate.py` (`python -m brainmass._data._generate`,
+  seeds 0/1). Shipped in the wheel via `[tool.setuptools.package-data] brainmass = ["_data/*.npz"]`.
+  `_generate.py` is **omitted from coverage** (never imported at runtime; the `.npz` files are what
+  ship). Load with `np.load(..., allow_pickle=False)` inside a `with` block; distances/dt get units
+  reattached on load (stored unitless in the npz).
+- **Lazy-matplotlib pattern (reuse verbatim for any future plotting):** matplotlib is imported
+  **inside each viz function** via a `_import_pyplot()` helper that re-raises ImportError pointing at
+  `pip install brainmass[viz]`. brainmass core has **zero** module-level matplotlib imports
+  (`grep -rn '^import matplotlib' brainmass/*.py` = none); `viz.py` binds no `plt`/`matplotlib`
+  module attr at load. Added `viz = ['matplotlib']` to `[project.optional-dependencies]`.
+- **⚠ DoD #4 caveat — `import brainmass` STILL requires matplotlib, but NOT because of brainmass.**
+  `braintools` eagerly imports `braintools.visualize` → `import matplotlib.pyplot` at package load,
+  and brainmass hard-depends on braintools, so `python -c "import brainmass"` fails in a
+  matplotlib-free env **on `origin/main` too** (verified: plain `import braintools` raises without
+  matplotlib). This is an **upstream braintools packaging** issue, out of scope here. The goal's
+  intent — brainmass adds no *new* eager matplotlib dependency — is fully met and tested
+  (`viz_test.py::test_viz_module_does_not_import_pyplot_at_load` +
+  `test_missing_matplotlib_raises_helpful_error` monkeypatches `builtins.__import__`). If a future
+  goal needs a truly matplotlib-optional `import brainmass`, it must push a lazy-import fix into
+  braintools (or gate `braintools.visualize`).
+- **Doctest gotchas:** in a `.. doctest::` directive a bare expression uses `repr()` — `conn.distances.unit`
+  prints `Unit("mm")`, so use `print(conn.distances.unit)` → `mm`. `u.get_unit(q) == u.mm` compares
+  units directly (no `.unit` attr on a `Unit`). `list_models.to_table()` doctest uses `+ELLIPSIS`
+  (`name...category...#states...use_case...`) to tolerate column padding.
+- **`list_models` is a curated static registry** kept in sync with `reference/models.rst` (a test
+  asserts the name set == the 17 documented + 3 HORN, no dupes, every name in `__all__`). Chosen over
+  runtime introspection because model `__init__` signatures diverge (`in_size` vs HORN's
+  `n_input/n_hidden/n_output`) — instantiating to count states is fragile. Adding a model = one
+  `ModelInfo` line. WilsonCowan *variants* and base classes (`XY_Oscillator`,
+  `WilsonCowanThreePopBase`) are intentionally **excluded** (refinements, not user-facing picks).
+- **Reference-page house style:** used **autosummary-only** (`:toctree: generated/`) for
+  datasets/viz/utilities (matches `noise.rst`/`forward.rst`, fewer warnings) rather than
+  autosummary + explicit `autoclass`/`autofunction` (the `orchestration.rst` style, which doubles
+  the duplicate-object warnings). The residual `duplicate object description ... reference/generated`
+  warnings on the new pages are the **same pre-existing cosmetic class** every reference page emits;
+  `make html` build still **succeeds** with 0 broken cross-refs from the new pages. Cross-refs use
+  absolute docnames (`:doc:`/reference/viz``) per goal-13a's rule.

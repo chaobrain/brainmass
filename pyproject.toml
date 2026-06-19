@@ -15,6 +15,12 @@ exclude = [
     "brainmass/__init__.py"
 ]
 
+# Ship the bundled example datasets (small, license-clean, synthetic ``.npz``
+# files under ``brainmass/_data/``) inside the wheel so ``brainmass.datasets``
+# works with no external download.
+[tool.setuptools.package-data]
+brainmass = ["_data/*.npz"]
+
 
 [project]
 name = "brainmass"
@@ -77,6 +83,11 @@ documentation = 'https://brainx.chaobrain.com/brainmass/'
 testing = [
     'pytest', 'jax',
 ]
+# Plotting helpers in ``brainmass.viz`` lazily import matplotlib; install this
+# extra (``pip install brainmass[viz]``) to use them.
+viz = [
+    'matplotlib',
+]
 cpu = [
     'jax',
 ]
@@ -101,6 +112,9 @@ omit = [
     "*_test.py",
     "*/conftest.py",
     "*/_version.py",
+    # One-off provenance script that regenerates the bundled ``.npz`` data; it
+    # is never imported at runtime (the committed data files are what ship).
+    "*/_data/_generate.py",
 ]
 
 [tool.coverage.report]
