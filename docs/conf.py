@@ -146,11 +146,12 @@ html_last_updated_fmt = ""
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-# Notebooks under ``examples/`` are NOT executed at build time, on purpose: every notebook
-# already carries embedded outputs, several are large (``003-jansen-rit`` / ``008-horn`` ~2 MB),
-# and ``100-modeling_resting_state_MEG_data`` downloads HCP sample data via kagglehub on demand.
-# Documentation is kept honest instead by ``sphinx.ext.doctest`` (docstring ``>>>`` examples plus
-# tutorial ``.. testcode::`` blocks); goal-03 wires these checks into CI.
+# Notebooks (``examples/`` plus the converted ``tutorials/`` and ``developer/`` guides) are NOT
+# executed at build time, on purpose: each carries embedded outputs, several are large
+# (``003-jansen-rit`` / ``008-horn`` ~2 MB), and ``100-modeling_resting_state_MEG_data`` downloads
+# HCP sample data via kagglehub on demand. The self-contained guide notebooks are executed once at
+# authoring time (so their outputs are real); documentation is kept honest by ``sphinx.ext.doctest``
+# (docstring ``>>>`` examples, run in CI by goal-03).
 nb_execution_mode = "off"          # myst-nb >= 0.13 (current)
 jupyter_execute_notebooks = "off"  # legacy alias, kept for older myst-nb
 thebe_config = {
@@ -164,11 +165,12 @@ html_theme_options = {
 
 # -- Options for doctest (sphinx.ext.doctest) ----------------------
 #
-# ``make doctest`` (and goal-03's CI job) executes every docstring ``>>>`` example and every
-# ``.. testcode::`` block in the tutorials, so documented code cannot drift from the API again.
-# The setup below is prepended to each doctest group, giving examples the common imports and a
-# default integration step without per-example boilerplate. Examples needing a different ``dt``
-# (e.g. the dimensionless ``BOLDSignal``) reset it locally.
+# ``make doctest`` (and goal-03's CI job) executes every docstring ``>>>`` example and any
+# remaining ``.. testcode::`` block, so documented API usage cannot drift unnoticed. (The narrative
+# tutorials are now executed Jupyter notebooks rather than ``.. testcode::`` pages.) The setup below
+# is prepended to each doctest group, giving examples the common imports and a default integration
+# step without per-example boilerplate. Examples needing a different ``dt`` (e.g. the dimensionless
+# ``BOLDSignal``) reset it locally.
 doctest_global_setup = """
 import matplotlib
 matplotlib.use("Agg")  # headless: example ``plt.show()`` calls must not block the build

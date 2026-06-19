@@ -79,9 +79,9 @@ The following table summarizes the key characteristics of each model:
      - Classic two-population model, firing rates
    * - :class:`WongWangStep`
      - Physiological
-     - 2 (S_E, S_I)
-     - Decision making, resting state fMRI
-     - Spiking network reduction, NMDA/GABA synapses
+     - 2 (S1, S2)
+     - Decision making (perceptual choice)
+     - Reduced two-population attractor (Wong & Wang 2006)
    * - :class:`MontbrioPazoRoxinStep`
      - Physiological
      - 2 (r, v)
@@ -102,6 +102,26 @@ The following table summarizes the key characteristics of each model:
      - 6 states
      - Seizure onset/offset, epilepsy
      - Fast/slow subsystems + slow permittivity ``z``
+   * - :class:`Generic2dOscillatorStep`
+     - Phenomenological
+     - 2 (V, W)
+     - Flexible planar dynamics (excitable / bistable / oscillatory)
+     - Configurable polynomial nullclines (TVB ``Generic2dOscillator``)
+   * - :class:`WongWangExcInhStep`
+     - Physiological
+     - 2 (S_E, S_I)
+     - Resting-state BOLD/FC, E-I balance
+     - Two-population reduced Wong-Wang (Deco et al. 2014)
+   * - :class:`LorenzStep`
+     - Phenomenological
+     - 3 (x, y, z)
+     - Chaos, integration/coupling test fixture
+     - Classic chaotic flow, positive Lyapunov exponent
+   * - :class:`LinearStep`
+     - Phenomenological
+     - 1 (x)
+     - Baseline node, coupling sanity checks
+     - Damped linear dynamics (TVB ``Linear``)
 
 
 Common API Pattern
@@ -368,6 +388,79 @@ seizures on and off; ``x0`` sets the epileptogenicity (Jirsa et al., 2014). The
    out = brainmass.Simulator(epi, dt=0.1 * u.ms).run(
        2000. * u.ms, monitors={"lfp": lambda m: m.lfp(), "z": "z"}
    )
+
+
+Canonical & Excitatory-Inhibitory Models (TVB parity)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The remaining `The Virtual Brain <https://www.thevirtualbrain.org/>`_ node models —
+the flexible planar oscillator, the two-population excitatory-inhibitory Wong-Wang
+mean field, the Lorenz chaos fixture, and the linear baseline node — validated
+against the TVB / tvboptim reference equations. Full equations, default parameters
+and numbered references are in each class docstring.
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+   :template: classtemplate.rst
+
+   Generic2dOscillatorStep
+   WongWangExcInhStep
+   LorenzStep
+   LinearStep
+
+
+**Example: Generic 2D oscillator (configurable nullclines)**
+
+A flexible planar system whose polynomial nullcline coefficients select the regime
+(excitable, bistable, Morris-Lecar-like; Sanz-Leon et al., 2015):
+
+.. code-block:: python
+
+   # bistable-nullcline configuration
+   g2d = brainmass.Generic2dOscillatorStep(in_size=1, a=1.0, b=0.0, c=-5.0, d=0.02)
+   g2d.init_all_states()
+   out = brainmass.Simulator(g2d, dt=0.1 * u.ms).run(200. * u.ms, monitors=["V", "W"])
+
+
+**Example: Wong-Wang excitatory-inhibitory (resting-state workhorse)**
+
+The two-population reduced Wong-Wang mean field; the feedback-inhibition weight
+``J_i`` sets the local excitation-inhibition balance (Deco et al., 2014). The
+population firing rates are available as ``H_e()`` / ``H_i()``:
+
+.. code-block:: python
+
+   rww = brainmass.WongWangExcInhStep(in_size=1, J_i=1.0, G=2.0)
+   rww.init_all_states()
+   out = brainmass.Simulator(rww, dt=0.1 * u.ms).run(
+       3000. * u.ms, monitors={"S_e": "S_e", "rate_e": lambda m: m.H_e()}
+   )
+
+
+**Example: Lorenz (chaotic test fixture)**
+
+The classic chaotic flow; use ``dt = 0.01 * u.ms`` (one natural time unit = 1 ms) and
+keep trajectory comparisons short — nearby trajectories diverge exponentially
+(Lorenz, 1963):
+
+.. code-block:: python
+
+   lz = brainmass.LorenzStep(in_size=1, sigma=10.0, rho=28.0)
+   lz.init_all_states()
+   out = brainmass.Simulator(lz, dt=0.01 * u.ms).run(5. * u.ms, monitors=["x", "y", "z"])
+
+
+**Example: Linear node (baseline)**
+
+A single damped linear node, ``dx/dt = gamma*x + coupling`` (distinct from the
+two-population :class:`ThresholdLinearStep`); ``gamma < 0`` for stability:
+
+.. code-block:: python
+
+   lin = brainmass.LinearStep(in_size=1, gamma=-10.0)
+   lin.init_all_states()
+   out = brainmass.Simulator(lin, dt=0.1 * u.ms).run(20. * u.ms, monitors=["x"])
 
 
 Adding Noise to Models

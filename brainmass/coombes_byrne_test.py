@@ -27,8 +27,6 @@ Always-on validation strategy (TVB / tvboptim are not importable in CI):
   and the field reduces to Montbrio-Pazo-Roxin with ``J = 0``.
 """
 
-import importlib.util
-
 import braintools
 import jax
 import jax.numpy as jnp
@@ -40,16 +38,6 @@ import brainunit as u
 from brainstate.nn import Param
 
 import brainmass
-
-# ---------------------------------------------------------------------------
-# Live-reference gating (tvb / tvboptim are not importable in CI).
-# ---------------------------------------------------------------------------
-_HAS_TVB = importlib.util.find_spec("tvb") is not None
-_HAS_TVBOPTIM = importlib.util.find_spec("tvboptim") is not None
-requires_tvb = pytest.mark.skipif(not _HAS_TVB, reason="TVB not installed")
-requires_tvboptim = pytest.mark.skipif(
-    not _HAS_TVBOPTIM, reason="tvboptim not installed"
-)
 
 
 # ---------------------------------------------------------------------------
@@ -235,10 +223,3 @@ def test_gradient_ad_vs_fd(dt):
     eps = 1e-3
     g_fd = (loss(eta0 + eps) - loss(eta0 - eps)) / (2 * eps)
     np.testing.assert_allclose(np.asarray(g_ad), np.asarray(g_fd), rtol=2e-2, atol=1e-4)
-
-
-@requires_tvb
-@requires_tvboptim
-def test_live_tvb_comparison():  # pragma: no cover - skipped unless TVB present
-    """Live regression against TVB; skipped in CI (TVB not importable)."""
-    raise AssertionError("placeholder: enable when tvb + tvboptim are installed")

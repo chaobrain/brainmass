@@ -34,6 +34,7 @@ from .coupling import (
 from .coombes_byrne import CoombesByrneStep
 from .epileptor import EpileptorStep
 from .fhn import FitzHughNagumoStep
+from .generic_2d_oscillator import Generic2dOscillatorStep
 # Forward models and lead field
 from .forward_model import (
     BOLDSignal,
@@ -54,8 +55,9 @@ from .jansen_rit import (
 )
 from .kuramoto import KuramotoNetwork
 from .larter_breakspear import LarterBreakspearStep
+from .lorenz import LorenzStep
 from .leadfield import LeadfieldReadout
-from .linear import ThresholdLinearStep
+from .linear import ThresholdLinearStep, LinearStep
 # Noise processes
 from .noise import (
     Noise,
@@ -99,6 +101,7 @@ from .wilson_cowan import (
     WilsonCowanThreePopulationStep,
 )
 from .wong_wang import WongWangStep
+from .wong_wang_exc_inh import WongWangExcInhStep
 # Orchestration layer
 from . import objectives
 from .fitter import Fitter, FitResult
@@ -153,7 +156,11 @@ __all__ = [
     'CoombesByrneStep',
     'LarterBreakspearStep',
     'EpileptorStep',
+    'Generic2dOscillatorStep',
+    'WongWangExcInhStep',
+    'LorenzStep',
     'ThresholdLinearStep',
+    'LinearStep',
     'LeadfieldReadout',
     'KuramotoNetwork',
     'StuartLandauStep',

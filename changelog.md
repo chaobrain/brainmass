@@ -4,12 +4,16 @@
 
 ### New Features and Models
 
-- **Model parity (TVB mean-field), sub-project F.** Added three literature-faithful complex
-  mean-field models on the unified `NeuralMassDynamics` base, each with equations + numbered
-  references in the docstring, `exp_euler`-default integration (with `braintools.quad`
-  alternatives), unit/shape/dtype/batched support, gradient flow, and reference-regression
-  tests (RHS-fidelity oracles + published-feature fallbacks, with `requires_tvb`/
-  `requires_tvboptim`-gated live comparisons):
+- **Model parity (TVB mean-field), sub-project F.** Brought brainmass to model parity with the
+  tvboptim node library, adding seven literature-faithful models on the unified
+  `NeuralMassDynamics` base. Each ships equations + numbered references in the docstring,
+  `exp_euler`-default integration (with `braintools.quad` alternatives), unit/shape/dtype/
+  batched support, gradient flow, and reference-regression tests: the RHS is checked against an
+  embedded per-unit-time transcription of the upstream tvboptim equation (`rtol` 1e-6), the
+  short-horizon RK4 trajectory against that same reference (correlation ≥ 0.99), plus
+  always-on dynamical-feature assertions.
+
+  Complex mean-field models (goal-09):
   - `EpileptorStep` — Jirsa et al. (2014). Six state variables `(x1, y1, z, x2, y2, g)` whose
     slow permittivity variable `z` autonomously drives seizure onset/offset; `x0` sets
     epileptogenicity. `lfp()` (`x2 - x1`) proxy.
@@ -17,6 +21,36 @@
     mean field with Na/K/Ca channel gating; `d_V` selects the dynamical regime.
   - `CoombesByrneStep` — Coombes & Byrne (2019). Next-generation (exact) mean field of θ/QIF
     networks in `(r, v)` form; reduces to `MontbrioPazoRoxinStep` (`J = 0`) when `k = 0`.
+
+  Canonical / excitatory–inhibitory models (goal-10):
+  - `Generic2dOscillatorStep` — Sanz-Leon et al. (2015). TVB's flexible planar oscillator
+    `(V, W)` whose polynomial-nullcline coefficients select the regime (excitable, bistable,
+    Morris-Lecar-like).
+  - `WongWangExcInhStep` — Deco et al. (2014). Two-population excitatory–inhibitory reduced
+    Wong–Wang mean field `(S_E, S_I)`, the resting-state workhorse; distinct from the
+    single-population decision-making `WongWangStep`. Exposes `H_e()` / `H_i()` population
+    firing rates.
+  - `LorenzStep` — Lorenz (1963). Chaotic `(x, y, z)` test fixture (use `dt = 0.01 * u.ms`).
+  - `LinearStep` — TVB `Linear` node, `dx/dt = gamma*x + coupling` (distinct from the
+    two-population `ThresholdLinearStep`).
+
+### Documentation
+
+- Converted the narrative guides (`tutorials/*` and `developer/*` plus the FAQ) from
+  reStructuredText to executable Jupyter notebooks, matching the existing `examples/*.ipynb`
+  format and enabling thebe/live cells. In the process, **repaired pre-existing API drift** in
+  several guides that the doctest gate never caught (those examples were display-only
+  `code-block`s): updated `WilsonCowanStep` recurrent-coupling kwargs (`c_EE` → `wEE`/`wEI`/…),
+  the prefetch-based `DiffusiveCoupling`/`AdditiveCoupling` construction API, `KuramotoNetwork`
+  (`omega`/`K` instead of `omega_mean`/`omega_std`), lead-field shapes/units, and the
+  resting-state BOLD driver (`WongWangExcInhStep`/`WilsonCowanStep` instead of the reduced
+  decision-making `WongWangStep`); replaced missing `.npy` connectivity loads with seeded
+  inline synthetic matrices. 12 of the 14 guides now execute with embedded outputs; `faq` and
+  `developer/architecture` ship unexecuted (intentional error-demo fragments / an advanced
+  `brainstate` API not present in the pinned version).
+- Documented the four new canonical/E-I models in `apis/models.rst` (comparison table,
+  autosummary, and runnable usage examples), and disambiguated the `WongWangStep` (reduced
+  decision-making) vs `WongWangExcInhStep` (two-population resting-state) rows.
 
 ## Version 0.0.6 (2026-06-18)
 

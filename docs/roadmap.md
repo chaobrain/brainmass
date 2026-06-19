@@ -22,7 +22,7 @@ though the suggested sequencing (see *Dependencies* at the end) builds the safet
 | **C** | CI / tooling & release hygiene | maintainability | Small–Medium | Planned |
 | **D** | Documentation integrity | documentation | Small–Medium | Done (goal-02) |
 | **E** | Code correctness & structure | maintainability | Medium | Planned |
-| **F** | Model parity (TVB mean-field) | functionality | Medium | In progress (goal-09) |
+| **F** | Model parity (TVB mean-field) | functionality | Medium | Done (goal-09 + goal-10) |
 
 ### What tvboptim does that we can learn from
 
@@ -233,18 +233,20 @@ rule 4, each bug fix starts with a reproducing test.
 
 ## F. Model parity (TVB mean-field)
 
-**Dimension:** functionality · **Effort:** Medium · **Status:** In progress (goal-09)
+**Dimension:** functionality · **Effort:** Medium · **Status:** Done (goal-09 + goal-10)
 
 brainmass ships a solid canonical-oscillator library (FitzHugh–Nagumo, Hopf, Stuart–Landau,
-Van der Pol, Wilson–Cowan family, Jansen–Rit, Montbrió–Pazó–Roxin), but lacks several of the
+Van der Pol, Wilson–Cowan family, Jansen–Rit, Montbrió–Pazó–Roxin), but lacked several of the
 *complex* mean-field models that The Virtual Brain / tvboptim use for whole-brain studies of
-seizures, conductance-based dynamics, and next-generation (exact) mean fields. This
-sub-project closes that gap, porting each model literature-faithfully onto the unified
-``NeuralMassDynamics`` base (goal-05) with equations + numbered references in the docstring,
-``exp_euler``-default integration with ``braintools.quad`` alternatives, and
-**reference-regression tests** mirroring tvboptim's ``test_tvb_comparison`` (correlation
-≥ 0.99 against the upstream equations, gated behind ``requires_tvb`` / ``requires_tvboptim``
-when those packages are not importable, plus an always-on published-feature fallback).
+seizures, conductance-based dynamics, and next-generation (exact) mean fields, as well as a
+handful of canonical TVB nodes. This sub-project closes that gap, porting each model
+literature-faithfully onto the unified ``NeuralMassDynamics`` base (goal-05) with equations +
+numbered references in the docstring, ``exp_euler``-default integration with
+``braintools.quad`` alternatives, and **reference-regression tests**: each model's RHS is
+checked against an embedded, per-unit-time transcription of the upstream tvboptim equation
+(``rtol`` 1e-6), its short-horizon RK4 trajectory against that same reference (correlation
+≥ 0.99), plus always-on dynamical-feature assertions (analytic fixed points, bistability,
+chaos / positive Lyapunov sign, AD-vs-FD gradients).
 
 **Complex mean-field models (goal-09):**
 
@@ -262,12 +264,29 @@ when those packages are not importable, plus an always-on published-feature fall
       :class:`~brainmass.MontbrioPazoRoxinStep` (with ``J = 0``) when the synaptic
       conductance scale ``k = 0`` — validated by that agreement plus an RHS-fidelity oracle.
 
-**Canonical / simple models still missing (goal-10, deferred):**
+**Canonical / simple models (goal-10):**
 
-- [ ] Wong–Wang **excitatory–inhibitory** (Deco et al., 2014) two-population extension of the
-      existing single-population `WongWangStep`.
-- [ ] Remaining canonical/simple TVB nodes not yet in brainmass (e.g. the reduced
-      Wong–Wang/Deco variants and any simple oscillators surfaced by the goal-10 audit).
+- [x] **`Generic2dOscillatorStep`** — Sanz-Leon, Knock, Spiegler & Jirsa (2015). TVB's flexible
+      planar oscillator ``(V, W)`` whose polynomial-nullcline coefficients
+      ``(a, b, c, d, e, f, g, alpha, beta, gamma, I, tau)`` select the regime (excitable,
+      bistable, Morris-Lecar-like). Validated against an analytic cubic-nullcline fixed point,
+      excitable input integration, and an RHS-fidelity oracle across three regimes.
+- [x] **`WongWangExcInhStep`** — Deco, Ponce-Alvarez, Hagmann, Romani, Mantini & Corbetta
+      (2014). Two-population excitatory–inhibitory reduced Wong–Wang mean field ``(S_E, S_I)``,
+      the resting-state workhorse; distinct from the existing single-population decision-making
+      :class:`~brainmass.WongWangStep`. Validated via the resting fixed point (≈3 Hz excitatory
+      rate), monostability from low/high initial conditions, and an RHS-fidelity oracle.
+- [x] **`LorenzStep`** — Lorenz (1963). Chaotic ``(x, y, z)`` test fixture; validated by a
+      short-horizon RK4 trajectory regression, a positive-Lyapunov / exponential-divergence
+      check, and an RHS-fidelity oracle.
+- [x] **`LinearStep`** — TVB ``Linear`` node, ``dx/dt = gamma*x + coupling`` (distinct from the
+      two-population :class:`~brainmass.ThresholdLinearStep`). Validated against the closed-form
+      ``x(t) = x0 * exp(gamma t)`` decay (exp-Euler is exact for linear systems), the forced
+      fixed point ``-c/gamma``, and an RHS-fidelity oracle.
+
+With goal-10 merged, brainmass is at **model parity** with the tvboptim node library across
+the complex mean-field and canonical-oscillator families (see the comparison table in
+``docs/apis/models.rst``).
 
 ---
 

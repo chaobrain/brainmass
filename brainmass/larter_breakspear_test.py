@@ -25,8 +25,6 @@ Always-on validation (TVB / tvboptim not importable in CI):
   point.
 """
 
-import importlib.util
-
 import braintools
 import jax
 import jax.numpy as jnp
@@ -38,11 +36,6 @@ import brainunit as u
 from brainstate.nn import Param
 
 import brainmass
-
-_HAS_TVB = importlib.util.find_spec("tvb") is not None
-_HAS_TVBOPTIM = importlib.util.find_spec("tvboptim") is not None
-requires_tvb = pytest.mark.skipif(not _HAS_TVB, reason="TVB not installed")
-requires_tvboptim = pytest.mark.skipif(not _HAS_TVBOPTIM, reason="tvboptim not installed")
 
 
 # Default parameters, verbatim from tvboptim LarterBreakspear.DEFAULT_PARAMS.
@@ -229,9 +222,3 @@ def test_gradient_ad_vs_fd(dt):
     eps = 1e-3
     g_fd = (loss(x0 + eps) - loss(x0 - eps)) / (2 * eps)
     np.testing.assert_allclose(np.asarray(g_ad), np.asarray(g_fd), rtol=2e-2, atol=1e-3)
-
-
-@requires_tvb
-@requires_tvboptim
-def test_live_tvb_comparison():  # pragma: no cover
-    raise AssertionError("placeholder: enable when tvb + tvboptim are installed")
