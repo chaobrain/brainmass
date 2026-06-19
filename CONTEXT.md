@@ -687,3 +687,61 @@ orchestration (Simulator / Network / Fitter) on top of these primitives.
   `TemporalAverage` + FCD-distribution objectives (this goal) · Balloon-Windkessel ODE BOLD + FC/FCD-matrix
   objectives + `Simulator(sample_every=)` subsampling (pre-existing). **EEG/MEG lead-field forwards remain a
   brainmass-only advantage** (tvboptim has none); sEEG/iEEG noted as future (tvboptim lacks them too).
+
+### 2026-06-19 · goal-13a docs-ia-skeleton
+
+- **Headline — the entire new `docs/` navigation skeleton is in place** (Diátaxis quadrants +
+  persona on-ramps + a data-driven showcase hub), so the ~10 content goals (13b–13m) each only
+  **replace their own placeholder files in place and never edit a shared toctree.** This is the
+  *nav-skeleton-first / replace-only-your-placeholders* rule — honor it to keep the parallel
+  content PRs conflict-free (spec §5 "Nav-conflict rule"). Docs-only goal: **zero `brainmass/`
+  source diff** (`git diff --stat origin/main -- brainmass/` empty); `import brainmass` unchanged.
+- **Final `docs/` tree (top-level dirs):** `getting_started/` (installation, quickstart,
+  key_concepts, learning_paths) · `tutorials/` (01–08) · `howto/` (7 recipes) · `concepts/` (5) ·
+  `data_driven/` (index hub + roadmap.md) · `gallery/` (`model_zoo/` 17 demos + `case_studies/` 5) ·
+  `reference/` (was `apis/`, +observation/datasets/viz placeholders) · `developer/` (unchanged) ·
+  `faq` · `changelog` · `roadmap.md` (internal, excluded). Landing `index.rst` gained the
+  conservative brainmass-vs-TVB-vs-neurolib comparison table + 3 persona on-ramp cards.
+- **Placeholder convention (every net-new file):** valid nbformat-v4 `.ipynb`, **one markdown
+  cell** = `# <Human Title>` + `> **Placeholder** — authored in goal-13<x>. Reserves its
+  navigation slot.`, **no code cells**, stable `kernelspec=python3` metadata so myst-nb parses it.
+  Stamped out with `dev/make_placeholders.py` (gitignored — the whole `dev/` tree is, per CLAUDE.md
+  rule 7; helper not committed). 38 placeholders + 3 `reference/*.rst` stubs.
+- **File→goal ownership map (who replaces what):** 13b api-ergonomics (datasets/viz/list_models +
+  `reference/{datasets,viz,observation}` real pages) · 13c getting_started (installation, quickstart,
+  key_concepts) · 13d tutorials 01–04 · 13e tutorials 05–08 · 13f all 7 howto · 13g all 5 concepts ·
+  13h `gallery/model_zoo/*` (the 17 demos; closes the 9-model gap) · 13i `gallery/case_studies/*` (5) ·
+  13j reference-polish · 13k developer expansion · 13l `data_driven/index` narrative · 13m integration.
+- **Relocations were `git mv` (history preserved):** `apis/`→`reference/`; the 8 existing tutorial
+  notebooks split into `getting_started/`, `howto/`, and renumbered `tutorials/0N_*`. **Gotcha:**
+  moving a notebook changes how its *bare-docname* `{doc}` / `:doc:` cross-refs resolve (MyST/Sphinx
+  resolve a bare name **relative to the referencing doc's directory**). Splitting siblings across
+  dirs broke 24 in-notebook refs (`{doc}`quickstart``, `building_networks`, …). **Fix = rewrite to
+  absolute docnames with a leading slash** (`{doc}`/getting_started/quickstart``) — location-
+  independent, survives any future move. Did the whole apis→reference + moved-notebook + examples→
+  gallery rewrite with small Python regex scripts over `*.rst/*.ipynb/*.md`.
+- **conf.py / build gotchas:**
+  - **examples→gallery rewiring:** removed `shutil.copytree('../examples', './examples')` and the
+    `../examples` lexer wiring; the gallery now lives in-tree under `docs/gallery/`. Kept the
+    `changelog.md` copy, `nb_execution_mode="off"`, doctest setup, theme, extensions. The
+    `fix_ipython2_lexer_in_notebooks` helper **globs one directory non-recursively**, so it's now
+    called once per gallery sub-dir (`gallery/model_zoo`, `gallery/case_studies`); goal-13h drops
+    the real notebooks there.
+  - **autosummary `generated/` is a build artifact — do NOT commit it.** The reorg created
+    `docs/reference/generated/`; the existing `.gitignore` only ignored `docs/apis/generated`
+    (and `*/generated` does NOT match a 3-segment path — gitignore `*` never crosses `/`). Added
+    `docs/reference/generated` + `**/jupyter_execute` to `.gitignore`. A stray `git add -A` had
+    staged 72 generated stubs — unstage + add the ignore rule.
+  - **`docs/roadmap.md` is the internal program roadmap, not public nav** — it was a pre-existing
+    toctree-orphan WARNING on `origin/main`; added it to `exclude_patterns` (the *pillar* roadmap
+    `data_driven/roadmap.md` IS published, linked from the `data_driven/index` placeholder via a
+    MyST `{toctree}`).
+- **Build evidence:** `sphinx-build -b html . _build/html` → **EXIT 0, "build succeeded", 0
+  unknown-document (broken `:doc:`) warnings, 0 toctree-orphan warnings.** The residual ~86–97
+  warnings (`duplicate object description`, docutils field-list/footnote formatting,
+  forward-reference, one myst deprecation) and the 11 docutils `ERROR:` lines are **all pre-existing
+  and emitted from `brainmass/` source docstrings + autosummary** — byte-for-byte the same set as a
+  baseline `origin/main` build (90 warnings / 11 ERRORs there too; goal-13a actually *reduced* the
+  broken-ref + orphan count by fixing `roadmap.md`, `../examples/examples/index`, and a dangling
+  `reference/utilities.rst → 'types'` ref). Cleaning those source-docstring warnings is goal-13j/13m
+  territory, not this docs-only goal.

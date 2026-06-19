@@ -52,6 +52,11 @@ docs/apis/generated
 docs/apis/math/generated
 docs/apis/integrators/generated
 
+# autosummary output for the reorganized reference/ tree (was apis/, goal-13a)
+docs/reference/generated
+docs/reference/_autosummary
+**/jupyter_execute
+
 develop/benchmark/COBA/brian2*
 develop/benchmark/COBA/annarchy*
 develop/benchmark/COBAHH/brian2*

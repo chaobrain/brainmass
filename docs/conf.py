@@ -45,18 +45,20 @@ release = brainmass.__version__
 
 from highlight_lexer import fix_ipython2_lexer_in_notebooks
 
-fix_ipython2_lexer_in_notebooks(
-    os.path.abspath(
-        os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            '../examples'
-        )
-    )
-)
+# The gallery of example notebooks now lives in-tree under ``docs/gallery/`` (goal-13a),
+# split into ``model_zoo/`` and ``case_studies/``. The build no longer copies the flat root
+# ``examples/`` tree in (goal-13h migrates the real example notebooks into the gallery). We
+# still run the ipython2 -> ipython3 lexer fix-up over every gallery notebook so their
+# embedded outputs highlight correctly. ``fix_ipython2_lexer_in_notebooks`` globs a single
+# directory (non-recursive), so apply it to each gallery sub-directory.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _sub in ('gallery/model_zoo', 'gallery/case_studies'):
+    _dir = os.path.join(_HERE, _sub)
+    if os.path.isdir(_dir):
+        fix_ipython2_lexer_in_notebooks(_dir)
 
 import shutil
 
-shutil.copytree('../examples', './examples', dirs_exist_ok=True)
 shutil.copy('../changelog.md', './changelog.md')
 
 # -- General configuration ---------------------------------------------------
@@ -131,7 +133,11 @@ myst_enable_extensions = [
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+# ``roadmap.md`` is the internal improvement-program roadmap (an engineering artifact, not
+# part of the published navigation); excluding it keeps it out of the build and avoids an
+# "isn't included in any toctree" warning. The data-driven *pillar* roadmap lives at
+# ``data_driven/roadmap.md`` and IS published.
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'roadmap.md', '**.ipynb_checkpoints']
 
 html_theme = "sphinx_book_theme"
 html_logo = "https://brainx.chaobrain.com/images/brainmass.webp"
