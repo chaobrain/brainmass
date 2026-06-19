@@ -199,3 +199,165 @@ def test_objectives_are_grad_safe(builder, signals):
 
     g = jax.grad(loss)(1.0)
     assert np.isfinite(float(g))
+
+
+# --------------------------------------------------------------------------- #
+# FCD-distribution primitives: ks_distance / wasserstein_1d / fcd_distribution #
+# --------------------------------------------------------------------------- #
+
+from scipy.stats import ks_2samp, wasserstein_distance  # noqa: E402
+
+
+def test_ks_distance_matches_scipy_exactly():
+    rng = np.random.default_rng(1)
+    a = rng.standard_normal(300)
+    b = rng.standard_normal(250) + 0.4
+    # Build per-value "histograms" on the pooled sorted unique grid so that the
+    # normalised cumulative sums ARE the empirical CDFs evaluated at the data
+    # points -- the exact quantity scipy's ks_2samp maximises.
+    grid = np.unique(np.concatenate([a, b]))
+    pa = np.array([np.sum(a == g) for g in grid], dtype=float)
+    pb = np.array([np.sum(b == g) for g in grid], dtype=float)
+    got = float(objectives.ks_distance(jnp.asarray(pa), jnp.asarray(pb)))
+    expected = float(ks_2samp(a, b).statistic)
+    assert np.isclose(got, expected, atol=1e-6)
+
+
+def test_ks_distance_in_unit_interval():
+    rng = np.random.default_rng(2)
+    p = jnp.asarray(np.abs(rng.standard_normal(50)))
+    q = jnp.asarray(np.abs(rng.standard_normal(50)))
+    d = float(objectives.ks_distance(p, q))
+    assert 0.0 <= d <= 1.0
+
+
+def test_wasserstein_1d_matches_scipy_on_fine_grid():
+    rng = np.random.default_rng(3)
+    a = rng.normal(0.0, 1.0, 4000)
+    b = rng.normal(0.6, 1.3, 4000)
+    grid = np.linspace(-8.0, 8.0, 4000)
+    # densities (normalised histograms) of each sample on the shared grid
+    pa, _ = np.histogram(a, bins=np.r_[grid, grid[-1] + (grid[1] - grid[0])], density=True)
+    pb, _ = np.histogram(b, bins=np.r_[grid, grid[-1] + (grid[1] - grid[0])], density=True)
+    got = float(objectives.wasserstein_1d(jnp.asarray(pa), jnp.asarray(pb), jnp.asarray(grid)))
+    expected = float(wasserstein_distance(a, b))
+    assert np.isclose(got, expected, rtol=2e-2, atol=2e-2)
+
+
+def test_wasserstein_1d_zero_for_identical_inputs():
+    rng = np.random.default_rng(4)
+    p = jnp.asarray(np.abs(rng.standard_normal(100)))
+    x = jnp.linspace(0.0, 5.0, 100)
+    assert float(objectives.wasserstein_1d(p, p, x)) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_wasserstein_1d_is_grad_safe():
+    rng = np.random.default_rng(5)
+    p = jnp.asarray(np.abs(rng.standard_normal(100)))
+    q = jnp.asarray(np.abs(rng.standard_normal(100)))
+    x = jnp.linspace(0.0, 5.0, 100)
+
+    def loss(scale):
+        return objectives.wasserstein_1d(scale * p, q, x)
+
+    g = jax.grad(loss)(1.0)
+    assert np.isfinite(float(g))
+
+
+def test_fcd_distribution_shape_and_normalisation(signals):
+    pred, _ = signals
+    fcd_mat = objectives.fcd(window_size=30, step_size=5)(pred)
+    midpoints = jnp.linspace(-0.99, 0.99, 100)
+    density = objectives.fcd_distribution(fcd_mat, midpoints=midpoints)
+    assert np.asarray(density).shape == (100,)
+    dx = float(midpoints[1] - midpoints[0])
+    integral = float(jnp.sum(density) * dx)
+    assert np.isclose(integral, 1.0, atol=1e-3)
+
+
+def test_fcd_distribution_default_midpoints(signals):
+    pred, _ = signals
+    fcd_mat = objectives.fcd(window_size=30, step_size=5)(pred)
+    density = objectives.fcd_distribution(fcd_mat)
+    assert np.asarray(density).shape == (100,)   # default 100-point grid
+
+
+def test_fcd_distribution_unnormalised_branch(signals):
+    pred, _ = signals
+    fcd_mat = objectives.fcd(window_size=30, step_size=5)(pred)
+    midpoints = jnp.linspace(-0.99, 0.99, 100)
+    raw = objectives.fcd_distribution(fcd_mat, midpoints=midpoints, normalize=False)
+    norm = objectives.fcd_distribution(fcd_mat, midpoints=midpoints, normalize=True)
+    dx = float(midpoints[1] - midpoints[0])
+    # The un-normalised density does not integrate to 1; normalising fixes that.
+    assert not np.isclose(float(jnp.sum(raw) * dx), 1.0, atol=1e-3)
+    assert np.isclose(float(jnp.sum(norm) * dx), 1.0, atol=1e-3)
+
+
+# --------------------------------------------------------------------------- #
+# FCD-distribution objective builders: fcd_ks / fcd_wasserstein               #
+# --------------------------------------------------------------------------- #
+
+def test_fcd_wasserstein_zero_on_identity(signals):
+    pred, _ = signals
+    loss = objectives.fcd_wasserstein(window_size=30, step_size=5)
+    assert float(loss(pred, pred)) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_fcd_ks_zero_on_identity(signals):
+    pred, _ = signals
+    loss = objectives.fcd_ks(window_size=30, step_size=5)
+    assert float(loss(pred, pred)) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_fcd_wasserstein_positive_for_different_signals(signals):
+    pred, target = signals
+    loss = objectives.fcd_wasserstein(window_size=30, step_size=5)
+    assert float(loss(pred, target)) > 0.0
+
+
+def test_fcd_ks_positive_for_different_signals(signals):
+    pred, target = signals
+    loss = objectives.fcd_ks(window_size=30, step_size=5)
+    assert float(loss(pred, target)) > 0.0
+
+
+def test_fcd_wasserstein_is_grad_safe(signals):
+    pred, target = signals
+
+    def loss(scale):
+        return objectives.fcd_wasserstein(window_size=30, step_size=5)(scale * pred, target)
+
+    g = jax.grad(loss)(1.0)
+    assert np.isfinite(float(g))
+
+
+def test_fcd_wasserstein_combines(signals):
+    pred, target = signals
+    combined = objectives.combine(
+        (1.0, objectives.timeseries_rmse()),
+        (0.5, objectives.fcd_wasserstein(window_size=30, step_size=5)),
+    )
+    got = float(combined(pred, target))
+    expected = (1.0 * float(objectives.timeseries_rmse()(pred, target))
+                + 0.5 * float(objectives.fcd_wasserstein(window_size=30, step_size=5)(pred, target)))
+    assert np.isclose(got, expected)
+
+
+@pytest.mark.parametrize('builder', [objectives.fcd_wasserstein, objectives.fcd_ks])
+def test_fcd_builders_accept_explicit_midpoints(builder, signals):
+    pred, target = signals
+    midpoints = jnp.linspace(-0.95, 0.95, 64)
+    loss = builder(window_size=30, step_size=5, midpoints=midpoints)
+    val = float(loss(pred, target))
+    assert np.isfinite(val) and val > 0.0
+
+
+def test_fcd_distribution_degenerate_constant_series_is_nan():
+    # A constant (zero-variance) series gives degenerate FCD off-diagonal values;
+    # the KDE covariance is singular, so the density -- and any distance built on
+    # it -- is nan. Documented: FCD-distribution objectives need non-degenerate,
+    # non-constant input.
+    const = jnp.ones((200, 6))
+    loss = objectives.fcd_wasserstein(window_size=30, step_size=5)
+    assert not np.isfinite(float(loss(const, const)))

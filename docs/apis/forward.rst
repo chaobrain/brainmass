@@ -133,6 +133,105 @@ BOLD signals are typically acquired at TR ~ 1-2 seconds. Downsample high-frequen
    bold_downsampled = bold_signal[::downsample_factor]
 
 
+Convolution-based BOLD (HRF kernels)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+   :template: classtemplate.rst
+
+   HRFBold
+   HRFKernel
+   FirstOrderVolterraHRFKernel
+   GammaHRFKernel
+   DoubleExponentialHRFKernel
+   MixtureOfGammasHRFKernel
+
+:class:`HRFBold` is a second, complementary BOLD path: instead of integrating the
+four-state Balloon-Windkessel ODE, it **convolves** downsampled neural activity
+with a closed-form hemodynamic response function (HRF) kernel, then decimates to
+the repetition time (TR):
+
+.. math::
+
+   \text{BOLD} = k_1 V_0 \,(\,h * y_{\text{ds}} - 1\,),
+
+where :math:`y_{\text{ds}}` is the temporally-averaged neural activity, :math:`h`
+the HRF kernel and :math:`*` 1-D convolution along time.
+
+**When to use which BOLD path:**
+
+.. list-table::
+   :widths: 22 39 39
+   :header-rows: 1
+
+   * - Aspect
+     - :class:`HRFBold` (convolution)
+     - :class:`BOLDSignal` (Balloon-Windkessel)
+   * - Form
+     - Single linear convolution with an HRF kernel
+     - Four-state nonlinear hemodynamic ODE
+   * - Strengths
+     - Fast, simple, differentiable in its few scalar parameters
+     - Physiologically detailed (flow, volume, deoxyhemoglobin)
+   * - Prefer for
+     - **Fitting** / quick BOLD from a long neural trajectory
+     - Biophysical realism
+
+Both are kept; neither replaces the other.
+
+**HRF kernel family.** Four closed-form kernels (each a callable ``kernel(t)``
+returning a dimensionless :math:`h(t)`; ``t`` is a time :class:`~brainunit.Quantity`,
+or a plain array interpreted as milliseconds):
+
+- :class:`FirstOrderVolterraHRFKernel` -- TVB canonical underdamped damped-oscillator
+  (Friston et al. 2000).
+- :class:`GammaHRFKernel` -- peak-normalised gamma pdf (Boynton et al. 1996).
+- :class:`DoubleExponentialHRFKernel` -- damped-oscillation difference (Polonsky et al. 2000).
+- :class:`MixtureOfGammasHRFKernel` -- difference of gammas / SPM canonical (Glover 1999).
+
+**Example:**
+
+>>> import brainmass
+>>> import brainunit as u
+>>> import jax.numpy as jnp
+>>> t = jnp.arange(2000.)
+>>> z = 1.0 + 0.5 * jnp.sin(2 * jnp.pi * t[:, None] / 800.0)   # slow neural drive
+>>> bold = brainmass.HRFBold(
+...     period=200. * u.ms, downsample_period=4. * u.ms,
+...     kernel=brainmass.FirstOrderVolterraHRFKernel(duration=400. * u.ms),
+... )
+>>> y = bold(z, dt=1. * u.ms)
+>>> y.shape[1]
+1
+
+
+Temporal Averaging
+^^^^^^^^^^^^^^^^^^
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+   :template: classtemplate.rst
+
+   TemporalAverage
+
+:class:`TemporalAverage` downsamples a trajectory by averaging over non-overlapping
+windows of ``w = round(period / dt)`` samples (``y[k] = mean(signal[k*w : (k+1)*w])``;
+trailing partial windows are dropped). It is the **averaging** complement to the
+point-decimation ``Simulator(sample_every=k)`` subsampling -- smoother and
+anti-aliased -- and is the downsampler :class:`HRFBold` uses internally. Apply it as
+a post-transform on a run trajectory:
+
+>>> import brainmass
+>>> import brainunit as u
+>>> import jax.numpy as jnp
+>>> signal = jnp.arange(20.).reshape(20, 1)
+>>> brainmass.TemporalAverage(period=5. * u.ms)(signal, dt=1. * u.ms).shape
+(4, 1)
+
+
 EEG/MEG Lead-Field Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

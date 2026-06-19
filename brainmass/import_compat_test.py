@@ -146,3 +146,27 @@ def test_unknown_attribute_raises():
     """An attribute that is neither current nor a legacy alias raises."""
     with pytest.raises(AttributeError):
         _ = brainmass.DefinitelyNotAModelName
+
+
+# --- goal-12 observation layer: new module + objectives functions resolve ---
+
+_OBSERVATION_SYMBOLS = [
+    'HRFKernel', 'FirstOrderVolterraHRFKernel', 'GammaHRFKernel',
+    'DoubleExponentialHRFKernel', 'MixtureOfGammasHRFKernel',
+    'TemporalAverage', 'HRFBold',
+]
+
+
+def test_observation_module_path_resolves():
+    """``brainmass.observation.<name>`` resolves to the same top-level object."""
+    mod = importlib.import_module('brainmass.observation')
+    for s in _OBSERVATION_SYMBOLS:
+        assert getattr(mod, s, None) is not None, f"brainmass.observation missing {s}"
+        assert getattr(brainmass, s) is getattr(mod, s), f"{s} diverged from brainmass.{s}"
+
+
+def test_objectives_fcd_distribution_functions_resolve():
+    """The goal-12 FCD-distribution objectives are exposed on ``brainmass.objectives``."""
+    for s in ['fcd_distribution', 'ks_distance', 'wasserstein_1d', 'fcd_ks', 'fcd_wasserstein']:
+        assert getattr(brainmass.objectives, s, None) is not None, s
+        assert s in brainmass.objectives.__all__, f"{s} not in objectives.__all__"

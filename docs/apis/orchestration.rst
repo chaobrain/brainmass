@@ -82,6 +82,11 @@ reimplementing any metric maths. The callables are designed to be composed via
    fc_rmse
    cosine_sim
    fcd
+   fcd_distribution
+   ks_distance
+   wasserstein_1d
+   fcd_ks
+   fcd_wasserstein
    combine
 
 .. autofunction:: timeseries_rmse
@@ -95,6 +100,32 @@ reimplementing any metric maths. The callables are designed to be composed via
 .. autofunction:: fcd
 
 .. autofunction:: combine
+
+
+FCD-distribution objectives
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The standard FCD fitting target is the *distribution* of the FCD matrix's
+off-diagonal values, not the matrix correlation (:func:`fcd`). These builders
+compare that distribution between prediction and target: each computes the FCD of
+both, kernel-density-estimates the off-diagonal values onto a shared grid, and
+returns a distributional distance.
+
+:func:`wasserstein_1d` is **smooth and differentiable**, so :func:`fcd_wasserstein`
+is the recommended FCD objective for gradient-based fitting; :func:`ks_distance`
+(the literature-standard Kolmogorov-Smirnov statistic) is a non-smooth supremum, so
+:func:`fcd_ks` is best for evaluation / reporting. A degenerate (constant,
+zero-variance) input yields a singular KDE and a ``nan`` distance.
+
+.. autofunction:: fcd_distribution
+
+.. autofunction:: ks_distance
+
+.. autofunction:: wasserstein_1d
+
+.. autofunction:: fcd_ks
+
+.. autofunction:: fcd_wasserstein
 
 
 See Also
