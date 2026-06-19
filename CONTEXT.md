@@ -1002,3 +1002,75 @@ Gotchas inherited: (a) execute notebooks with PYTHONPATH=<worktree-root> jupyter
 - **Curated links — all 9 verified to exist on origin/main BEFORE authoring AND resolve in built HTML** (grep'd `_build/html/data_driven/index.html` for real `.html` hrefs, zero `#` dead anchors): tutorials `/tutorials/06_fitting_with_gradients`·`07_gradient_free_fitting`·`08_training_on_tasks`; case studies `/gallery/case_studies/eeg_fitting`·`horn_cognitive_task`; how-to `/howto/custom_objective`·`parameter_sweeps`·`analyze_results`; developer `/developer/building_a_data_driven_workflow`; concepts `/concepts/why_differentiable`·`what_is_a_neural_mass_model`. All ABSOLUTE docnames (leading slash). Used `{doc}`/`{class}`/`{mod}` roles that are already in heavy use across tracked notebooks (9× `{mod}`brainmass.datasets``, etc.) — no new untested role pattern. **No `[text](#slug)` same-page fragment links** (the goal-13k trap) — replaced one `[guided path](#a-guided-path)` with plain prose.
 - **Roadmap `roadmap.md` — fleshed the 3 deferred homes, each with a contract pointing to `/developer/building_a_data_driven_workflow`** (the reciprocal of that playbook's "where this is going" pointer at `/data_driven/roadmap` — the bidirectional link is the contract): (1) **discovery / system identification** (sparse/symbolic regression, latent-ODE; registers datasets via `brainmass.datasets`); (2) the task-shaped **`Trainer`** — cites the CONCRETE gap verbatim from 13e/13k: `Fitter` fits one fixed target so **no minibatch / no epoch loop / no held-out metric**, plus the second gap **`HORNStep.init_state` ignores `batch_size`** (velocity `y` left unbatched → scan-carry `(B,32)` vs `(32,)` mismatch; notebooks manually broadcast as the workaround a `Trainer` should own); (3) **simulation-based / amortized inference** (point estimate → posterior; vmap-generated sim banks). Closing "stable contract" section lists the 4 public surfaces (`Param(fit=True)` / objectives callable / `datasets` / `Simulator`+`Network`) all three build against.
 - **make html:** baseline (detached `git worktree add --detach /tmp/bm_base_13l origin/main`, `make clean` first) and worktree both **build succeeded, 129 raw warnings / 114 unique normalized** (strip worktree path + `:LINE:`), **byte-identical: 0 new, 0 removed** — same pre-existing autosummary-duplicate + WilsonCowan/LeadfieldReadout source-docstring set as goals 13j/13k. `nb_execution_mode="off"` renders the committed teaser output (`recovered a = 1.500` grep-confirmed in HTML); the notebook was executed out-of-band with `PYTHONPATH=<worktree> jupyter nbconvert --execute` (site-packages brainmass is stale 0.0.5). Build helper `dev/build_datadriven_hub.py` is gitignored (dev/ per CLAUDE.md rule 7).
+
+
+### 2026-06-19 · goal-13m integration-qa
+
+**Capstone — the new documentation site is coherent and ship-ready.** Docs + README only;
+`git diff --stat origin/main -- brainmass/` **empty** (zero source change). Surgical change set:
+4 files modified (`README.md`, `changelog.md`, `docs/conf.py`, `docs/developer/index.rst`) + the
+legacy `examples/` tree (17 notebooks + `index.rst`) `git rm`'d.
+
+- **Placeholders: ZERO.** `grep -rln "Placeholder" docs/` → no matches (all 38 placeholders +
+  3 reference stubs filled by 13b–13l; no intentional stubs left in nav).
+- **Clean build gate PASSED.** `make clean && make html` on BOTH the worktree and a detached
+  `origin/main` baseline (`/tmp/bm_base_13m`): both **build succeeded, 129 raw warnings / 114 unique
+  normalized** (strip worktree path + `:LINE:` / `line N`), **byte-identical — 0 new, 0 removed**.
+  All 114 are pre-existing `brainmass/` source-docstring formatting: 43 `[docutils]` field-list +
+  18 `[ref.footnote]` "not referenced" + 2 `sphinx_autodoc_typehints.forward_reference` + 2
+  `mystnb.config`, plus the 11 `[docutils]` ERROR lines — every one emitted from source I'm forbidden
+  to touch. **Zero broken-ref / orphan / xref-missing / nonexisting-document** warnings in either
+  build (explicit grep). `make doctest` **257 tests, 0 failures** (EXIT 0) — unchanged from 13j.
+- **Legacy `examples/` retired.** `cp -a examples/. dev/legacy_examples/` (preserved on disk,
+  gitignored — `dev/` per CLAUDE.md rule 7) then `git rm -r examples/`. Superseded by `docs/gallery/`
+  (model_zoo = the 17 modernized demos; case_studies/resting_state_meg replaces the kagglehub MEG
+  notebook with the bundled synthetic connectome). `conf.py` was already free of `examples` build
+  wiring (goal-13a dropped the `shutil.copytree('../examples', …)`); updated its two stale comment
+  blocks (the "examples/ … 100-modeling… kagglehub" note) to describe the gallery instead. The root
+  research `tutorials/*.py` + `tutorials/data/` are **gitignored and untouched** (not present in a
+  fresh worktree — they live only in the primary checkout; "keep as-is" satisfied trivially).
+- **README rewrite:** Quick Start now uses the high-level `Simulator` (no hand-rolled `for_loop`) +
+  `Network` + `Fitter` snippets; replaced the single dead `tutorials/quickstart.html` link with a
+  full **Documentation** section linking all 8 quadrants (getting_started / tutorials / howto /
+  concepts / data_driven / gallery / reference / developer). Citation/version verified `0.0.6`
+  (matches `brainmass/_version.py`).
+- **Cross-link pass:** every quadrant `index.rst` links onward (tutorials↔howto↔concepts,
+  gallery→data_driven, reference high-level entry points, developer See-Also); the 3 persona
+  on-ramps in `getting_started/learning_paths.rst` resolve end-to-end (all `:doc:` absolute
+  docnames present); the landing `index.rst` toctrees (Get Started / Learn / Showcase / Reference /
+  Additional Resources) are coherent. Fixed one drift in `developer/index.rst` (`pytest tests/` →
+  `pytest brainmass/` — co-located tests, no `tests/` dir, CLAUDE.md rule 9).
+- **Redirects (best-effort = documented, the cheap+robust option):** no `sphinx-reredirects`
+  dependency added (would risk the warning gate for no real gain on a static-host doc set). Instead
+  documented the high-traffic moves in `changelog.md`: `apis/index`→`reference/index`,
+  `tutorials/quickstart`→`getting_started/quickstart`, plus the tutorial split across
+  getting_started/howto/tutorials. All live `:doc:` refs already use absolute docnames (goal-13a),
+  so no in-tree link is dangling — the only `apis/`/`tutorials/quickstart` strings left in docs are
+  the changelog prose documenting the moves.
+
+**goal-13 PROGRAM OUTCOME (13a–13m, the documentation refactor + supporting API ergonomics):**
+- **New information architecture (Diátaxis + personas + showcase):** `getting_started/` (install,
+  quickstart, key_concepts, learning_paths) · `tutorials/` (sequential 01–08) · `howto/` (7 recipes)
+  · `concepts/` (5 explanations) · `data_driven/` (the flagship narrative hub + roadmap) · `gallery/`
+  (17-model zoo + 5 case studies) · `reference/` (was `apis/`; every one of the 84 `__all__` symbols
+  documented on exactly one page) · `developer/` (contributing + 3 new extension playbooks). Landing
+  page has the conservative brainmass-vs-TVB-vs-neurolib table + 3 persona on-ramps. **The 9-model
+  user-facing-example gap is closed** (every model family now has a runnable gallery demo). All
+  narrative guides are **executable Jupyter notebooks** with real embedded outputs (`nb_execution_mode
+  ="off"` — executed out-of-band with `PYTHONPATH=<worktree>` since site-packages brainmass is a stale
+  0.0.5); honesty kept by `sphinx.ext.doctest` (257 docstring/RST `>>>` tests).
+- **Supporting API additions (goal-13b, the only `brainmass/` source change in the program, shipped
+  before 13m's docs-only freeze):** `brainmass.datasets` (bundled synthetic connectome / signal /
+  delayed-match task + an extensible registry), `brainmass.viz` (thin lazy-matplotlib plotting
+  helpers behind the `[viz]` extra), and `brainmass.list_models()` / `ModelInfo` (a curated 20-record
+  catalogue with `.to_table()`). All 100% covered, used throughout 13c–13l.
+- **Data-driven showcase:** `data_driven/index` is the headline — the "construct / fit / train" three
+  verbs, a runnable Hopf settled-amplitude grad-fit teaser (recovers a=1.500), and a 5-stage guided
+  path linking the differentiable tutorials, case studies, how-tos, and the workflow playbook.
+- **Deferred (homes reserved in `data_driven/roadmap.md`, each with a bidirectional contract to
+  `developer/building_a_data_driven_workflow`):** (1) **model discovery / system identification**
+  (sparse/symbolic regression, latent-ODE); (2) a task-shaped **`Trainer`** — `Fitter` fits one fixed
+  target (no minibatch / no epoch loop / no held-out metric) and `HORNStep.init_state` ignores
+  `batch_size`, both of which a `Trainer` should own; (3) **simulation-based / amortized inference**
+  (point estimate → posterior). The 4 stable public surfaces all three build against:
+  `Param(fit=True)`, the objective callable contract, `brainmass.datasets`, and `Simulator`+`Network`.
