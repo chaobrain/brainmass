@@ -48,7 +48,7 @@ The ``brainmass`` package provides the following components:
    * - :doc:`viz`
      - Thin plotting helpers for time series, connectivity, and spectra
    * - :doc:`utilities`
-     - Utility functions for common operations
+     - Utility functions, the model catalogue, and public type aliases
 
 
 Quick Navigation
@@ -121,7 +121,21 @@ Quick Navigation
 General API Conventions
 -----------------------
 
-All neural mass models and dynamics classes in ``brainmass`` follow these conventions:
+**High-level entry points:**
+
+Most workflows go through three orchestration classes (see :doc:`orchestration`)
+rather than driving the step models by hand:
+
+- :class:`Simulator` -- wraps any model (a single node or a whole-brain
+  :class:`Network`) in the compiled run loop and collects monitored trajectories
+  into a unit-aware result dict.
+- :class:`Network` -- wires a node model into a delay-coupled whole-brain network
+  from a connectome.
+- :class:`Fitter` -- fits a model's trainable parameters to data behind one
+  ``.fit`` call, swapping gradient / Nevergrad / SciPy backends.
+
+The per-step conventions below describe the underlying model contract that these
+entry points build on.
 
 **Initialization:**
 

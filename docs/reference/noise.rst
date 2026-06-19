@@ -115,6 +115,21 @@ For custom use cases, generate noise samples directly:
 API Reference
 -------------
 
+Base Class
+^^^^^^^^^^
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+   :template: classtemplate.rst
+
+   Noise
+
+:class:`Noise` is the abstract base every noise process subclasses; it defines the
+common ``in_size`` / ``update`` contract. Instantiate one of the concrete processes
+below rather than :class:`Noise` directly.
+
+
 Stateless Noise
 ^^^^^^^^^^^^^^^
 

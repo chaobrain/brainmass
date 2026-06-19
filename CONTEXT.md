@@ -936,3 +936,51 @@ Gotchas inherited: (a) execute notebooks with PYTHONPATH=<worktree-root> jupyter
 - **⚠ Build-helper re-run trap (cost a clobber-and-recover cycle):** the gitignored `dev/build_case_studies.py` regenerates **all 5** notebooks (stripping outputs). After executing 3, I edited the spec + re-ran the builder to fix HORN → it **silently overwrote the 3 already-executed notebooks back to un-executed**. They showed `errors=0` but ALSO `outputs=0` (the tell). **Lesson: after ANY builder re-run, re-execute EVERY notebook, not just the changed one** — or check file size / output-count, not just exit code. (Also: `jq '.cells[].outputs[]?'` returned empty/`null` and masked this; a small Python `json.load` loop counting `output_type`/`image/png` per cell is the reliable check.)
 - **Per-model API confirmations (executed):** `WongWangStep` = reduced **decision** model, `update(coherence=)` → `(r1,r2)` Hz, states `S1`/`S2`, noise via `noise_s1`/`noise_s2` (`GaussianNoise(N, sigma=…*u.nA)`); distinct from `WongWangExcInhStep`. `JansenRitStep.update` takes a 3-tuple `(M_inp*u.mV, E_inp*u.Hz, I_inp*u.mV)` via `Simulator(inputs=lambda i,t: (...))`; `eeg()` = `E−I` mV. **MEG forward from an mV source: use base `LeadFieldModel(sensor_unit=u.tesla, scale=u.nA*u.meter/u.mV)`** — `MEGLeadFieldModel`'s hardcoded `scale=nA·m/tesla` is dimensionally wrong for an mV source and yields mV not T (the standing goal-13e MEG-scale note, confirmed again).
 - **make html:** baseline (detached `git worktree add --detach /tmp/bm_base_13i origin/main`, `make clean` first) and worktree both **build succeeded, 108 warnings / 93 unique normalized** (strip worktree path + `:LINE:`), **byte-identical: 0 new, 0 removed** — same pre-existing autosummary-duplicate + source-docstring set as goals 13a–13h. `nb_execution_mode="off"` renders committed outputs; all 5 case studies appear in `_build/html/gallery/case_studies/*.html` with their real results (e.g. "fitted C", "final test accuracy" grep-confirmed in the HTML). Only the 5 `docs/gallery/case_studies/*.ipynb` are tracked changes; `dev/` + `_build/` + `*/generated` stay gitignored.
+
+### 2026-06-19 · goal-13j reference-polish
+- **Headline — the API reference is now COMPLETE: every one of the 84 `brainmass.__all__`
+  symbols is documented on exactly ONE reference page** (audit script over `__init__.py`
+  `__all__` × the autosummary/`.. data::` entries of every `reference/*.rst`: 0 missing, 0
+  duplicated; only `__version__`/`__version_info__` are intentionally un-autosummary'd version
+  metadata). Docs-only: `git diff --stat origin/main -- brainmass/` **empty**; 6 RST files changed
+  (`forward`, `index`, `models`, `noise`, `observation`, `utilities`). `make doctest` **257 tests,
+  0 failures**; `make html` **build succeeded**.
+- **Coverage gaps found + where fixed:** `XY_Oscillator` + `JansenRitTR` + the **10 WilsonCowan
+  variants** (`WilsonCowanNoSaturationStep`/`Symmetric`/`Simplified`/`Linear`/`Divisive`/
+  `DivisiveInput`/`Delayed`/`Adaptive`/`ThreePopBase`/`ThreePopulationStep`) → `models.rst` (new
+  "Wilson-Cowan Variants" section + an Oscillator-base note + a JansenRitTR note); **`Noise`** base
+  → `noise.rst` (new "Base Class" section); **`LeadfieldReadout`** → `forward.rst` lead-field
+  autosummary (+ a unit-aware-`LeadFieldModel`-vs-trainable-`LeadfieldReadout` "use which" note);
+  **`delay_index`** + type aliases **`Initializer`/`Array`/`Parameter`** → `utilities.rst` (aliases
+  via `.. data::`, NOT autosummary — they are `typing.Union`/`ArrayLike`, not classes/functions, so
+  autosummary/autoclass would warn). Renamed the utilities page title to "Utilities & Types".
+- **⚠ THE canonical-page trap (the central design decision):** the 7 observation symbols
+  (`HRFKernel`, the 4 HRF kernels, `HRFBold`, `TemporalAverage`) were **already autosummary'd on
+  `forward.rst`** (goal-12). Authoring `observation.rst` with its own autosummary would have created
+  **7 NEW `duplicate object description` warnings** (the exact failure mode the goal warned about).
+  Fix: made **`observation.rst` the single canonical home** (full autosummary + intro + math +
+  runnable `>>>` doctests) and **removed those autosummary entries from `forward.rst`**, replacing
+  them with `:class:~brainmass.X` cross-refs + a `:doc:observation` pointer. Result: duplicate-object
+  warnings **53 → 53 (zero delta)**. Lesson for any future "add a page" docs goal: grep the existing
+  `reference/*.rst` for the symbol FIRST; if it's already autosummary'd elsewhere, MOVE it (don't
+  add a second `:toctree:` entry) — cross-reference with `:class:`/`:func:` instead.
+- **⚠ make html warning delta is +21 raw (108→129) / +21 unique normalized (93→114), and it is
+  EXPECTED + benign:** all 21 are pre-existing **source-docstring** formatting warnings
+  (`[docutils]` "Field list ends without a blank line" ×11 + `[ref.footnote]` "Footnote [1]/[2] is
+  not referenced" ×10) emitted from the `brainmass/` docstrings of the **WilsonCowan variants +
+  LeadfieldReadout** — symbols that had **never been rendered into any page before** (no autosummary
+  entry → autodoc never ran on them). Documenting them (the goal's whole point) makes autosummary
+  generate their stub pages, which surfaces the latent docstring warnings. **0 new broken-ref, 0 new
+  orphan, 0 new/changed duplicate-object, 0 removed** — the only gated categories are all clean; all
+  my `:class:`/`:doc:` cross-refs resolve. These warnings live in source I'm forbidden to touch
+  (`git diff --stat origin/main -- brainmass/` empty); a fast follow-up could fix the WilsonCowan/
+  LeadfieldReadout docstrings (blank line before the field-list end; add `[1]`/`[2]` in-text
+  back-references) to retire all 21 at the source.
+- **Baseline method (unchanged from 13e–13i):** detached `git worktree add --detach /tmp/bm_base_13j
+  origin/main`, `make clean` first on BOTH sides, normalize by stripping the worktree path +
+  `:LINE:`, then `comm` the sorted-unique sets — the incremental build re-emits only changed-page
+  warnings and lies, so the clean normalized diff is the gate.
+- **index.rst** already listed all pages (table + quick-nav cards + toctree, from 13a/13b); added a
+  "High-level entry points" lead-in to the API-conventions section naming `Simulator`/`Network`/
+  `Fitter` and pointed the utilities row at "type aliases". `datasets.rst`/`viz.rst` (13b) verified
+  complete + style-consistent (autosummary-only house style) — no changes needed.
