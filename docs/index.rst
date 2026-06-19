@@ -189,7 +189,10 @@ BrainX Ecosystem
    :maxdepth: 2
    :caption: Get Started
 
-   getting_started/index
+   getting_started/installation
+   getting_started/quickstart
+   getting_started/key_concepts
+   getting_started/learning_paths
 
 .. toctree::
    :hidden:
