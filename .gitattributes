@@ -1,3 +1,47 @@
+# Normalize all text files to LF in the repository; check out with LF.
 * text=auto eol=lf
+
+# Windows scripts must stay CRLF.
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Explicit text types with language-aware diffs.
+*.py   text diff=python
+*.pyx  text diff=python
+*.pyi  text diff=python
+*.rst  text
+*.md   text
+*.txt  text
+*.cfg  text
+*.ini  text
+*.toml text
+*.yml  text
+*.yaml text
+*.cff  text
+*.json text
+*.sh   text eol=lf
+*.ipynb text
+
+# Binary assets: never EOL-normalized or diffed as text.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.svg   binary
+*.ico   binary
+*.pdf   binary
+*.npy   binary
+*.npz   binary
+*.h5    binary
+*.hdf5  binary
+*.pkl   binary
+*.woff  binary
+*.woff2 binary
+
+# Linguist: keep docs, tutorials and notebooks out of the language stats so the
+# repo reads as a Python library. Notebooks are counted as documentation.
+docs/**      linguist-documentation
+tutorials/** linguist-documentation
+*.ipynb      linguist-documentation linguist-language=Python
+changelog.md linguist-documentation
