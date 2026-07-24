@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use BrainMass in your research, please cite the archived release on Zenodo."
+title: "chaobrain/brainmass: Version 0.1.0"
+type: software
+authors:
+  - given-names: Chaoming
+    family-names: Wang
+  - name: Catttyfyx
+  - name: xinzhu-L
+version: v0.1.0
+doi: 10.5281/zenodo.20762193
+date-released: 2026-06-19
+url: "https://github.com/chaobrain/brainmass"
+repository-code: "https://github.com/chaobrain/brainmass"
+license: Apache-2.0

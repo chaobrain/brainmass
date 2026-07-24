@@ -177,6 +177,33 @@ simulation-based inference).
 
 ----
 
+Citing brainmass
+^^^^^^^^^^^^^^^^^
+
+If you use brainmass in your research, please cite the archived release on Zenodo.
+
+.. image:: https://zenodo.org/badge/1049630211.svg
+   :target: https://doi.org/10.5281/zenodo.20762192
+   :alt: DOI
+
+.. code-block:: bibtex
+
+   @software{chaoming_wang_2026_20762193,
+     author       = {Chaoming Wang and
+                     Catttyfyx and
+                     xinzhu-L},
+     title        = {chaobrain/brainmass: Version 0.1.0},
+     month        = jun,
+     year         = 2026,
+     publisher    = {Zenodo},
+     version      = {v0.1.0},
+     doi          = {10.5281/zenodo.20762193},
+     url          = {https://doi.org/10.5281/zenodo.20762193},
+   }
+
+
+----
+
 BrainX Ecosystem
 ^^^^^^^^^^^^^^^^
 

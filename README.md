@@ -10,6 +10,7 @@
 [![CI](https://github.com/chaobrain/brainmass/actions/workflows/CI.yml/badge.svg)](https://github.com/chaobrain/brainmass/actions/workflows/CI.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Docs](https://readthedocs.org/projects/brainmass/badge/?version=latest)](https://brainx.chaobrain.com/brainmass/)
+[![DOI](https://zenodo.org/badge/1049630211.svg)](https://doi.org/10.5281/zenodo.20762192)
 
 BrainMass is a Python library for whole-brain computational modeling using differentiable neural mass models. Built on
 JAX for high-performance computing, it provides tools for simulating brain dynamics, fitting neural signal data, and
@@ -132,15 +133,27 @@ The full documentation is organized for different goals:
 
 ## Citation
 
-If you use BrainMass in your research, please cite:
+If you use BrainMass in your research, please cite the archived release on Zenodo
+([DOI: 10.5281/zenodo.20762192](https://doi.org/10.5281/zenodo.20762192)):
 
 ```bibtex
-@software{brainmass,
-  title={BrainMass: Whole-brain modeling with differentiable neural mass models},
-  author={BrainMass Developers},
-  url={https://github.com/chaobrain/brainmass},
-  version={0.1.0},
-  year={2026}
+@software{chaoming_wang_2026_20762193,
+  author       = {Chaoming Wang and
+                  Catttyfyx and
+                  xinzhu-L},
+  title        = {chaobrain/brainmass: Version 0.1.0},
+  month        = jun,
+  year         = 2026,
+  publisher    = {Zenodo},
+  version      = {v0.1.0},
+  doi          = {10.5281/zenodo.20762193},
+  url          = {https://doi.org/10.5281/zenodo.20762193},
+  swhid        = {swh:1:dir:38b86b9216559a6cfd2a4f6b7325fc9c444fbaa9
+                   ;origin=https://doi.org/10.5281/zenodo.20762192;vi
+                   sit=swh:1:snp:b47f4abfd6c7e4fb4ac20f2367b46100c865
+                   01f8;anchor=swh:1:rel:ae0f8da161588d4af993a702181a
+                   1e2307916d2e;path=chaobrain-brainmass-e09e9f6
+                  },
 }
 ```
 
